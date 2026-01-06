@@ -1,1 +1,380 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Простой тренажер - Арабские слова</title>
 
+  <script defer src="https://cloud.umami.is/script.js" data-website-id="c36890d7-f350-4f42-acbf-0fae5d376929"></script>
+  
+  <style>
+    body { background: #fff; color: #000; font-family: Arial, sans-serif; margin: 20px; }
+    #main { max-width: 900px; margin: auto; }
+    .hidden { display: none !important; }
+    .button { padding: 10px 16px; margin: 8px; font-size: 1em; cursor: pointer; }
+    .home-btn{display:inline-block;padding:10px 20px;margin-bottom:20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;transition:opacity .3s}
+    .home-btn:hover{opacity:.9}
+    #progress { margin-top: 12px; font-size: 1.1em; }
+
+    #arabic-word {
+      font-size: 2rem;
+      padding: 12px;
+      white-space: nowrap;
+      overflow-x: auto;
+      background: #f5f5f5;
+      border-radius: 8px;
+      width: 48%;
+      margin-left: 0;
+      margin-right: auto;
+      text-align: right;
+      direction: rtl;
+    }
+
+    #correct-list, #mistake-list { max-height: 160px; overflow-y: auto; background: #fafafa; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+    textarea { width: 100%; height: 150px; font-size: 1em; }
+    input[type="text"] { width: 60%; font-size: 1em; padding: 6px; }
+    blockquote { margin: 16px 0; }
+    #intro { background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+    #intro h1 { font-size: 1.5em; }
+    #intro p { font-size: 1.1em; }
+    #intro blockquote { direction: rtl; font-size: 2em; margin: 12px 0; }
+
+    .overlay { position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.45); display:flex; align-items: center; justify-content: center; z-index: 10000; }
+    .modal { background: #fff; width: 760px; max-width: 95%; border-radius: 8px; box-shadow: 0 6px 30px rgba(0,0,0,0.25); padding: 18px 20px; box-sizing: border-box; }
+    .modal h2 { font-size: 26px; margin: 0 0 8px 0; font-weight: 700; }
+    .modal .label { font-size: 16px; margin-bottom: 6px; color: #222; }
+    .modal .row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+    .modal .left { flex: 0 0 auto; width: 48%; text-align: left; }
+    .modal .right { flex: 1 1 auto; text-align: right; direction: rtl; }
+    .modal .answer { font-weight: 700; font-size: 20px; }
+    .modal .controls { display:flex; justify-content:flex-end; margin-top: 14px; }
+    .close-btn { background:#f4f4f4; color:#222; border:1px solid #bfbfbf; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:14px; }
+
+    .oral-btn {
+      background: #e8f5e9;
+      border: 1px solid #81c784;
+    }
+    .oral-btn:hover { background: #c8e6c9; }
+
+    .forgot-btn {
+      background: #ffebee;
+      border: 1px solid #e57373;
+    }
+    .forgot-btn:hover { background: #ffcdd2; }
+
+    .copy-btn {
+      background: #e3f2fd;
+      border: 1px solid #64b5f6;
+      padding: 6px 12px;
+      font-size: 0.9em;
+      cursor: pointer;
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+    .copy-btn:hover { background: #bbdefb; }
+
+    .copy-success {
+      color: #4caf50;
+      font-size: 0.9em;
+      margin-left: 8px;
+    }
+
+    @media (max-width:480px) {
+      .modal { padding: 12px; }
+      .modal h2 { font-size: 20px; }
+      .modal .answer { font-size: 18px; }
+      #arabic-word { width: 90%; }
+    }
+  </style>
+</head>
+<body>
+  <div id="main">
+    <a href="index.html" class="home-btn">← Вернуться на главную</a>
+    
+    <!-- Начальный экран с дуа -->
+    <div id="intro">
+      <h1>Перед началом тренировок</h1>
+      <p>Дуа:</p>
+      <blockquote>رَّبِّ زِدْنِى عِلْمًۭا</blockquote>
+      <p>«Господь мой! Приумножь мои знания»</p>
+      <button id="done-dua" class="button">Я сделал дуа</button>
+    </div>
+
+    <!-- Кнопка старта -->
+    <div id="controls" class="hidden">
+      <button id="start-all" class="button">Начать тренировку</button>
+    </div>
+
+    <!-- Сам тренажёр -->
+    <div id="trainer" class="hidden">
+      <div id="progress"></div>
+      <h2 id="arabic-word"></h2>
+      <input type="text" id="answer-input" placeholder="Введите перевод" autofocus>
+      <button id="submit-answer" class="button">Ответить</button>
+      <button id="oral-answer" class="button oral-btn">Ответил устно</button>
+      <button id="forgot-answer" class="button forgot-btn">Я забыл</button>
+
+      <h3>Правильно:</h3>
+      <div id="correct-list"></div>
+
+      <h3>Ошибки:</h3>
+      <div id="mistake-list"></div>
+      <div id="copy-mistakes-container" class="hidden">
+        <button id="copy-mistakes" class="copy-btn">Копировать ошибки</button>
+        <span id="copy-success" class="copy-success hidden">Скопировано!</span>
+      </div>
+
+      <div id="after-session" class="hidden">
+        <button id="retry-all" class="button">Пройти заново</button>
+        <button id="start-mistakes" class="button hidden">Работа над ошибками</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- root для модалки -->
+  <div id="modal-root"></div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      let allWords = [], sessionWords = [], mistakes = [], mistakeLines = [], total = 0, currentIndex = 0;
+      let modalTimer = null;
+
+      const intro = document.getElementById('intro');
+      const controls = document.getElementById('controls');
+      const trainer = document.getElementById('trainer');
+      const doneDua = document.getElementById('done-dua');
+      const startAllBtn = document.getElementById('start-all');
+      const retryAllBtn = document.getElementById('retry-all');
+      const startMistakesBtn = document.getElementById('start-mistakes');
+      const arabicWordH2 = document.getElementById('arabic-word');
+      const progressDiv = document.getElementById('progress');
+      const answerInput = document.getElementById('answer-input');
+      const submitBtn = document.getElementById('submit-answer');
+      const oralBtn = document.getElementById('oral-answer');
+      const forgotBtn = document.getElementById('forgot-answer');
+      const correctListDiv = document.getElementById('correct-list');
+      const mistakeListDiv = document.getElementById('mistake-list');
+      const afterSession = document.getElementById('after-session');
+      const copyMistakesContainer = document.getElementById('copy-mistakes-container');
+      const copyMistakesBtn = document.getElementById('copy-mistakes');
+      const copySuccess = document.getElementById('copy-success');
+
+      // Автозагрузка words.txt
+      async function loadWordsFromFile() {
+        const timestamp = Date.now();
+        const tries = ['words.txt', './words.txt'];
+        try { tries.push(location.pathname.replace(/\/[^/]*$/, '/') + 'words.txt'); } catch(e) {}
+        
+        for (const p of tries) {
+          try {
+            const r = await fetch(p + '?_' + timestamp, {cache: 'no-store'});
+            if (r.ok) return await r.text();
+          } catch(e) {}
+        }
+        
+        try {
+          const user = location.hostname.split('.')[0] || '';
+          const repo = (location.pathname.split('/').filter(Boolean)[0] || '');
+          if (user && repo) {
+            const raw = `https://raw.githubusercontent.com/${user}/${repo}/main/words.txt`;
+            const r = await fetch(raw + '?_' + timestamp, {cache: 'no-store'});
+            if (r.ok) return await r.text();
+          }
+        } catch(e) {}
+        
+        throw new Error('Не удалось загрузить words.txt');
+      }
+
+      doneDua.addEventListener('click', async function() {
+        intro.classList.add('hidden');
+        try {
+          const text = await loadWordsFromFile();
+          parseText(text);
+          controls.classList.remove('hidden');
+        } catch(e) {
+          alert('Ошибка загрузки words.txt: ' + e.message);
+          intro.classList.remove('hidden');
+        }
+      });
+
+      function parseText(text) {
+        allWords = text.split(/\r?\n/).map(function(l) { return l.trim(); }).filter(function(l) { return l; }).map(function(line) {
+          const sep = line.search(/[-–—]/);
+          const rus = sep !== -1 ? line.slice(0, sep).trim() : '';
+          const arab = sep !== -1 ? line.slice(sep + 1).trim() : '';
+          const rusVars = rus.split(',').map(function(r) { return r.trim().toLowerCase(); });
+          return { 
+            arabicFull: arab, 
+            rusVariants: rusVars, 
+            originalLine: line
+          };
+        });
+      }
+
+      function shuffle(a) {
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+      }
+
+      function startSession(useMistakes) {
+        if (!useMistakes) {
+          mistakes = [];
+          mistakeLines = [];
+          startMistakesBtn.classList.add('hidden');
+          sessionWords = allWords.slice();
+        } else {
+          sessionWords = mistakes.slice();
+          mistakes = [];
+          mistakeLines = [];
+        }
+        shuffle(sessionWords);
+        total = sessionWords.length;
+        currentIndex = 0;
+        correctListDiv.innerHTML = '';
+        mistakeListDiv.innerHTML = '';
+        copyMistakesContainer.classList.add('hidden');
+        controls.classList.add('hidden');
+        trainer.classList.remove('hidden');
+        submitBtn.disabled = false;
+        oralBtn.disabled = false;
+        forgotBtn.disabled = false;
+        afterSession.classList.add('hidden');
+        nextWord();
+      }
+
+      startAllBtn.addEventListener('click', function() { startSession(false); });
+      startMistakesBtn.addEventListener('click', function() { if (mistakes.length) startSession(true); });
+      retryAllBtn.addEventListener('click', function() { startSession(false); });
+
+      function nextWord() {
+        if (currentIndex >= total) {
+          progressDiv.textContent = 'Готово! Пройдено ' + total + '/' + total + ', ошибок: ' + mistakes.length;
+          submitBtn.disabled = true;
+          oralBtn.disabled = true;
+          forgotBtn.disabled = true;
+          if (mistakes.length) {
+            startMistakesBtn.classList.remove('hidden');
+            copyMistakesContainer.classList.remove('hidden');
+          }
+          afterSession.classList.remove('hidden');
+          return;
+        }
+        const it = sessionWords[currentIndex];
+        arabicWordH2.textContent = it.arabicFull;
+        progressDiv.textContent = (currentIndex + 1) + '/' + total + ' слов пройдено – ' + mistakes.length + ' ошибок';
+        answerInput.value = '';
+        answerInput.focus();
+      }
+
+      function addMistake(it) {
+        mistakes.push(it);
+        mistakeLines.push(it.originalLine);
+        mistakeListDiv.innerHTML += '<div>' + escapeHtml(it.originalLine) + '</div>';
+        if (mistakes.length > 0) {
+          copyMistakesContainer.classList.remove('hidden');
+        }
+      }
+
+      function showWrongModal(arabicText, ruText, onClose) {
+        closeModal();
+        const root = document.getElementById('modal-root');
+        const overlay = document.createElement('div');
+        overlay.className = 'overlay';
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = '<h2>Неправильно</h2>' +
+          '<div class="label">Правильный ответ:</div>' +
+          '<div class="row">' +
+          '<div class="left"></div>' +
+          '<div class="right"><span class="answer">' + escapeHtml(arabicText) + ' - ' + escapeHtml(ruText) + '</span></div>' +
+          '</div>' +
+          '<div class="controls">' +
+          '<button id="modal-close-btn" class="close-btn">Закрыть (Esc)</button>' +
+          '</div>';
+        overlay.appendChild(modal);
+        root.appendChild(overlay);
+
+        function cleanup() {
+          if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+          document.removeEventListener('keydown', onKey);
+          if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        }
+
+        function onKey(e) {
+          if (e.key === 'Escape') { cleanup(); if (onClose) onClose(); }
+        }
+
+        document.addEventListener('keydown', onKey);
+        document.getElementById('modal-close-btn').addEventListener('click', function() {
+          cleanup();
+          if (onClose) onClose();
+        });
+
+        modalTimer = setTimeout(function() { cleanup(); if (onClose) onClose(); }, 17000);
+      }
+
+      function closeModal() {
+        const root = document.getElementById('modal-root');
+        root.innerHTML = '';
+        if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      function handleAnswer() {
+        const it = sessionWords[currentIndex];
+        let ans = answerInput.value.trim().toLowerCase();
+        if (!ans) return;
+        const norm = ans.replace(/е/g, 'ё');
+        const ok = it.rusVariants.some(function(v) { return v === ans || v === norm; });
+        if (ok) {
+          correctListDiv.innerHTML += '<div>' + escapeHtml(it.originalLine) + '</div>';
+          currentIndex++;
+          nextWord();
+        } else {
+          addMistake(it);
+          const corr = it.rusVariants.join(', ');
+          showWrongModal(it.arabicFull, corr, function() { currentIndex++; nextWord(); });
+        }
+      }
+
+      function handleOralAnswer() {
+        const it = sessionWords[currentIndex];
+        correctListDiv.innerHTML += '<div>' + escapeHtml(it.originalLine) + '</div>';
+        currentIndex++;
+        nextWord();
+      }
+
+      function handleForgotAnswer() {
+        const it = sessionWords[currentIndex];
+        addMistake(it);
+        currentIndex++;
+        nextWord();
+      }
+
+      copyMistakesBtn.addEventListener('click', function() {
+        const textToCopy = mistakeLines.join('\n');
+        navigator.clipboard.writeText(textToCopy).then(function() {
+          copySuccess.classList.remove('hidden');
+          setTimeout(function() {
+            copySuccess.classList.add('hidden');
+          }, 2000);
+        }).catch(function() {
+          alert('Не удалось скопировать. Попробуйте вручную.');
+        });
+      });
+
+      submitBtn.addEventListener('click', handleAnswer);
+      oralBtn.addEventListener('click', handleOralAnswer);
+      forgotBtn.addEventListener('click', handleForgotAnswer);
+      answerInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); handleAnswer(); }
+      });
+    });
+  </script>
+</body>
+</html>
