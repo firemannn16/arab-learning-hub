@@ -390,34 +390,6 @@
             line-height: 1.5;
         }
 
-        .dua-arabic {
-            font-size: 38px;
-            color: white;
-            text-align: center;
-            direction: rtl;
-            margin: 20px 0;
-            line-height: 1.8;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-        }
-
-        .dua-translation {
-            font-size: 17px;
-            color: #555;
-            text-align: center;
-            font-style: italic;
-            margin-bottom: 20px;
-            line-height: 1.6;
-        }
-
-        .dua-divider {
-            height: 2px;
-            background: linear-gradient(to right, transparent, #ddd, transparent);
-            margin: 25px 0;
-        }
-
         .code-display {
             background: #f0f0f0;
             border: 3px dashed #2196F3;
@@ -504,17 +476,6 @@
 
         .modal-btn.confirm:hover {
             background: #d32f2f;
-        }
-
-        .modal-btn.dua-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-size: 16px;
-            padding: 15px;
-        }
-
-        .modal-btn.dua-btn:hover {
-            background: linear-gradient(135deg, #5568d3 0%, #63408b 100%);
         }
 
         .errors-section {
@@ -713,15 +674,6 @@
                 font-size: 28px;
                 letter-spacing: 4px;
             }
-
-            .dua-arabic {
-                font-size: 28px;
-                padding: 15px;
-            }
-
-            .dua-translation {
-                font-size: 15px;
-            }
         }
     </style>
 </head>
@@ -783,24 +735,6 @@
 
     <div class="sync-status" id="sync-status">
         ⏳ Синхронизация...
-    </div>
-
-    <div class="modal" id="dua-modal">
-        <div class="modal-content">
-            <div class="modal-title">🤲 Сделаем дуа</div>
-            
-            <div class="dua-arabic">رَّبِّ زِدْنِى عِلْمًۭا</div>
-            <div class="dua-translation">«Господь мой! Приумножь мои знания»</div>
-            
-            <div class="dua-divider"></div>
-            
-            <div class="dua-arabic">اللَّهُمَّ أَصْلِحْ أَحْوَالَ الْمُسْلِمِينَ فِي فِلَسْطِينَ</div>
-            <div class="dua-translation">«О Аллах, улучши положение мусульман в Палестине»</div>
-            
-            <div class="modal-buttons">
-                <button class="modal-btn dua-btn" id="dua-done-btn">я сделал дуа</button>
-            </div>
-        </div>
     </div>
 
     <div class="modal" id="welcome-modal">
@@ -929,14 +863,6 @@
         function generateWordId() {
             return `word_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         }
-
-        function showDuaModal() {
-            document.getElementById('dua-modal').classList.add('show');
-        }
-
-        document.getElementById('dua-done-btn').addEventListener('click', function() {
-            document.getElementById('dua-modal').classList.remove('show');
-        });
 
         function saveToLocalStorage(key, value) {
             try {
@@ -1346,8 +1272,6 @@
         }
 
         async function initialize() {
-            showDuaModal();
-            
             userCode = getFromLocalStorage('userCode', '');
             
             if (!userCode) {
@@ -1495,8 +1419,6 @@
                 await syncToFirebase();
                 
                 document.getElementById('reset-modal').classList.remove('show');
-                
-                showDuaModal();
                 
                 console.log('✓ Прогресс сброшен');
                 
