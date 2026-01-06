@@ -61,9 +61,7 @@ let phase = 'learn';
 let currentRaw = null;
 let modalTimer = null;
 /* ---------- DOM ---------- */
-const screenDua = document.getElementById('screen-dua');
 const screenMain = document.getElementById('screen-main');
-const btnDoneDua = document.getElementById('btn-done-dua');
 const statTotal = document.getElementById('stat-total');
 const statMastered = document.getElementById('stat-mastered');
 const statRemaining = document.getElementById('stat-remaining');
@@ -534,40 +532,30 @@ function showResetModal() {
     await clearState();
     orderQueue = allWords.map(w=>w.rawLine); shuffle(orderQueue);
     masteredFinal = []; practiceHistory = []; roundMastered = []; practiceAccum = []; practiceOrder = []; phase='learn'; currentRaw=null;
-    screenMain.classList.add('hidden'); screenDua.classList.remove('hidden');
     updateStats();
     showMessage('Прогресс сброшен.');
+    showNextLearn();
   };
   document.addEventListener('keydown', onKey);
   document.getElementById('modal-cancel').addEventListener('click', onCancel);
   document.getElementById('modal-confirm').addEventListener('click', onConfirm);
 }
 btnReset.addEventListener('click', showResetModal);
-/* ---------- "Я сделал дуа" ---------- */
-btnDoneDua.addEventListener('click', async () => {
-  screenDua.classList.add('hidden');
-  screenMain.classList.remove('hidden');
-  if(!allWords.length) {
-    try {
-      await initDictionary();
-    } catch(e) {
-      console.warn('initDictionary failed:', e);
-      showMessage('Не удалось загрузить слова. Проверьте интернет.');
-    }
-  }
-  if(phase === 'practice'){
-    learnControls.classList.add('hidden');
-    practiceArea.classList.remove('hidden');
-    showNextPractice();
-  } else {
-    practiceArea.classList.add('hidden');
-    learnControls.classList.remove('hidden');
-    showNextLearn();
-  }
-});
 /* ---------- bootstrap ---------- */
 (async function bootstrap(){
-  try{ await initDictionary(); screenDua.classList.remove('hidden'); screenMain.classList.add('hidden'); }catch(e){ console.error(e); }
+  try{ 
+    await initDictionary();
+    screenMain.classList.remove('hidden');
+    if(phase === 'practice'){
+      learnControls.classList.add('hidden');
+      practiceArea.classList.remove('hidden');
+      showNextPractice();
+    } else {
+      practiceArea.classList.add('hidden');
+      learnControls.classList.remove('hidden');
+      showNextLearn();
+    }
+  }catch(e){ console.error(e); }
 })();
 window.addEventListener('beforeunload', saveState);
 window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') saveState(); });
@@ -577,15 +565,7 @@ function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(moda
 <body>
   <a href="index.html" class="home-btn">← Вернуться на главную</a>
   <h1>Тренажёр с вводом</h1>
-  <div id="screen-dua" class="dua">
-    <div><strong>Перед началом тренировок</strong></div>
-    <div class="arab">رَّبِّ زِدْنِى عِلْمًۭا</div>
-    <div style="text-align:center;margin-top:6px">Перевод: «Господь мой! Приумножь мои знания»</div>
-    <div style="text-align:center;margin-top:12px">
-      <button id="btn-done-dua">Я сделал дуа</button>
-    </div>
-  </div>
-  <div id="screen-main" class="hidden">
+  <div id="screen-main">
     <div class="stats">
       <div class="stat">Всего: <span id="stat-total">0</span></div>
       <div class="stat">Оконч. выучено: <span id="stat-mastered">0</span></div>
@@ -619,8 +599,6 @@ function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(moda
   body{font-family:Arial,Helvetica,sans-serif;margin:18px;color:#111;background:#fff;max-width:980px}
   .home-btn{display:inline-block;padding:10px 20px;margin-bottom:20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;transition:opacity .3s}
   .home-btn:hover{opacity:.9}
-  .dua{background:#fff;padding:14px;border-radius:10px;border:1px solid #eee;margin-bottom:12px}
-  .arab{direction:rtl;font-size:2.2rem;font-weight:700;margin:8px 0;text-align:center}
   #arabic{direction:rtl;font-size:2.6rem;text-align:center;min-height:3.6em;padding:14px;border-radius:8px;border:1px solid #eee}
   .controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:12px}
   .controls-vertical{display:block;text-align:center;margin-top:10px}
