@@ -321,22 +321,6 @@
             background: #d32f2f;
         }
 
-        .my-code-btn {
-            background: #9C27B0;
-        }
-
-        .my-code-btn:hover {
-            background: #7B1FA2;
-        }
-
-        .enter-code-btn {
-            background: #FF9800;
-        }
-
-        .enter-code-btn:hover {
-            background: #F57C00;
-        }
-
         .modal {
             display: none;
             position: fixed;
@@ -406,24 +390,6 @@
             color: #2196F3;
             letter-spacing: 8px;
             font-family: 'Courier New', monospace;
-        }
-
-        .code-input {
-            width: 100%;
-            padding: 15px;
-            font-size: 24px;
-            text-align: center;
-            letter-spacing: 8px;
-            border: 2px solid #ddd;
-            border-radius: 5px;
-            font-family: 'Courier New', monospace;
-            text-transform: uppercase;
-            margin-bottom: 15px;
-        }
-
-        .code-input:focus {
-            outline: none;
-            border-color: #2196F3;
         }
 
         .modal-buttons {
@@ -715,8 +681,6 @@
 
         <div class="action-buttons">
             <button class="action-btn add-words-btn" id="add-new-words-btn">Добавить новые слова</button>
-            <button class="action-btn my-code-btn" id="my-code-btn">Мой код</button>
-            <button class="action-btn enter-code-btn" id="enter-code-btn">Ввести код</button>
             <button class="action-btn reset-btn" id="reset-progress-btn">Сбросить прогресс</button>
         </div>
 
@@ -754,36 +718,6 @@
             <div class="modal-buttons">
                 <button class="modal-btn secondary" id="copy-welcome-code">Скопировать код</button>
                 <button class="modal-btn primary" id="start-learning">Начать обучение</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal" id="show-code-modal">
-        <div class="modal-content">
-            <div class="modal-title">🔑 Ваш код</div>
-            <div class="code-display">
-                <div class="code-text" id="display-code">------</div>
-            </div>
-            <div class="modal-text" style="font-size: 14px; color: #999;">
-                Используйте этот код для входа на других устройствах
-            </div>
-            <div class="modal-buttons">
-                <button class="modal-btn secondary" id="copy-code-btn">Скопировать</button>
-                <button class="modal-btn primary" id="close-code-modal">Закрыть</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal" id="enter-code-modal">
-        <div class="modal-content">
-            <div class="modal-title">🔓 Введите код</div>
-            <div class="modal-text">
-                Введите ваш код для загрузки прогресса
-            </div>
-            <input type="text" class="code-input" id="code-input" placeholder="AB7K9M" maxlength="6">
-            <div class="modal-buttons">
-                <button class="modal-btn cancel" id="cancel-enter-code">Отмена</button>
-                <button class="modal-btn primary" id="confirm-enter-code">Загрузить</button>
             </div>
         </div>
     </div>
@@ -843,8 +777,6 @@
         const copyErrorsBtn = document.getElementById('copy-errors-btn');
         const restoreWordsBtn = document.getElementById('restore-words-btn');
         const addNewWordsBtn = document.getElementById('add-new-words-btn');
-        const myCodeBtn = document.getElementById('my-code-btn');
-        const enterCodeBtn = document.getElementById('enter-code-btn');
         const resetProgressBtn = document.getElementById('reset-progress-btn');
         const nextPageBtn = document.getElementById('next-page-btn');
         const prevPageBtn = document.getElementById('prev-page-btn');
@@ -1322,61 +1254,6 @@
 
         document.getElementById('start-learning').addEventListener('click', function() {
             document.getElementById('welcome-modal').classList.remove('show');
-        });
-
-        myCodeBtn.addEventListener('click', function() {
-            document.getElementById('display-code').textContent = userCode;
-            document.getElementById('show-code-modal').classList.add('show');
-        });
-
-        document.getElementById('copy-code-btn').addEventListener('click', function() {
-            navigator.clipboard.writeText(userCode).then(() => {
-                this.textContent = '✓ Скопировано!';
-                setTimeout(() => {
-                    this.textContent = 'Скопировать';
-                }, 2000);
-            });
-        });
-
-        document.getElementById('close-code-modal').addEventListener('click', function() {
-            document.getElementById('show-code-modal').classList.remove('show');
-        });
-
-        enterCodeBtn.addEventListener('click', function() {
-            document.getElementById('code-input').value = '';
-            document.getElementById('enter-code-modal').classList.add('show');
-        });
-
-        document.getElementById('cancel-enter-code').addEventListener('click', function() {
-            document.getElementById('enter-code-modal').classList.remove('show');
-        });
-
-        document.getElementById('confirm-enter-code').addEventListener('click', async function() {
-            const inputCode = document.getElementById('code-input').value.trim().toUpperCase();
-            
-            if (inputCode.length !== 6) {
-                alert('Код должен содержать 6 символов');
-                return;
-            }
-            
-            userCode = inputCode;
-            saveToLocalStorage('userCode', userCode);
-            
-            const success = await loadFromFirebase(userCode);
-            
-            if (success) {
-                await checkAndApplyFileChanges();
-                validateProgress(words);
-                renderErrors();
-                updateStats();
-                currentPage = getFromLocalStorage('currentPage', 0);
-                renderWords();
-                
-                document.getElementById('enter-code-modal').classList.remove('show');
-                alert('✓ Прогресс загружен!');
-            } else {
-                alert('❌ Ошибка загрузки. Проверьте код и интернет-соединение.');
-            }
         });
 
         resetProgressBtn.addEventListener('click', function() {
