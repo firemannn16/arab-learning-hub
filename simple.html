@@ -33,11 +33,10 @@
     #correct-list, #mistake-list { max-height: 160px; overflow-y: auto; background: #fafafa; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
     textarea { width: 100%; height: 150px; font-size: 1em; }
     input[type="text"] { width: 60%; font-size: 1em; padding: 6px; }
-    blockquote { margin: 16px 0; }
-    #intro { background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
-    #intro h1 { font-size: 1.5em; }
-    #intro p { font-size: 1.1em; }
-    #intro blockquote { direction: rtl; font-size: 2em; margin: 12px 0; }
+    
+    #loader { background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+    #loader h2 { font-size: 1.3em; margin-bottom: 10px; }
+    #loader p { font-size: 0.95em; color: #666; margin-bottom: 10px; }
 
     .overlay { position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.45); display:flex; align-items: center; justify-content: center; z-index: 10000; }
     .modal { background: #fff; width: 760px; max-width: 95%; border-radius: 8px; box-shadow: 0 6px 30px rgba(0,0,0,0.25); padding: 18px 20px; box-sizing: border-box; }
@@ -91,13 +90,12 @@
   <div id="main">
     <a href="index.html" class="home-btn">← Вернуться на главную</a>
     
-    <!-- Начальный экран с дуа -->
-    <div id="intro">
-      <h1>Перед началом тренировок</h1>
-      <p>Дуа:</p>
-      <blockquote>رَّبِّ زِدْنِى عِلْمًۭا</blockquote>
-      <p>«Господь мой! Приумножь мои знания»</p>
-      <button id="done-dua" class="button">Я сделал дуа</button>
+    <!-- Загрузчик слов -->
+    <div id="loader">
+      <h2>Простой тренажер</h2>
+      <p>Вставьте список слов (формат: русский - арабский, каждое слово с новой строки):</p>
+      <textarea id="word-list" placeholder="Например:&#10;Аллах - الله&#10;Господь - الرَّبّ&#10;милостивый - الرَّحْمَـٰن"></textarea>
+      <button id="load-list" class="button">Загрузить список</button>
     </div>
 
     <!-- Кнопка старта -->
@@ -139,10 +137,11 @@
       let allWords = [], sessionWords = [], mistakes = [], mistakeLines = [], total = 0, currentIndex = 0;
       let modalTimer = null;
 
-      const intro = document.getElementById('intro');
+      const loader = document.getElementById('loader');
       const controls = document.getElementById('controls');
       const trainer = document.getElementById('trainer');
-      const doneDua = document.getElementById('done-dua');
+      const wordListTextarea = document.getElementById('word-list');
+      const loadListBtn = document.getElementById('load-list');
       const startAllBtn = document.getElementById('start-all');
       const retryAllBtn = document.getElementById('retry-all');
       const startMistakesBtn = document.getElementById('start-mistakes');
@@ -159,42 +158,19 @@
       const copyMistakesBtn = document.getElementById('copy-mistakes');
       const copySuccess = document.getElementById('copy-success');
 
-      // Автозагрузка words.txt
-      async function loadWordsFromFile() {
-        const timestamp = Date.now();
-        const tries = ['words.txt', './words.txt'];
-        try { tries.push(location.pathname.replace(/\/[^/]*$/, '/') + 'words.txt'); } catch(e) {}
-        
-        for (const p of tries) {
-          try {
-            const r = await fetch(p + '?_' + timestamp, {cache: 'no-store'});
-            if (r.ok) return await r.text();
-          } catch(e) {}
+      loadListBtn.addEventListener('click', function() {
+        const text = wordListTextarea.value.trim();
+        if (!text) {
+          alert('Введите список слов');
+          return;
         }
-        
-        try {
-          const user = location.hostname.split('.')[0] || '';
-          const repo = (location.pathname.split('/').filter(Boolean)[0] || '');
-          if (user && repo) {
-            const raw = `https://raw.githubusercontent.com/${user}/${repo}/main/words.txt`;
-            const r = await fetch(raw + '?_' + timestamp, {cache: 'no-store'});
-            if (r.ok) return await r.text();
-          }
-        } catch(e) {}
-        
-        throw new Error('Не удалось загрузить words.txt');
-      }
-
-      doneDua.addEventListener('click', async function() {
-        intro.classList.add('hidden');
-        try {
-          const text = await loadWordsFromFile();
-          parseText(text);
-          controls.classList.remove('hidden');
-        } catch(e) {
-          alert('Ошибка загрузки words.txt: ' + e.message);
-          intro.classList.remove('hidden');
+        parseText(text);
+        if (allWords.length === 0) {
+          alert('Не удалось распознать слова. Проверьте формат.');
+          return;
         }
+        loader.classList.add('hidden');
+        controls.classList.remove('hidden');
       });
 
       function parseText(text) {
