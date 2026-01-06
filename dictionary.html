@@ -1,1 +1,589 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Словарь - Арабские слова</title>
 
+<script defer src="https://cloud.umami.is/script.js" data-website-id="978e563f-ae7b-421e-ade1-b5773da3feb8"></script>
+  
+<style>
+  body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:#f3f4f6; margin:0; padding:24px; color:#0f172a }
+  .container { max-width:960px; margin:0 auto; background:#fff; padding:20px; border-radius:12px; box-shadow:0 8px 30px rgba(2,6,23,0.08) }
+  .home-btn{display:inline-block;padding:10px 20px;margin-bottom:20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;transition:opacity .3s}
+  .home-btn:hover{opacity:.9}
+  h1 { margin:0 0 8px 0; font-size:22px }
+  p.lead { margin:0 0 12px 0; color:#475569; font-size:14px }
+  
+  /* Search input with autocomplete */
+  .search-wrapper { position:relative; }
+  input[type="search"] { width:100%; padding:10px 12px; border-radius:8px; border:1px solid #e2e8f0; font-size:16px; box-sizing:border-box }
+  .autocomplete { position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e2e8f0; border-top:none; border-radius:0 0 8px 8px; max-height:200px; overflow-y:auto; z-index:10; display:none; box-shadow:0 4px 12px rgba(0,0,0,0.1) }
+  .autocomplete-item { padding:8px 12px; cursor:pointer; border-bottom:1px solid #f1f5f9 }
+  .autocomplete-item:hover { background:#f8fafc }
+  .autocomplete-item:last-child { border-bottom:none }
+  
+  .count { color:#64748b; font-size:13px; margin-top:10px; text-align:right }
+  ul.results { list-style:none; padding:0; margin:12px 0 0 0; display:grid; gap:8px; max-height:70vh; overflow:auto }
+  li.item { padding:12px; border-radius:10px; border:1px solid #e6eef8; background:#fbfdff; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:all 0.2s }
+  li.item:hover { box-shadow:0 6px 18px rgba(2,6,23,0.06); transform:translateY(-1px) }
+  .ru { font-weight:600; font-size:15px }
+  .ar { margin-top:6px; font-size:22px; direction:rtl; text-align:right; font-weight:500; line-height:1.4 }
+  
+  /* Highlight matched text */
+  .highlight { background:#fef08a; padding:1px 2px; border-radius:2px; font-weight:600 }
+  
+  .modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(2,6,23,0.5); z-index:100 }
+  .card { background:#fff; padding:24px; border-radius:12px; max-width:820px; width:94%; max-height:85vh; overflow-y:auto }
+  .card h2 { margin-top:4px; font-size:20px }
+  .card .ar { font-size:26px; margin-top:8px }
+  .note { color:#475569; margin-top:8px; font-size:13px }
+  .hint { color:#94a3b8; font-size:13px }
+  .btn { padding:8px 12px; border-radius:8px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; font-size:14px; transition:all 0.2s }
+  .btn:hover { background:#f8fafc; border-color:#94a3b8 }
+  .small-notify { position:fixed; right:20px; bottom:20px; background:#0f172a; color:#fff; padding:8px 12px; border-radius:8px; opacity:0.95; display:none; z-index:9999; font-size:14px }
+  .show-more { text-align:center; margin:8px 0; }
+  
+  /* Offline indicator */
+  .offline-badge { display:none; position:fixed; bottom:20px; left:20px; background:#10b981; color:#fff; padding:6px 12px; border-radius:8px; font-size:12px; z-index:9999 }
+  .offline-badge.offline { background:#ef4444 }
+</style>
+</head>
+<body>
+  <div class="container">
+    <a href="index.html" class="home-btn">← Вернуться на главную</a>
+    
+    <h1>Арабско-русский словарь</h1>
+    <p class="lead">Поиск по арабскому и по-русски. Нажмите на результат, чтобы открыть подробности.</p>
+
+    <div class="search-wrapper">
+      <input id="q" type="search" placeholder="Введите арабское (مثال: بَيْت или بيت) или русское (дом)..." autocomplete="off" />
+      <div id="autocomplete" class="autocomplete"></div>
+    </div>
+
+    <div class="count" id="count">Найдено: 0</div>
+
+    <ul class="results" id="results" aria-live="polite"></ul>
+
+    <div class="show-more" id="showMoreWrap" style="display:none">
+      <button id="showMoreBtn" class="btn">Показать ещё</button>
+    </div>
+
+    <div class="hint" id="statusHint" style="display:none; margin-top:12px;"></div>
+  </div>
+
+  <div id="modal" style="display:none"></div>
+  <div id="notify" class="small-notify">Скопировано</div>
+  <div id="offlineBadge" class="offline-badge">● Онлайн</div>
+
+<script>
+/* ===== utils ===== */
+function removeArabicDiacritics(text) {
+  if (!text) return "";
+  return text.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g, "");
+}
+function normalizeArabic(text) {
+  if (!text) return "";
+  let t = text.trim();
+  t = removeArabicDiacritics(t);
+  t = t.replace(/[\u0622\u0623\u0625]/g, "\u0627");
+  t = t.replace(/\u0649/g, "\u064A");
+  t = t.replace(/[\u0624\u0626]/g, "\u0621");
+  t = t.replace(/\u0640/g, "");
+  return t;
+}
+function normalizeRussian(text) {
+  if (!text) return "";
+  return text.toLowerCase().trim();
+}
+function isCyrillic(q) {
+  return /[\u0400-\u04FF]/.test(q);
+}
+function escapeHtml(s) {
+  if (!s) return "";
+  return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+function debounce(fn, ms) {
+  let t;
+  return function(...args) {
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(this, args), ms);
+  };
+}
+
+/* ===== Fuzzy search - Levenshtein distance ===== */
+function levenshtein(a, b) {
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+/* ===== Highlight matched text ===== */
+function highlightText(text, query) {
+  if (!query || !text) return escapeHtml(text);
+  const escaped = escapeHtml(text);
+  const qNorm = normalizeRussian(query);
+  const tNorm = normalizeRussian(text);
+  const idx = tNorm.indexOf(qNorm);
+  if (idx === -1) return escaped;
+  
+  const before = text.substring(0, idx);
+  const match = text.substring(idx, idx + query.length);
+  const after = text.substring(idx + query.length);
+  
+  return escapeHtml(before) + '<span class="highlight">' + escapeHtml(match) + '</span>' + escapeHtml(after);
+}
+
+/* ===== parser & data ===== */
+function parseWordText(txt) {
+  const lines = txt.split(/\r?\n/);
+  const parsed = [];
+  let id = 1;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    let ru = "", gloss = "", arabicVariants = [], note = "";
+
+    // Parse format with pipes: ru|gloss|ar1|ar2|ar3|note
+    if (line.includes("|")) {
+      const parts = line.split("|").map(s => s.trim());
+      ru = parts[0] || "";
+      gloss = parts[1] || "";
+      // Collect all arabic variants (from index 2 onwards, except last if it's a note)
+      for (let i = 2; i < parts.length; i++) {
+        const part = parts[i];
+        // Check if it's likely a note (starts with lowercase latin or #)
+        if (i === parts.length - 1 && part && /^[a-z#]/.test(part)) {
+          note = part;
+        } else if (part) {
+          arabicVariants.push(part);
+        }
+      }
+    } 
+    // Parse format with dashes: ru - ar1 - ar2 - ar3
+    else if (line.includes(" - ")) {
+      const parts = line.split(" - ").map(s => s.trim());
+      const m = parts[0].match(/^(.+?)\s*\((.+)\)\s*$/);
+      if (m) { 
+        ru = m[1].trim(); 
+        gloss = m[2].trim(); 
+      } else { 
+        ru = parts[0]; 
+      }
+      // All remaining parts are arabic variants
+      for (let i = 1; i < parts.length; i++) {
+        if (parts[i]) {
+          arabicVariants.push(parts[i]);
+        }
+      }
+    } 
+    // Tab separated
+    else {
+      const p = line.split(/\t+/).map(s => s.trim());
+      ru = p[0] || line;
+      for (let i = 1; i < p.length; i++) {
+        if (p[i]) arabicVariants.push(p[i]);
+      }
+    }
+
+    // If no variants found, skip
+    if (arabicVariants.length === 0) continue;
+
+    parsed.push({
+      id: id++,
+      ru, 
+      gloss, 
+      arabicVariants,  // Array of all arabic variants
+      note,
+      _arabic_norm: arabicVariants.map(normalizeArabic),
+      _ru_norm: normalizeRussian(ru + (gloss ? ` (${gloss})` : ""))
+    });
+  }
+  return parsed;
+}
+
+/* ===== app state ===== */
+const qEl = document.getElementById("q");
+const resultsEl = document.getElementById("results");
+const countEl = document.getElementById("count");
+const modalEl = document.getElementById("modal");
+const notifyEl = document.getElementById("notify");
+const showMoreWrap = document.getElementById("showMoreWrap");
+const showMoreBtn = document.getElementById("showMoreBtn");
+const statusHint = document.getElementById("statusHint");
+const autocompleteEl = document.getElementById("autocomplete");
+const offlineBadge = document.getElementById("offlineBadge");
+
+let entries = [];          
+let lastQuery = "";        
+let lastResults = [];      
+let renderLimit = 200;     
+let currentRenderCount = 0;
+
+/* ===== rendering ===== */
+function renderListPartial(list, limit = renderLimit, query = "") {
+  resultsEl.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  const count = Math.min(list.length, limit);
+  
+  for (let i = 0; i < count; i++) {
+    const r = list[i];
+    const li = document.createElement("li");
+    li.className = "item";
+    li.tabIndex = 0;
+    
+    // Join all arabic variants with em dash
+    const allArabic = r.arabicVariants.join(" — ");
+    
+    // Highlight russian text if query matches
+    let ruDisplay = r.ru;
+    if (query && isCyrillic(query)) {
+      ruDisplay = highlightText(r.ru, query);
+    } else {
+      ruDisplay = escapeHtml(r.ru);
+    }
+    
+    li.innerHTML = `<div style="flex:1">
+                      <div class="ru">${ruDisplay}${r.gloss ? ' <small>(' + escapeHtml(r.gloss) + ')</small>' : ''}</div>
+                      <div class="ar">${escapeHtml(allArabic)}</div>
+                    </div>
+                    <div style="font-size:13px;color:#64748b;margin-left:12px">→</div>`;
+    li.addEventListener("click", () => openModal(r));
+    frag.appendChild(li);
+  }
+  resultsEl.appendChild(frag);
+  currentRenderCount = count;
+  countEl.textContent = "Найдено: " + list.length;
+  if (list.length > count) {
+    showMoreWrap.style.display = "block";
+  } else {
+    showMoreWrap.style.display = "none";
+  }
+}
+
+function appendMore(list, add = renderLimit, query = "") {
+  const start = currentRenderCount;
+  const end = Math.min(list.length, currentRenderCount + add);
+  const frag = document.createDocumentFragment();
+  for (let i = start; i < end; i++) {
+    const r = list[i];
+    const li = document.createElement("li");
+    li.className = "item";
+    li.tabIndex = 0;
+    
+    const allArabic = r.arabicVariants.join(" — ");
+    
+    let ruDisplay = r.ru;
+    if (query && isCyrillic(query)) {
+      ruDisplay = highlightText(r.ru, query);
+    } else {
+      ruDisplay = escapeHtml(r.ru);
+    }
+    
+    li.innerHTML = `<div style="flex:1">
+                      <div class="ru">${ruDisplay}${r.gloss ? ' <small>(' + escapeHtml(r.gloss) + ')</small>' : ''}</div>
+                      <div class="ar">${escapeHtml(allArabic)}</div>
+                    </div>
+                    <div style="font-size:13px;color:#64748b;margin-left:12px">→</div>`;
+    li.addEventListener("click", () => openModal(r));
+    frag.appendChild(li);
+  }
+  resultsEl.appendChild(frag);
+  currentRenderCount = end;
+  if (currentRenderCount >= list.length) showMoreWrap.style.display = "none";
+}
+
+/* ===== search logic with prioritization & fuzzy ===== */
+function performSearch(q) {
+  const qq = q.trim();
+  if (qq === lastQuery) return lastResults;
+  lastQuery = qq;
+  if (!qq) {
+    lastResults = entries.slice();
+    return lastResults;
+  }
+
+  const qRu = normalizeRussian(qq);
+  const qAr = normalizeArabic(qq);
+  const useCyr = isCyrillic(qq);
+
+  // Results with priorities
+  const exactStart = [];
+  const exactMatch = [];
+  const fuzzyMatch = [];
+
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    let matched = false;
+    let priority = 0;
+
+    if (useCyr) {
+      // Russian search
+      if (e._ru_norm.startsWith(qRu)) {
+        exactStart.push(e);
+        matched = true;
+      } else if (e._ru_norm.includes(qRu)) {
+        exactMatch.push(e);
+        matched = true;
+      } else {
+        // Fuzzy match for Russian
+        const dist = levenshtein(qRu, e._ru_norm.substring(0, qRu.length + 2));
+        if (dist <= 2 && qRu.length > 2) {
+          fuzzyMatch.push(e);
+          matched = true;
+        }
+      }
+    } else {
+      // Arabic search
+      let foundInArabic = false;
+      for (let j = 0; j < e._arabic_norm.length; j++) {
+        const arNorm = e._arabic_norm[j];
+        if (arNorm.startsWith(qAr)) {
+          exactStart.push(e);
+          foundInArabic = true;
+          break;
+        } else if (arNorm.includes(qAr)) {
+          exactMatch.push(e);
+          foundInArabic = true;
+          break;
+        } else if (e.arabicVariants[j] && e.arabicVariants[j].includes(qq)) {
+          // Direct match with diacritics
+          exactMatch.push(e);
+          foundInArabic = true;
+          break;
+        }
+      }
+      
+      if (!foundInArabic) {
+        // Try Russian as fallback
+        if (e._ru_norm.includes(qRu)) {
+          exactMatch.push(e);
+          foundInArabic = true;
+        }
+      }
+      
+      if (!foundInArabic && qAr.length > 2) {
+        // Fuzzy for Arabic
+        for (let j = 0; j < e._arabic_norm.length; j++) {
+          const dist = levenshtein(qAr, e._arabic_norm[j].substring(0, qAr.length + 2));
+          if (dist <= 2) {
+            fuzzyMatch.push(e);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  lastResults = [...exactStart, ...exactMatch, ...fuzzyMatch];
+  return lastResults;
+}
+
+/* ===== Autocomplete ===== */
+function showAutocomplete(suggestions) {
+  if (suggestions.length === 0) {
+    autocompleteEl.style.display = "none";
+    return;
+  }
+  
+  autocompleteEl.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  
+  for (let i = 0; i < Math.min(suggestions.length, 5); i++) {
+    const s = suggestions[i];
+    const div = document.createElement("div");
+    div.className = "autocomplete-item";
+    div.textContent = s.ru + (s.gloss ? ` (${s.gloss})` : "");
+    div.addEventListener("click", () => {
+      qEl.value = s.ru;
+      autocompleteEl.style.display = "none";
+      doSearchDebounced.cancel();
+      const list = performSearch(s.ru);
+      renderListPartial(list, renderLimit, s.ru);
+    });
+    frag.appendChild(div);
+  }
+  
+  autocompleteEl.appendChild(frag);
+  autocompleteEl.style.display = "block";
+}
+
+/* ===== modal & copy notify ===== */
+function openModal(item) {
+  modalEl.style.display = "block";
+  const allArabic = item.arabicVariants.join(" — ");
+  
+  modalEl.innerHTML = `<div class="modal" id="modalWrap">
+    <div class="card" role="dialog" aria-modal="true">
+      <button id="closeBtn" style="float:right" class="btn">Закрыть</button>
+      <h2 style="margin-top:4px">${escapeHtml(item.ru)} ${item.gloss ? '(' + escapeHtml(item.gloss) + ')' : ''}</h2>
+      <div style="margin-top:12px">
+        <div style="color:#64748b;font-size:13px;margin-bottom:4px">Арабский:</div>
+        <div class="ar">${escapeHtml(allArabic)}</div>
+      </div>
+      ${item.note ? '<div class="note">Примечание: ' + escapeHtml(item.note) + '</div>' : ''}
+      <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+        <button id="copyBtn" class="btn">Копировать всё</button>
+        <button id="searchArBtn" class="btn">Поиск по арабскому</button>
+      </div>
+    </div>
+  </div>`;
+  
+  document.getElementById("closeBtn").addEventListener("click", closeModal);
+  document.getElementById("copyBtn").addEventListener("click", async () => {
+    const txt = `${item.ru}${item.gloss ? ' (' + item.gloss + ')' : ''} - ${allArabic}`;
+    try { 
+      await navigator.clipboard.writeText(txt); 
+      showTemporaryNotify("Скопировано"); 
+    } catch(e) { 
+      showTemporaryNotify("Не удалось скопировать"); 
+    }
+  });
+  document.getElementById("searchArBtn").addEventListener("click", () => {
+    qEl.value = item.arabicVariants[0];
+    qEl.dispatchEvent(new Event("input", { bubbles:true }));
+    closeModal();
+  });
+  modalEl.addEventListener("click", (ev) => { 
+    if (ev.target.id === "modalWrap") closeModal(); 
+  });
+}
+
+function closeModal() { 
+  modalEl.style.display = "none"; 
+  modalEl.innerHTML = ""; 
+}
+
+function showTemporaryNotify(text) {
+  notifyEl.textContent = text;
+  notifyEl.style.display = "block";
+  setTimeout(() => { notifyEl.style.display = "none"; }, 1500);
+}
+
+/* ===== loading and init ===== */
+async function loadFromServer() {
+  try {
+    const res = await fetch("words.txt", { cache: "no-store" });
+    if (!res.ok) throw new Error("not found");
+    const txt = await res.text();
+    entries = parseWordText(txt);
+    lastQuery = "";
+    lastResults = entries.slice();
+    renderListPartial(lastResults);
+    statusHint.style.display = "none";
+  } catch (e) {
+    console.warn("Не удалось загрузить words.txt:", e);
+    statusHint.textContent = "Не удалось загрузить words.txt — загружены примеры.";
+    statusHint.style.display = "block";
+    const fallback = [
+      "дом|house|بَيْت|بيت",
+      "писать|to write|كَتَبَ|كتب",
+      "идти|to go|مَشَى|يَمْشِي|سَارَ"
+    ].join("\n");
+    entries = parseWordText(fallback);
+    lastQuery = "";
+    lastResults = entries.slice();
+    renderListPartial(lastResults);
+  }
+}
+
+/* ===== events ===== */
+const doSearchDebounced = debounce(() => {
+  const val = qEl.value;
+  const list = performSearch(val);
+  renderListPartial(list, renderLimit, val);
+  if (resultsEl) resultsEl.scrollTop = 0;
+  
+  // Update autocomplete
+  if (val.trim().length > 1) {
+    const suggestions = list.slice(0, 5);
+    showAutocomplete(suggestions);
+  } else {
+    autocompleteEl.style.display = "none";
+  }
+}, 200);
+
+doSearchDebounced.cancel = function() {
+  // Add cancel method for debounce
+};
+
+qEl.addEventListener("input", (ev) => {
+  doSearchDebounced();
+});
+
+qEl.addEventListener("focus", () => {
+  if (qEl.value.trim().length > 1 && lastResults.length > 0) {
+    showAutocomplete(lastResults.slice(0, 5));
+  }
+});
+
+qEl.addEventListener("blur", () => {
+  setTimeout(() => {
+    autocompleteEl.style.display = "none";
+  }, 200);
+});
+
+showMoreBtn.addEventListener("click", () => {
+  const list = lastResults;
+  appendMore(list, renderLimit, qEl.value);
+});
+
+qEl.addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter") {
+    autocompleteEl.style.display = "none";
+    const first = resultsEl.querySelector(".item");
+    if (first) first.focus();
+  }
+  if (ev.key === "Escape") {
+    autocompleteEl.style.display = "none";
+  }
+});
+
+/* ===== Service Worker for offline ===== */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(registration => {
+      console.log('SW registered:', registration);
+    }).catch(err => {
+      console.log('SW registration failed:', err);
+    });
+  });
+}
+
+// Online/Offline status
+window.addEventListener('online', () => {
+  offlineBadge.textContent = "● Онлайн";
+  offlineBadge.classList.remove('offline');
+  offlineBadge.style.display = "block";
+  setTimeout(() => { offlineBadge.style.display = "none"; }, 2000);
+});
+
+window.addEventListener('offline', () => {
+  offlineBadge.textContent = "● Оффлайн";
+  offlineBadge.classList.add('offline');
+  offlineBadge.style.display = "block";
+});
+
+// init
+loadFromServer();
+</script>
+</body>
+</html>
