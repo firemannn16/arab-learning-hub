@@ -1,1 +1,220 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Арабские Тренажеры</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 1200px;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            color: white;
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .code-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .code-section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        .code-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .code-input-group input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1.1em;
+            transition: border-color 0.3s;
+        }
+        .code-input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .code-input-group button {
+            padding: 12px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.3s;
+        }
+        .code-input-group button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+        .code-display {
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            color: #333;
+            font-size: 0.9em;
+        }
+        .trainers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-top: 20px;
+        }
+        .trainer-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            text-decoration: none;
+            color: #333;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        .trainer-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+        }
+        .trainer-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+        .trainer-card h3 {
+            color: #667eea;
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+        .trainer-card p {
+            color: #666;
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
+        .card-phases { border-top: 4px solid #667eea; }
+        .card-choice { border-top: 4px solid #f093fb; }
+        .card-input { border-top: 4px solid #4facfe; }
+        .card-simple { border-top: 4px solid #43e97b; }
+        .card-dictionary { border-top: 4px solid #fa709a; }
+        @media (max-width: 768px) {
+            h1 { font-size: 1.8em; }
+            .trainers-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌙 Арабские Тренажеры</h1>
+        
+        <div class="code-section">
+            <h2>Ваш Код Прогресса</h2>
+            <div class="code-input-group">
+                <input type="text" id="userCodeInput" placeholder="Введите или сохраните ваш код">
+                <button onclick="saveCode()">Сохранить</button>
+            </div>
+            <div class="code-display">
+                Текущий код: <strong id="currentCode">не установлен</strong>
+            </div>
+        </div>
 
+        <div class="trainers-grid">
+            <a href="phases.html" class="trainer-card card-phases">
+                <div class="trainer-icon">📊</div>
+                <h3>Тренажер с Фазами</h3>
+                <p>Изучайте слова поэтапно с системой повторений</p>
+            </a>
+
+            <a href="choice.html" class="trainer-card card-choice">
+                <div class="trainer-icon">✅</div>
+                <h3>Тренажер Выбора</h3>
+                <p>Выбирайте правильный перевод из вариантов</p>
+            </a>
+
+            <a href="input.html" class="trainer-card card-input">
+                <div class="trainer-icon">✍️</div>
+                <h3>Тренажер с Вводом</h3>
+                <p>Тренируйте написание арабских слов</p>
+            </a>
+
+            <a href="simple.html" class="trainer-card card-simple">
+                <div class="trainer-icon">📝</div>
+                <h3>Простой Тренажер</h3>
+                <p>Добавляйте свои слова и практикуйтесь</p>
+            </a>
+
+            <a href="dictionary.html" class="trainer-card card-dictionary">
+                <div class="trainer-icon">📚</div>
+                <h3>Словарь</h3>
+                <p>Просматривайте все слова и переводы</p>
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // Загружаем код при загрузке страницы
+        window.addEventListener('DOMContentLoaded', () => {
+            loadCode();
+        });
+
+        function saveCode() {
+            const input = document.getElementById('userCodeInput');
+            const code = input.value.trim();
+            
+            if (code) {
+                localStorage.setItem('userProgressCode', code);
+                displayCurrentCode();
+                alert('✅ Код успешно сохранен!');
+            } else {
+                alert('⚠️ Введите код для сохранения');
+            }
+        }
+
+        function loadCode() {
+            const savedCode = localStorage.getItem('userProgressCode');
+            if (savedCode) {
+                document.getElementById('userCodeInput').value = savedCode;
+                displayCurrentCode();
+            }
+        }
+
+        function displayCurrentCode() {
+            const savedCode = localStorage.getItem('userProgressCode');
+            const codeDisplay = document.getElementById('currentCode');
+            if (savedCode) {
+                codeDisplay.textContent = savedCode;
+                codeDisplay.style.color = '#667eea';
+            } else {
+                codeDisplay.textContent = 'не установлен';
+                codeDisplay.style.color = '#999';
+            }
+        }
+    </script>
+</body>
+</html>
