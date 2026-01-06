@@ -122,13 +122,7 @@ try {
   <div id="container">
     <a href="index.html" class="home-btn">← Вернуться на главную</a>
     <h1>Тренажёр выбора</h1>
-    <div id="intro">
-      <p>Дуа:</p>
-      <blockquote style="direction:rtl;font-size:1.8rem;margin:8px 0">رَّبِّ زِدْنِى عِلْمًۭا</blockquote>
-      <p>«Господь мой! Приумножь мои знания»</p>
-      <button id="did-dua" class="button">Я сделал дуа</button>
-    </div>
-    <div id="trainer" class="hidden" style="margin-top:14px">
+    <div id="trainer" style="margin-top:14px">
       <div class="format-toggle">
         <span>АРБ → РУС</span>
         <div class="toggle-switch" id="format-toggle">
@@ -211,7 +205,6 @@ let loadingPromise = null;
 let direction = 'arab-to-rus'; // 'arab-to-rus' или 'rus-to-arab'
 
 /* ========== DOM ========== */
-const didDuaBtn = document.getElementById('did-dua');
 const trainer = document.getElementById('trainer');
 const progressDiv = document.getElementById('progress');
 const arabicWordDiv = document.getElementById('arabic-word');
@@ -468,7 +461,6 @@ function displayCurrentRaw(){
   const obj = allWords.find(w=>w.rawLine===currentRaw) || parseSingleLineToObj(currentRaw);
   
   if(direction === 'arab-to-rus'){
-    // АРБ → РУС: показываем арабское, варианты - русские
     let displayArabic = (obj && obj.arabicFull) ? obj.arabicFull : (currentRaw || '');
     displayArabic = displayArabic.replace(/\s*-\s*/g,' - ').trim();
     arabicWordDiv.textContent = displayArabic || '[нет арабского]';
@@ -487,7 +479,6 @@ function displayCurrentRaw(){
       btn.dataset.correct = (options[idx] === correctText) ? '1' : '0';
     });
   } else {
-    // РУС → АРБ: показываем русское, варианты - арабские
     const displayRussian = (obj && obj.rusVariants) ? obj.rusVariants.join(', ') : '(нет перевода)';
     arabicWordDiv.textContent = displayRussian;
     arabicWordDiv.setAttribute('dir','ltr');
@@ -524,7 +515,6 @@ function nextWord(){
   const obj = allWords.find(w=>w.rawLine===raw) || parseSingleLineToObj(raw) || { rawLine:raw, arabicFull:raw, rusVariants:[''] };
   
   if(direction === 'arab-to-rus'){
-    // АРБ → РУС: показываем арабское, варианты - русские
     let displayArabic = (obj.arabicFull || '').trim();
     if(!displayArabic){
       const sep = raw.indexOf('-');
@@ -547,7 +537,6 @@ function nextWord(){
       btn.dataset.correct = (options[idx] === correctText) ? '1' : '0';
     });
   } else {
-    // РУС → АРБ: показываем русское, варианты - арабские
     const displayRussian = (obj.rusVariants||[]).join(', ') || '(нет перевода)';
     arabicWordDiv.textContent = displayRussian;
     arabicWordDiv.setAttribute('dir','ltr');
@@ -573,7 +562,6 @@ function nextWord(){
 
 function findDistractorsFor(correctObj, count){
   if(direction === 'arab-to-rus'){
-    // АРБ → РУС: обычная логика по pos
     const same = allWords.filter(w => w.pos === (correctObj&&correctObj.pos) && w.rawLine !== (correctObj&&correctObj.rawLine));
     shuffle(same);
     const picks = same.slice(0,count);
@@ -585,15 +573,13 @@ function findDistractorsFor(correctObj, count){
     while(picks.length < count) picks.push(correctObj||{rusVariants:['']});
     return picks.slice(0,count);
   } else {
-    // РУС → АРБ: исключаем слова с одинаковым русским переводом
     const correctRus = (correctObj?.rusVariants||[]).join(',').toLowerCase();
     const candidates = allWords.filter(w => {
       if(w.rawLine === (correctObj&&correctObj.rawLine)) return false;
       const wRus = (w.rusVariants||[]).join(',').toLowerCase();
-      return wRus !== correctRus; // Исключаем слова с тем же русским переводом
+      return wRus !== correctRus;
     });
     
-    // Приоритет - слова того же pos
     const samePos = candidates.filter(w => w.pos === (correctObj&&correctObj.pos));
     shuffle(samePos);
     const picks = samePos.slice(0,count);
@@ -756,8 +742,8 @@ async function showResetModal() {
     
     correctListDiv.innerHTML = '—';
     mistakeListDiv.innerHTML = '—';
-    trainer.classList.add('hidden');
-    document.getElementById('intro').classList.remove('hidden');
+    afterDiv.classList.add('hidden');
+    nextWord();
   }
   
   document.addEventListener('keydown', onKey);
@@ -867,31 +853,6 @@ async function loadWords() {
 }
 
 /* ========== Обработчики UI ========== */
-didDuaBtn.addEventListener('click', async () => {
-  await loadingPromise;
-  
-  if (allWords.length === 0) {
-    alert('Не удалось загрузить словарь. Проверьте подключение к интернету.');
-    return;
-  }
-  
-  document.getElementById('intro').classList.add('hidden');
-  trainer.classList.remove('hidden');
-  
-  // Обновляем UI переключателя
-  if(direction === 'rus-to-arab'){
-    formatToggle.classList.add('active');
-  } else {
-    formatToggle.classList.remove('active');
-  }
-  
-  if(currentRaw){
-    displayCurrentRaw();
-  } else {
-    nextWord();
-  }
-});
-
 addNewBtn.addEventListener('click', addNewWords);
 resetProgressBtn.addEventListener('click', showResetModal);
 copyMistakesBtn.addEventListener('click', copyMistakes);
@@ -919,19 +880,20 @@ workMistakesBtn.addEventListener('click', ()=> {
   try{
     await loadWords();
     
-    const savedState = await loadState();
-    
-    if(savedState && savedState.allRaw && savedState.allRaw.length > 0){
-      document.getElementById('intro').classList.remove('hidden');
-      trainer.classList.add('hidden');
+    if(direction === 'rus-to-arab'){
+      formatToggle.classList.add('active');
     } else {
-      document.getElementById('intro').classList.remove('hidden');
-      trainer.classList.add('hidden');
+      formatToggle.classList.remove('active');
+    }
+    
+    if(currentRaw){
+      displayCurrentRaw();
+    } else {
+      nextWord();
     }
   }catch(e){
     console.error('Ошибка инициализации:', e);
-    document.getElementById('intro').classList.remove('hidden');
-    trainer.classList.add('hidden');
+    arabicWordDiv.textContent = 'Ошибка загрузки словаря';
   }
 })();
 
