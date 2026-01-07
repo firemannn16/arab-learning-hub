@@ -204,12 +204,12 @@ async function safeLoadWordsFile(url = 'words.txt', maxRetries = 3) {
                 console.warn('⚠️ Возможная проблема с кодировкой words.txt');
             }
 
-            // Проверка формата (должны быть строки вида "слово|перевод")
+            // Проверка формата (должны быть строки вида "слово-перевод")
             const lines = text.split('\n').filter(l => l.trim());
-            const validLines = lines.filter(l => l.includes('|'));
+            const validLines = lines.filter(l => l.includes('-'));
             
             if (validLines.length === 0) {
-                throw new Error('Неверный формат words.txt (нет строк с разделителем "|")');
+                throw new Error('Неверный формат words.txt (нет строк с разделителем "-")');
             }
 
             console.log(`✓ words.txt загружен успешно (${lines.length} строк, ${validLines.length} валидных)`);
@@ -472,4 +472,3 @@ if (typeof window !== 'undefined') {
 }
 
 console.log('✓ storage-protection.js загружен');
-
