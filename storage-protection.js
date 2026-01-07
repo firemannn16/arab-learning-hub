@@ -57,6 +57,12 @@ function safeLocalStorageGet(key, maxAge = 43200) {
                 localStorage.removeItem(key);
                 return null;
             }
+            
+            // Если данные были обёрнуты (массив или примитив), извлечь их
+            if (data._data !== undefined) {
+                console.log(`✓ localStorage: "${key}" загружен успешно (извлечено из обёртки)`);
+                return data._data;
+            }
         }
 
         console.log(`✓ localStorage: "${key}" загружен успешно`);
@@ -85,9 +91,21 @@ function safeLocalStorageSet(key, data, addTimestamp = true) {
         }
 
         // Добавить timestamp
-        const dataToSave = addTimestamp && typeof data === 'object' && data !== null
-            ? { ...data, timestamp: Date.now() }
-            : data;
+        let dataToSave;
+        if (addTimestamp && data !== null && data !== undefined) {
+            if (Array.isArray(data)) {
+                // Массивы оборачиваем в объект
+                dataToSave = { _data: data, timestamp: Date.now() };
+            } else if (typeof data === 'object') {
+                // Объекты spread
+                dataToSave = { ...data, timestamp: Date.now() };
+            } else {
+                // Примитивы оборачиваем
+                dataToSave = { _data: data, timestamp: Date.now() };
+            }
+        } else {
+            dataToSave = data;
+        }
 
         // Преобразовать в JSON
         const jsonString = JSON.stringify(dataToSave);
