@@ -803,6 +803,7 @@
                     currentPage: currentPage,
                     pageWordCounts: pageWordCounts,
                     nextWordId: nextWordId,
+                    lastSync: new Date().toISOString(),
                     lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
                 };
 
@@ -899,8 +900,13 @@
                         pageWordCounts = data.pageWordCounts || {};
                         nextWordId = data.nextWordId || 0;
                         
-                        const savedWordCount = data.initialWordCount || 0;
-                        saveToLocalStorage('initialWordCount', savedWordCount);
+                        // ✅ ВАЖНО: Сравниваем initialWordCount из Firebase с текущим количеством слов
+                        const firebaseWordCount = data.initialWordCount || 0;
+                        const currentLocalWordCount = getFromLocalStorage('initialWordCount', 0);
+                        
+                        // Используем МАКСИМАЛЬНОЕ значение (если в words.txt добавили слова)
+                        const actualWordCount = Math.max(firebaseWordCount, currentLocalWordCount, words.length);
+                        saveToLocalStorage('initialWordCount', actualWordCount);
                         
                         if (data.wordsOrder && data.wordsOrder.length > 0) {
                             words = data.wordsOrder;
@@ -918,6 +924,12 @@
                         saveToLocalStorage('lastSync', firebaseLastSync || new Date().toISOString());
                         
                         showSyncStatus('✓ Загружено из облака', 'synced');
+                        
+                        // ✅ Если actualWordCount больше чем в Firebase, обновляем Firebase
+                        if (actualWordCount > firebaseWordCount) {
+                            console.log(`📤 Обновляем initialWordCount в Firebase: ${firebaseWordCount} → ${actualWordCount}`);
+                            await syncToFirebase();
+                        }
                     }
                     
                     return true;
@@ -1233,7 +1245,8 @@
                 
                 await loadWords();
                 await loadFromFirebase(userCode);
-                await checkAndApplyFileChanges();
+                // ✅ УБРАНО: checkAndApplyFileChanges() больше не вызывается автоматически
+                // Эта функция удаляла "новые" слова, считая их лишними
                 
                 validateProgress(words);
                 
