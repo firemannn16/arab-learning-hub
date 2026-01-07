@@ -10,10 +10,10 @@
 /**
  * Безопасное чтение из localStorage с проверкой JSON и timestamp
  * @param {string} key - Ключ в localStorage
- * @param {number} maxAge - Максимальный возраст данных в минутах (по умолчанию 30 дней)
+ * @param {number} maxAge - Максимальный возраст данных в минутах (0 = без ограничения, по умолчанию 0)
  * @returns {any|null} - Данные или null при ошибке
  */
-function safeLocalStorageGet(key, maxAge = 43200) {
+function safeLocalStorageGet(key, maxAge = 0) {
     try {
         const item = localStorage.getItem(key);
         
@@ -40,22 +40,25 @@ function safeLocalStorageGet(key, maxAge = 43200) {
             return null;
         }
 
-        // Проверка timestamp (если данные имеют поле timestamp)
+        // Проверка timestamp (если данные имеют поле timestamp и включена проверка возраста)
         if (data && typeof data === 'object' && data.timestamp) {
-            const now = Date.now();
-            const age = (now - data.timestamp) / (1000 * 60); // возраст в минутах
-            
-            if (age > maxAge) {
-                console.warn(`⏰ Данные в "${key}" устарели (возраст: ${Math.round(age)} мин, макс: ${maxAge} мин)`);
+            // Если maxAge > 0, проверяем возраст данных
+            if (maxAge > 0) {
+                const now = Date.now();
+                const age = (now - data.timestamp) / (1000 * 60); // возраст в минутах
                 
-                // Создать backup устаревших данных
-                const backupKey = `${key}_old_backup_${Date.now()}`;
-                localStorage.setItem(backupKey, item);
-                console.log(`💾 Устаревшие данные сохранены в "${backupKey}"`);
-                
-                // Удалить устаревший ключ
-                localStorage.removeItem(key);
-                return null;
+                if (age > maxAge) {
+                    console.warn(`⏰ Данные в "${key}" устарели (возраст: ${Math.round(age)} мин, макс: ${maxAge} мин)`);
+                    
+                    // Создать backup устаревших данных
+                    const backupKey = `${key}_old_backup_${Date.now()}`;
+                    localStorage.setItem(backupKey, item);
+                    console.log(`💾 Устаревшие данные сохранены в "${backupKey}"`);
+                    
+                    // Удалить устаревший ключ
+                    localStorage.removeItem(key);
+                    return null;
+                }
             }
             
             // Если данные были обёрнуты (массив или примитив), извлечь их
@@ -78,10 +81,10 @@ function safeLocalStorageGet(key, maxAge = 43200) {
  * Безопасная запись в localStorage с backup
  * @param {string} key - Ключ в localStorage
  * @param {any} data - Данные для сохранения
- * @param {boolean} addTimestamp - Добавить timestamp к данным
+ * @param {boolean} addTimestamp - Добавить timestamp к данным (по умолчанию false для данных прогресса)
  * @returns {boolean} - true если успешно, false при ошибке
  */
-function safeLocalStorageSet(key, data, addTimestamp = true) {
+function safeLocalStorageSet(key, data, addTimestamp = false) {
     try {
         // Создать backup старых данных
         const oldData = localStorage.getItem(key);
@@ -232,12 +235,12 @@ async function safeLoadWordsFile(url = 'words.txt', maxRetries = 3) {
 
             console.log(`✓ words.txt загружен успешно (${lines.length} строк, ${validLines.length} валидных)`);
             
-            // Сохранить в localStorage как backup
+            // Сохранить в localStorage как backup (с timestamp, чтобы обновлять раз в неделю)
             safeLocalStorageSet('words_txt_cache', {
                 content: text,
                 linesCount: validLines.length,
                 loadedAt: Date.now()
-            });
+            }, true);
 
             return text;
 
@@ -248,7 +251,7 @@ async function safeLoadWordsFile(url = 'words.txt', maxRetries = 3) {
             // Если это последняя попытка - попробовать загрузить из cache
             if (attempt === maxRetries) {
                 console.log('🔄 Попытка загрузить words.txt из cache...');
-                const cached = safeLocalStorageGet('words_txt_cache', 60 * 24 * 7); // 7 дней
+                const cached = safeLocalStorageGet('words_txt_cache', 60 * 24 * 30); // 30 дней
                 
                 if (cached && cached.content) {
                     console.log(`✓ words.txt загружен из cache (${cached.linesCount} строк)`);
