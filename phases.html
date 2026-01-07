@@ -873,30 +873,53 @@
                 );
                 
                 if (data) {
-                    openedWordsMap = data.openedWords || {};
-                    errorWords = data.errors || [];
-                    pageWordCounts = data.pageWordCounts || {};
-                    nextWordId = data.nextWordId || 0;
+                    // ✅ СРАВНИВАЕМ TIMESTAMP: локальные VS Firebase
+                    const localLastSync = getFromLocalStorage('lastSync', null);
+                    const firebaseLastSync = data.lastSync || null;
                     
-                    const savedWordCount = data.initialWordCount || 0;
-                    saveToLocalStorage('initialWordCount', savedWordCount);
+                    let useFirebaseData = true;
                     
-                    if (data.wordsOrder && data.wordsOrder.length > 0) {
-                        words = data.wordsOrder;
-                        saveToLocalStorage('wordsOrder', words);
+                    if (localLastSync && firebaseLastSync) {
+                        const localTime = new Date(localLastSync).getTime();
+                        const firebaseTime = new Date(firebaseLastSync).getTime();
+                        
+                        // Если локальные данные НОВЕЕ - не перезаписываем
+                        if (localTime > firebaseTime) {
+                            console.log('📱 Локальные данные новее, синхронизируем в Firebase...');
+                            useFirebaseData = false;
+                            await syncToFirebase();
+                        } else {
+                            console.log('☁️ Firebase данные новее, загружаем...');
+                        }
                     }
                     
-                    if (data.currentPage !== undefined) {
-                        saveToLocalStorage('currentPage', data.currentPage);
+                    if (useFirebaseData) {
+                        openedWordsMap = data.openedWords || {};
+                        errorWords = data.errors || [];
+                        pageWordCounts = data.pageWordCounts || {};
+                        nextWordId = data.nextWordId || 0;
+                        
+                        const savedWordCount = data.initialWordCount || 0;
+                        saveToLocalStorage('initialWordCount', savedWordCount);
+                        
+                        if (data.wordsOrder && data.wordsOrder.length > 0) {
+                            words = data.wordsOrder;
+                            saveToLocalStorage('wordsOrder', words);
+                        }
+                        
+                        if (data.currentPage !== undefined) {
+                            saveToLocalStorage('currentPage', data.currentPage);
+                        }
+                        
+                        saveToLocalStorage('openedWords', openedWordsMap);
+                        saveToLocalStorage('errors', errorWords);
+                        saveToLocalStorage('pageWordCounts', pageWordCounts);
+                        saveToLocalStorage('nextWordId', nextWordId);
+                        saveToLocalStorage('lastSync', firebaseLastSync || new Date().toISOString());
+                        
+                        showSyncStatus('✓ Загружено из облака', 'synced');
                     }
                     
-                    saveToLocalStorage('openedWords', openedWordsMap);
-                    saveToLocalStorage('errors', errorWords);
-                    saveToLocalStorage('pageWordCounts', pageWordCounts);
-                    saveToLocalStorage('nextWordId', nextWordId);
-                    saveToLocalStorage('lastSync', new Date().toISOString());
-                    
-                    showSyncStatus('✓ Загружено из облака', 'synced');
                     return true;
                 } else {
                     console.log('Документ не найден, создаем новый');
