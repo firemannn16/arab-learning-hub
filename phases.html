@@ -375,23 +375,6 @@
             line-height: 1.5;
         }
 
-        .code-display {
-            background: #f0f0f0;
-            border: 3px dashed #2196F3;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            margin: 20px 0;
-        }
-
-        .code-text {
-            font-size: 36px;
-            font-weight: bold;
-            color: #2196F3;
-            letter-spacing: 8px;
-            font-family: 'Courier New', monospace;
-        }
-
         .modal-buttons {
             display: flex;
             gap: 10px;
@@ -407,24 +390,6 @@
             font-size: 15px;
             font-weight: 500;
             transition: background 0.3s;
-        }
-
-        .modal-btn.primary {
-            background: #2196F3;
-            color: white;
-        }
-
-        .modal-btn.primary:hover {
-            background: #1976D2;
-        }
-
-        .modal-btn.secondary {
-            background: #4CAF50;
-            color: white;
-        }
-
-        .modal-btn.secondary:hover {
-            background: #45a049;
         }
 
         .modal-btn.cancel {
@@ -636,11 +601,6 @@
             .copy-btn, .restore-btn {
                 width: 100%;
             }
-
-            .code-text {
-                font-size: 28px;
-                letter-spacing: 4px;
-            }
         }
     </style>
 </head>
@@ -702,26 +662,6 @@
         ⏳ Синхронизация...
     </div>
 
-    <div class="modal" id="welcome-modal">
-        <div class="modal-content">
-            <div class="modal-title">🎉 Добро пожаловать!</div>
-            <div class="modal-text">
-                Ваш уникальный код для синхронизации:<br>
-                <strong>Сохраните его!</strong>
-            </div>
-            <div class="code-display">
-                <div class="code-text" id="welcome-code">------</div>
-            </div>
-            <div class="modal-text" style="font-size: 14px; color: #999;">
-                С этим кодом вы сможете восстановить прогресс на любом устройстве
-            </div>
-            <div class="modal-buttons">
-                <button class="modal-btn secondary" id="copy-welcome-code">Скопировать код</button>
-                <button class="modal-btn primary" id="start-learning">Начать обучение</button>
-            </div>
-        </div>
-    </div>
-
     <div class="modal" id="reset-modal">
         <div class="modal-content">
             <div class="modal-title">⚠️ Подтверждение сброса</div>
@@ -740,6 +680,15 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
     <script>
+        // ✅ ИДЕНТИФИКАТОР ТРЕНАЖЕРА
+        const TRAINER_ID = 'phases';
+        
+        // ✅ ПРЕФИКС ДЛЯ ЭТОГО ТРЕНАЖЕРА
+        const PREFIX = 'phases_';
+        
+        // ✅ ОБЩИЙ КОД ДЛЯ ВСЕХ ТРЕНАЖЕРОВ
+        const SHARED_CODE_KEY = 'userProgressCode';
+
         const firebaseConfig = {
             apiKey: "AIzaSyCYm7d5ihMS9u0z_hq-1JG7TKrZvXzQZYk",
             authDomain: "арабский-e3be6.firebaseapp.com",
@@ -767,8 +716,6 @@
         let nextWordId = 0;
 
         let formattedCache = new Map();
-
-        const PREFIX = 'arabicTrainer_';
         
         const wordsList = document.getElementById('words-list');
         const modeToggle = document.getElementById('mode-toggle');
@@ -792,6 +739,15 @@
         let isValidSwipeStart = false;
         let currentSwipeRow = null;
         let rafId = null;
+
+        // ✅ ФУНКЦИИ ДЛЯ РАБОТЫ С ОБЩИМ КОДОМ
+        function getUserCode() {
+            return localStorage.getItem(SHARED_CODE_KEY) || '';
+        }
+
+        function saveUserCode(code) {
+            localStorage.setItem(SHARED_CODE_KEY, code);
+        }
 
         function generateWordId() {
             return `word_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -837,12 +793,14 @@
             }, 2000);
         }
 
+        // ✅ СИНХРОНИЗАЦИЯ С FIREBASE (ПОДКОЛЛЕКЦИЯ)
         async function syncToFirebase() {
             if (!userCode) return;
             
             try {
                 const data = {
                     code: userCode,
+                    trainerId: TRAINER_ID,
                     initialWordCount: getFromLocalStorage('initialWordCount', 0),
                     openedWords: openedWordsMap,
                     errors: errorWords,
@@ -853,10 +811,16 @@
                     lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
                 };
 
-                await db.collection('users').doc(userCode).set(data, { merge: true });
+                // ✅ ПУТЬ: users/{code}/trainers/phases
+                await db.collection('users')
+                       .doc(userCode)
+                       .collection('trainers')
+                       .doc(TRAINER_ID)
+                       .set(data, { merge: true });
+                
                 saveToLocalStorage('lastSync', new Date().toISOString());
                 
-                console.log('✓ Синхронизировано с Firebase');
+                console.log('✓ Синхронизировано с Firebase (phases)');
                 showSyncStatus('✓ Синхронизировано', 'synced');
             } catch (error) {
                 console.error('Ошибка синхронизации с Firebase:', error);
@@ -879,11 +843,17 @@
             }, 3000);
         }
 
+        // ✅ ЗАГРУЗКА ИЗ FIREBASE (ПОДКОЛЛЕКЦИЯ)
         async function loadFromFirebase(code) {
             try {
                 showSyncStatus('⏳ Загрузка из облака...', 'syncing');
                 
-                const doc = await db.collection('users').doc(code).get();
+                // ✅ ПУТЬ: users/{code}/trainers/phases
+                const doc = await db.collection('users')
+                                   .doc(code)
+                                   .collection('trainers')
+                                   .doc(TRAINER_ID)
+                                   .get();
                 
                 if (doc.exists) {
                     const data = doc.data();
@@ -911,7 +881,7 @@
                     saveToLocalStorage('nextWordId', nextWordId);
                     saveToLocalStorage('lastSync', new Date().toISOString());
                     
-                    console.log('✓ Загружено из Firebase');
+                    console.log('✓ Загружено из Firebase (phases)');
                     showSyncStatus('✓ Загружено из облака', 'synced');
                     return true;
                 } else {
@@ -1204,18 +1174,17 @@
             return pageNum;
         }
 
+        // ✅ ИНИЦИАЛИЗАЦИЯ БЕЗ МОДАЛКИ
         async function initialize() {
-            userCode = getFromLocalStorage('userCode', '');
+            userCode = getUserCode();
             
             if (!userCode) {
+                // Генерируем код, но НЕ показываем модалку
                 userCode = generateCode();
-                saveToLocalStorage('userCode', userCode);
+                saveUserCode(userCode);
+                console.log('🆕 Создан новый код:', userCode);
                 
                 await loadWords();
-                
-                document.getElementById('welcome-code').textContent = userCode;
-                document.getElementById('welcome-modal').classList.add('show');
-                
                 await syncToFirebase();
             } else {
                 console.log('👤 Код пользователя:', userCode);
@@ -1228,9 +1197,7 @@
                 renderErrors();
                 
                 await loadWords();
-                
                 await loadFromFirebase(userCode);
-                
                 await checkAndApplyFileChanges();
                 
                 validateProgress(words);
@@ -1241,20 +1208,6 @@
                 renderWords();
             }
         }
-
-        document.getElementById('copy-welcome-code').addEventListener('click', function() {
-            const code = document.getElementById('welcome-code').textContent;
-            navigator.clipboard.writeText(code).then(() => {
-                this.textContent = '✓ Скопировано!';
-                setTimeout(() => {
-                    this.textContent = 'Скопировать код';
-                }, 2000);
-            });
-        });
-
-        document.getElementById('start-learning').addEventListener('click', function() {
-            document.getElementById('welcome-modal').classList.remove('show');
-        });
 
         resetProgressBtn.addEventListener('click', function() {
             document.getElementById('reset-modal').classList.add('show');
