@@ -123,7 +123,7 @@ function safeLocalStorageSet(key, data, addTimestamp = true) {
 }
 
 /**
- * Очистить все backup'ы старше N дней
+ * Очистить все backup-ы старше N дней
  * @param {number} days - Количество дней
  */
 function cleanOldBackups(days = 7) {
@@ -149,10 +149,10 @@ function cleanOldBackups(days = 7) {
         }
 
         if (cleaned > 0) {
-            console.log(`🧹 Очищено ${cleaned} старых backup'ов`);
+            console.log(`🧹 Очищено ${cleaned} старых backup-ов`);
         }
     } catch (error) {
-        console.error('❌ Ошибка очистки backup'ов:', error);
+        console.error('❌ Ошибка очистки backup-ов:', error);
     }
 }
 
@@ -464,7 +464,7 @@ function getStorageStats() {
 // 🚀 ЭКСПОРТ (для использования в тренажерах)
 // ============================================
 
-// Автоматическая очистка старых backup'ов при загрузке
+// Автоматическая очистка старых backup-ов при загрузке
 if (typeof window !== 'undefined') {
     window.addEventListener('load', () => {
         cleanOldBackups(7);
