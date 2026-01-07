@@ -6,6 +6,15 @@
 <title>Тренажер Заучка + Практика - Арабские слова</title>
     <script src="dua.js"></script>
 <script type="module">
+/* ========== ✅ ИДЕНТИФИКАТОР ТРЕНАЖЕРА ========== */
+const TRAINER_ID = 'input';
+
+/* ========== ✅ ПРЕФИКС ДЛЯ ЭТОГО ТРЕНАЖЕРА ========== */
+const PREFIX = 'input_';
+
+/* ========== ✅ ОБЩИЙ КОД ДЛЯ ВСЕХ ТРЕНАЖЕРОВ ========== */
+const SHARED_CODE_KEY = 'userProgressCode';
+
 /* ---------- Firebase инициализация ---------- */
 const firebaseConfig = {
     apiKey: "AIzaSyCYm7d5ihMS9u0z_hq-1JG7TKrZvXzQZYk",
@@ -33,23 +42,33 @@ try {
   console.warn('Firebase не инициализирован:', e);
   window.firebaseEnabled = false;
 }
-/* ---------- Device ID ---------- */
-function getDeviceId() {
-  let deviceId = localStorage.getItem('device_id');
-  if(!deviceId) {
-    deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('device_id', deviceId);
+
+/* ========== ✅ Генерация и получение кода ========== */
+function generateCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return deviceId;
+  return code;
 }
-const DEVICE_ID = getDeviceId();
+
+function getUserCode() {
+  let code = localStorage.getItem(SHARED_CODE_KEY);
+  if (!code) {
+    code = generateCode();
+    localStorage.setItem(SHARED_CODE_KEY, code);
+    console.log('🆕 Создан новый код:', code);
+  }
+  return code;
+}
+
+const USER_CODE = getUserCode();
+
 /* ---------- Настройки ---------- */
 const BATCH_SIZE = 33;
 const SHOW_ANSWER_MS = 15000;
-const STORAGE_KEY = (() => {
-  const p = (location.pathname||'/').replace(/^\/|\/$/g,'').replace(/\//g,'_') || 'root';
-  return `arabic_trainer_input_v1_${encodeURIComponent(location.hostname + '_' + p)}`;
-})();
+
 /* ---------- Состояние ---------- */
 let allWords = [];
 let orderQueue = [];
@@ -61,6 +80,7 @@ let practiceOrder = [];
 let phase = 'learn';
 let currentRaw = null;
 let modalTimer = null;
+
 /* ---------- DOM ---------- */
 const screenMain = document.getElementById('screen-main');
 const statTotal = document.getElementById('stat-total');
@@ -80,6 +100,7 @@ const practiceSubmit = document.getElementById('practice-submit');
 const practiceSkip = document.getElementById('practice-skip');
 const oralAnswerBtn = document.getElementById('oral-answer');
 const modalRoot = document.getElementById('modal-root');
+
 /* ---------- Утилиты ---------- */
 function normalizeRu(s){
   if(!s && s!=='') return '';
@@ -97,6 +118,7 @@ function parseLine(raw){
 }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
 function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]); }
+
 /* ---------- last-letter mistake detector ---------- */
 function isLastCharMistake(userRaw, correctRaw){
   const u = normalizeRu(userRaw||'');
@@ -114,9 +136,12 @@ function isLastCharMistake(userRaw, correctRaw){
   }
   return false;
 }
-/* ---------- Save / Load / Clear ---------- */
+
+/* ========== ✅ Save / Load / Clear (ПОДКОЛЛЕКЦИЯ) ========== */
 async function saveState(){
   const st = {
+    trainerId: TRAINER_ID,
+    code: USER_CODE,
     allRaw: allWords.map(w=>w.rawLine),
     orderQueue: orderQueue.slice(),
     masteredFinal: masteredFinal.slice(),
@@ -128,35 +153,50 @@ async function saveState(){
     timestamp: Date.now()
   };
   try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(st));
-    localStorage.setItem(STORAGE_KEY + '_backup', JSON.stringify(st));
+    // ✅ Сохраняем в localStorage с префиксом
+    localStorage.setItem(PREFIX + 'state', JSON.stringify(st));
+    localStorage.setItem(PREFIX + 'state_backup', JSON.stringify(st));
   }catch(e){ console.warn('localStorage save failed', e); }
+  
+  // ✅ Сохраняем в Firebase (подколлекция)
   if(window.firebaseEnabled && window.firestore && window.firebaseModules){
     try{
-      const firestoreKey = `${DEVICE_ID}_${STORAGE_KEY}`;
-      const docRef = window.firebaseModules.doc(window.firestore, 'progress', firestoreKey);
+      const docRef = window.firebaseModules.doc(
+        window.firestore, 
+        'users', USER_CODE, 
+        'trainers', TRAINER_ID
+      );
       await window.firebaseModules.setDoc(docRef, st, { merge: true });
+      console.log('✓ Сохранено в Firestore (input)');
     }catch(e){ console.warn('Firestore save failed:', e); }
   }
 }
+
 async function loadState(){
+  // ✅ Загружаем из localStorage с префиксом
   try{
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(PREFIX + 'state');
     if(raw){
       const st = JSON.parse(raw);
       return st;
     }
   }catch(e){ console.warn('localStorage load failed', e); }
+  
+  // ✅ Загружаем из Firebase (подколлекция)
   if(window.firebaseEnabled && window.firestore && window.firebaseModules){
     try{
-      const firestoreKey = `${DEVICE_ID}_${STORAGE_KEY}`;
-      const docRef = window.firebaseModules.doc(window.firestore, 'progress', firestoreKey);
+      const docRef = window.firebaseModules.doc(
+        window.firestore, 
+        'users', USER_CODE, 
+        'trainers', TRAINER_ID
+      );
       const docSnap = await window.firebaseModules.getDoc(docRef);
       if(docSnap.exists()){
         const data = docSnap.data();
+        console.log('✓ Загружено из Firestore (input)');
         try{
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-          localStorage.setItem(STORAGE_KEY + '_backup', JSON.stringify(data));
+          localStorage.setItem(PREFIX + 'state', JSON.stringify(data));
+          localStorage.setItem(PREFIX + 'state_backup', JSON.stringify(data));
         }catch(e){}
         return data;
       }
@@ -164,19 +204,28 @@ async function loadState(){
   }
   return null;
 }
+
 async function clearState(){
+  // ✅ Удаляем из localStorage с префиксом
   try{
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(STORAGE_KEY + '_backup');
+    localStorage.removeItem(PREFIX + 'state');
+    localStorage.removeItem(PREFIX + 'state_backup');
   }catch(e){}
+  
+  // ✅ Удаляем из Firebase (подколлекция)
   if(window.firebaseEnabled && window.firestore && window.firebaseModules){
     try{
-      const firestoreKey = `${DEVICE_ID}_${STORAGE_KEY}`;
-      const docRef = window.firebaseModules.doc(window.firestore, 'progress', firestoreKey);
+      const docRef = window.firebaseModules.doc(
+        window.firestore, 
+        'users', USER_CODE, 
+        'trainers', TRAINER_ID
+      );
       await window.firebaseModules.deleteDoc(docRef);
+      console.log('✓ Удалено из Firestore (input)');
     }catch(e){ console.warn('Firestore delete failed:', e); }
   }
 }
+
 /* ---------- robust fetch ---------- */
 async function robustFetchWords(){
   const timestamp = Date.now();
@@ -196,6 +245,7 @@ async function robustFetchWords(){
   }catch(e){}
   throw new Error('Не удалось загрузить words.txt');
 }
+
 /* ---------- Инициализация словаря ---------- */
 async function initDictionary(){
   const st = await loadState();
@@ -264,6 +314,7 @@ async function initDictionary(){
   updateStats();
   saveState().catch(e => console.warn('Save failed:', e));
 }
+
 /* ---------- UI helpers ---------- */
 function updateStats(){
   statTotal.textContent = allWords.length;
@@ -272,6 +323,7 @@ function updateStats(){
   statPhase.textContent = phase === 'learn' ? 'Заучивание' : (phase === 'practice' ? 'Практика' : '—');
 }
 function showMessage(t){ messageDiv.textContent = t || ''; }
+
 /* ---------- Заучивание ---------- */
 function showNextLearn(){
   phase = 'learn';
@@ -293,6 +345,7 @@ function showNextLearn(){
   showMessage('Нажмите «Знаю» или «Не знаю».');
   saveState();
 }
+
 /* ---------- Кнопки заучивания ---------- */
 btnKnow.addEventListener('click', () => {
   if(!currentRaw) return;
@@ -306,6 +359,7 @@ btnKnow.addEventListener('click', () => {
     showNextLearn();
   }
 });
+
 btnDont.addEventListener('click', () => {
   if(!currentRaw) return;
   orderQueue.shift();
@@ -314,6 +368,7 @@ btnDont.addEventListener('click', () => {
   showDontKnowModal(obj);
   currentRaw = null;
 });
+
 /* ---------- Modal: "Не знаю" ---------- */
 function showDontKnowModal(obj){
   closeModal();
@@ -339,6 +394,7 @@ function showDontKnowModal(obj){
     }
   }, SHOW_ANSWER_MS);
 }
+
 /* ---------- Modal: практика — при ошибке и мелкой ошибке ---------- */
 function showPracticeAnswerModal(obj, title = 'Правильный ответ', autoClose = true, onClose = null){
   closeModal();
@@ -364,6 +420,7 @@ function showPracticeAnswerModal(obj, title = 'Правильный ответ',
   const btn = document.getElementById('modal-close'); if(btn) btn.addEventListener('click', onBtn);
   if(autoClose) modalTimer = setTimeout(()=>{ onBtn(); }, SHOW_ANSWER_MS);
 }
+
 /* ---------- Практика: старт ---------- */
 function startPractice(){
   phase = 'practice';
@@ -383,6 +440,7 @@ function startPractice(){
   showNextPractice();
   saveState();
 }
+
 /* ---------- showNextPractice ---------- */
 function showNextPractice(){
   if(practiceOrder.length === 0){
@@ -408,6 +466,7 @@ function showNextPractice(){
   }
   updateStats();
 }
+
 /* ---------- Устный ответ (только для старых слов) ---------- */
 oralAnswerBtn.addEventListener('click', () => {
   if(!currentRaw || !masteredFinal.includes(currentRaw)) return;
@@ -417,9 +476,11 @@ oralAnswerBtn.addEventListener('click', () => {
   showNextPractice();
   saveState();
 });
+
 /* ---------- Практика: проверка ---------- */
 function enablePracticeControls(){ practiceSubmit.disabled=false; practiceSkip.disabled=false; practiceInput.disabled=false; practiceInput.focus(); }
 function disablePracticeControls(){ practiceSubmit.disabled=true; practiceSkip.disabled=true; practiceInput.disabled=true; }
+
 practiceSubmit.addEventListener('click', () => {
   if(!currentRaw) return;
   disablePracticeControls();
@@ -467,7 +528,9 @@ practiceSubmit.addEventListener('click', () => {
     }
   }catch(e){ console.error(e); enablePracticeControls(); }
 });
+
 practiceInput.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); practiceSubmit.click(); }});
+
 practiceSkip.addEventListener('click', () => {
   if(!currentRaw) return;
   const isOld = masteredFinal.includes(currentRaw);
@@ -484,6 +547,7 @@ practiceSkip.addEventListener('click', () => {
   showNextPractice();
   saveState();
 });
+
 /* ---------- Добавить новые слова ---------- */
 btnAdd.addEventListener('click', async () => {
   try{
@@ -510,6 +574,7 @@ btnAdd.addEventListener('click', async () => {
     }
   }catch(e){ alert('Ошибка: '+e.message); }
 });
+
 /* ---------- Сброс прогресса ---------- */
 function showResetModal() {
   closeModal();
@@ -542,6 +607,7 @@ function showResetModal() {
   document.getElementById('modal-confirm').addEventListener('click', onConfirm);
 }
 btnReset.addEventListener('click', showResetModal);
+
 /* ---------- bootstrap ---------- */
 (async function bootstrap(){
   try{ 
@@ -558,6 +624,7 @@ btnReset.addEventListener('click', showResetModal);
     }
   }catch(e){ console.error(e); }
 })();
+
 window.addEventListener('beforeunload', saveState);
 window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') saveState(); });
 function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(modalTimer); modalTimer=null; } }
