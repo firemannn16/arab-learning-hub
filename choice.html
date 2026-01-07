@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Тренажер выборка - Арабские слова</title>
+<title>Тренажер выбора - Арабские слова</title>
     <script src="dua.js"></script>
 <script type="module">
 /* ---------- Firebase инициализация ---------- */
@@ -124,7 +124,7 @@ try {
 <body>
   <div id="container">
     <a href="index.html" class="home-btn">← Вернуться на главную</a>
-    <h1>Тренажёр выборка</h1>
+    <h1>Тренажёр выбора</h1>
     <div id="trainer" style="margin-top:14px">
       <div class="format-toggle">
         <span>АРБ → РУС</span>
@@ -163,23 +163,39 @@ try {
   </div>
   <div id="modal-root"></div>
 <script>
+/* ========== ✅ ИДЕНТИФИКАТОР ТРЕНАЖЕРА ========== */
+const TRAINER_ID = 'choice';
+
+/* ========== ✅ ПРЕФИКС ДЛЯ ЭТОГО ТРЕНАЖЕРА ========== */
+const PREFIX = 'choice_';
+
+/* ========== ✅ ОБЩИЙ КОД ДЛЯ ВСЕХ ТРЕНАЖЕРОВ ========== */
+const SHARED_CODE_KEY = 'userProgressCode';
+
 /* ========== Конфиг ========== */
-const STORAGE_KEY = (() => {
-  const p = (location.pathname||'/').replace(/^\/|\/$/g,'').replace(/\//g,'_') || 'root';
-  return `arabic_trainer_choice_v1_${encodeURIComponent(location.hostname + '_' + p)}`;
-})();
 const AUTO_MODAL_CLOSE_MS = 17000;
 
-/* ========== Firebase: Device ID ========== */
-function getDeviceId() {
-  let deviceId = localStorage.getItem('device_id');
-  if(!deviceId) {
-    deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('device_id', deviceId);
+/* ========== ✅ Генерация и получение кода ========== */
+function generateCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return deviceId;
+  return code;
 }
-const DEVICE_ID = getDeviceId();
+
+function getUserCode() {
+  let code = localStorage.getItem(SHARED_CODE_KEY);
+  if (!code) {
+    code = generateCode();
+    localStorage.setItem(SHARED_CODE_KEY, code);
+    console.log('🆕 Создан новый код:', code);
+  }
+  return code;
+}
+
+const USER_CODE = getUserCode();
 
 /* ========== Утилиты ========== */
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
@@ -285,11 +301,13 @@ async function robustFetchWords(){
   throw new Error('Не удалось загрузить words.txt автоматически');
 }
 
-/* ========== Save/Load State ========== */
+/* ========== ✅ Save/Load State (ПОДКОЛЛЕКЦИЯ) ========== */
 async function saveState(){
   let st = null;
   try {
     st = {
+      trainerId: TRAINER_ID,
+      code: USER_CODE,
       allRaw: allWords.map(w => w.rawLine),
       orderRaw: orderRaw.slice(),
       currentRaw,
@@ -299,13 +317,20 @@ async function saveState(){
       direction,
       timestamp: Date.now()
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(st));
-    localStorage.setItem(STORAGE_KEY + '_backup', JSON.stringify(st));
+    
+    // ✅ Сохраняем в localStorage с префиксом
+    localStorage.setItem(PREFIX + 'state', JSON.stringify(st));
+    localStorage.setItem(PREFIX + 'state_backup', JSON.stringify(st));
+    
+    // ✅ Сохраняем в Firebase (подколлекция)
     if (window.firebaseEnabled && window.firestore && window.firebaseModules && st) {
-      const firestoreKey = `${DEVICE_ID}_${STORAGE_KEY}`;
-      const docRef = window.firebaseModules.doc(window.firestore, 'progress', firestoreKey);
+      const docRef = window.firebaseModules.doc(
+        window.firestore, 
+        'users', USER_CODE, 
+        'trainers', TRAINER_ID
+      );
       await window.firebaseModules.setDoc(docRef, st, { merge: true });
-      console.log('Сохранено в Firestore');
+      console.log('✓ Сохранено в Firestore (choice)');
     }
   } catch(e) {
     console.warn('Не удалось сохранить прогресс:', e);
@@ -313,8 +338,9 @@ async function saveState(){
 }
 
 async function loadState(){
+  // ✅ Загружаем из localStorage с префиксом
   try{
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(PREFIX + 'state');
     if(raw){
       const st = JSON.parse(raw);
       if(st.timestamp && (Date.now() - st.timestamp) < 30*24*60*60*1000){
@@ -323,17 +349,21 @@ async function loadState(){
     }
   }catch(e){ console.warn('localStorage load failed', e); }
   
+  // ✅ Загружаем из Firebase (подколлекция)
   if(window.firebaseEnabled && window.firestore && window.firebaseModules){
     try {
-      const firestoreKey = `${DEVICE_ID}_${STORAGE_KEY}`;
-      const docRef = window.firebaseModules.doc(window.firestore, 'progress', firestoreKey);
+      const docRef = window.firebaseModules.doc(
+        window.firestore, 
+        'users', USER_CODE, 
+        'trainers', TRAINER_ID
+      );
       const docSnap = await window.firebaseModules.getDoc(docRef);
       if(docSnap.exists()){
         const data = docSnap.data();
-        console.log('Загружено из Firestore');
+        console.log('✓ Загружено из Firestore (choice)');
         try{
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-          localStorage.setItem(STORAGE_KEY + '_backup', JSON.stringify(data));
+          localStorage.setItem(PREFIX + 'state', JSON.stringify(data));
+          localStorage.setItem(PREFIX + 'state_backup', JSON.stringify(data));
         }catch(e){}
         return data;
       }
@@ -343,7 +373,7 @@ async function loadState(){
   }
   
   try{
-    const backup = localStorage.getItem(STORAGE_KEY + '_backup');
+    const backup = localStorage.getItem(PREFIX + 'state_backup');
     if(backup) return JSON.parse(backup);
   }catch(e){}
   
@@ -684,7 +714,7 @@ function closeModal(){
   if(modalTimer){ clearTimeout(modalTimer); modalTimer=null; } 
 }
 
-/* ========== Модал подтверждения сброса ========== */
+/* ========== ✅ Модал подтверждения сброса (ПОДКОЛЛЕКЦИЯ) ========== */
 async function showResetModal() {
   closeModal();
   const overlay = document.createElement('div'); 
@@ -718,17 +748,23 @@ async function showResetModal() {
   
   async function onConfirm() {
     cleanup();
+    
+    // ✅ Удаляем из localStorage с префиксом
     try{ 
-      localStorage.removeItem(STORAGE_KEY); 
-      localStorage.removeItem(STORAGE_KEY + '_backup'); 
+      localStorage.removeItem(PREFIX + 'state'); 
+      localStorage.removeItem(PREFIX + 'state_backup'); 
     }catch(e){}
     
+    // ✅ Удаляем из Firebase (подколлекция)
     if(window.firebaseEnabled && window.firestore && window.firebaseModules){
       try {
-        const firestoreKey = `${DEVICE_ID}_${STORAGE_KEY}`;
-        const docRef = window.firebaseModules.doc(window.firestore, 'progress', firestoreKey);
+        const docRef = window.firebaseModules.doc(
+          window.firestore, 
+          'users', USER_CODE, 
+          'trainers', TRAINER_ID
+        );
         await window.firebaseModules.deleteDoc(docRef);
-        console.log('Удалено из Firestore');
+        console.log('✓ Удалено из Firestore (choice)');
       } catch(e) { 
         console.warn('Firestore delete failed:', e); 
       }
