@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Тренажер Заучка + Практика - Арабские слова</title>
     <script src="dua.js"></script>
+    <script src="service-worker-register.js"></script>
 <script type="module">
 /* ========== ✅ ИДЕНТИФИКАТОР ТРЕНАЖЕРА ========== */
 const TRAINER_ID = 'input';
@@ -628,6 +629,7 @@ btnReset.addEventListener('click', showResetModal);
 window.addEventListener('beforeunload', saveState);
 window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') saveState(); });
 function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(modalTimer); modalTimer=null; } }
+
 </script>
 </head>
 <body>
@@ -684,4 +686,3 @@ function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(moda
   .modal .pair{margin-top:8px}
 </style>
 </body>
-</html>
