@@ -6,6 +6,7 @@
     <title>Тренажер Тетрадь - Арабские слова</title>
     <script src="dua.js"></script>
     <script src="service-worker-register.js"></script>
+    <script src="storage-protection.js"></script>
     <style>
         * {
             margin: 0;
@@ -755,21 +756,14 @@
         }
 
         function saveToLocalStorage(key, value) {
-            try {
-                localStorage.setItem(PREFIX + key, JSON.stringify(value));
-            } catch (e) {
-                console.error('Ошибка сохранения в localStorage:', e);
-            }
+            // ✅ Используем безопасное сохранение
+            return safeLocalStorageSet(PREFIX + key, value);
         }
 
         function getFromLocalStorage(key, defaultValue = null) {
-            try {
-                const item = localStorage.getItem(PREFIX + key);
-                return item ? JSON.parse(item) : defaultValue;
-            } catch (e) {
-                console.error('Ошибка чтения из localStorage:', e);
-                return defaultValue;
-            }
+            // ✅ Используем безопасное чтение
+            const result = safeLocalStorageGet(PREFIX + key);
+            return result !== null ? result : defaultValue;
         }
 
         function removeFromLocalStorage(key) {
@@ -812,17 +806,27 @@
                     lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
                 };
 
-                // ✅ ПУТЬ: users/{code}/trainers/phases
-                await db.collection('users')
-                       .doc(userCode)
-                       .collection('trainers')
-                       .doc(TRAINER_ID)
-                       .set(data, { merge: true });
+                // ✅ Используем безопасное сохранение в Firebase
+                const success = await safeFirebaseSave(
+                    async () => {
+                        // ✅ ПУТЬ: users/{code}/trainers/phases
+                        return await db.collection('users')
+                               .doc(userCode)
+                               .collection('trainers')
+                               .doc(TRAINER_ID)
+                               .set(data, { merge: true });
+                    },
+                    PREFIX + 'firebase_backup',
+                    data
+                );
                 
-                saveToLocalStorage('lastSync', new Date().toISOString());
-                
-                console.log('✓ Синхронизировано с Firebase (phases)');
-                showSyncStatus('✓ Синхронизировано', 'synced');
+                if (success) {
+                    saveToLocalStorage('lastSync', new Date().toISOString());
+                    console.log('✓ Синхронизировано с Firebase (phases)');
+                    showSyncStatus('✓ Синхронизировано', 'synced');
+                } else {
+                    showSyncStatus('❌ Ошибка синхронизации', 'error');
+                }
             } catch (error) {
                 console.error('Ошибка синхронизации с Firebase:', error);
                 showSyncStatus('❌ Ошибка синхронизации', 'error');
@@ -849,16 +853,26 @@
             try {
                 showSyncStatus('⏳ Загрузка из облака...', 'syncing');
                 
-                // ✅ ПУТЬ: users/{code}/trainers/phases
-                const doc = await db.collection('users')
-                                   .doc(code)
-                                   .collection('trainers')
-                                   .doc(TRAINER_ID)
-                                   .get();
+                // ✅ Используем безопасную загрузку из Firebase
+                const data = await safeFirebaseLoad(
+                    async () => {
+                        // ✅ ПУТЬ: users/{code}/trainers/phases
+                        const doc = await db.collection('users')
+                                           .doc(code)
+                                           .collection('trainers')
+                                           .doc(TRAINER_ID)
+                                           .get();
+                        
+                        if (doc.exists) {
+                            console.log('✓ Загружено из Firebase (phases)');
+                            return doc.data();
+                        }
+                        return null;
+                    },
+                    PREFIX + 'firebase_backup'
+                );
                 
-                if (doc.exists) {
-                    const data = doc.data();
-                    
+                if (data) {
                     openedWordsMap = data.openedWords || {};
                     errorWords = data.errors || [];
                     pageWordCounts = data.pageWordCounts || {};
@@ -882,7 +896,6 @@
                     saveToLocalStorage('nextWordId', nextWordId);
                     saveToLocalStorage('lastSync', new Date().toISOString());
                     
-                    console.log('✓ Загружено из Firebase (phases)');
                     showSyncStatus('✓ Загружено из облака', 'synced');
                     return true;
                 } else {
@@ -1078,13 +1091,12 @@
 
         async function loadWords() {
             try {
-                const response = await fetch('words.txt');
+                // ✅ Используем безопасную загрузку с retry
+                const text = await safeLoadWordsFile('words.txt', 3);
                 
-                if (!response.ok) {
+                if (!text) {
                     throw new Error('Не удалось загрузить файл');
                 }
-                
-                const text = await response.text();
                 const allWordsFromFile = parseWordsFromText(text);
                 
                 const savedWordsOrder = getFromLocalStorage('wordsOrder', null);
@@ -1130,10 +1142,9 @@
 
         async function checkAndApplyFileChanges() {
             try {
-                const response = await fetch('words.txt');
-                if (!response.ok) return;
-                
-                const text = await response.text();
+                // ✅ Используем безопасную загрузку с retry
+                const text = await safeLoadWordsFile('words.txt', 3);
+                if (!text) return;
                 const allWordsFromFile = parseWordsFromText(text);
                 
                 const savedWordCount = getFromLocalStorage('initialWordCount', 0);
@@ -1220,10 +1231,9 @@
 
         document.getElementById('confirm-reset-btn').addEventListener('click', async function() {
             try {
-                const response = await fetch('words.txt');
-                if (!response.ok) throw new Error('Не удалось загрузить файл');
-                
-                const text = await response.text();
+                // ✅ Используем безопасную загрузку с retry
+                const text = await safeLoadWordsFile('words.txt', 3);
+                if (!text) throw new Error('Не удалось загрузить файл');
                 const allWords = parseWordsFromText(text);
                 
                 originalWords = allWords;
@@ -1263,10 +1273,9 @@
 
         addNewWordsBtn.addEventListener('click', async function() {
             try {
-                const response = await fetch('words.txt');
-                if (!response.ok) throw new Error('Не удалось загрузить файл');
-                
-                const text = await response.text();
+                // ✅ Используем безопасную загрузку с retry
+                const text = await safeLoadWordsFile('words.txt', 3);
+                if (!text) throw new Error('Не удалось загрузить файл');
                 const allWords = parseWordsFromText(text);
                 
                 const savedWordCount = getFromLocalStorage('initialWordCount', 0);
