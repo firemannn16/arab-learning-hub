@@ -179,7 +179,7 @@ async function saveState(){
 async function loadState(){
   // ✅ Загружаем с использованием safeFirebaseLoad (Firebase + fallback localStorage)
   if(window.firebaseEnabled && window.firestore && window.firebaseModules){
-    const data = await safeFirebaseLoad(
+    const firebaseData = await safeFirebaseLoad(
       async () => {
         const docRef = window.firebaseModules.doc(
           window.firestore, 
@@ -195,11 +195,38 @@ async function loadState(){
       },
       PREFIX + 'state'
     );
-    return data;
+    
+    // ✅ Сравниваем timestamp: локальные VS Firebase
+    const localData = safeLocalStorageGet(PREFIX + 'state', 0);
+    
+    if (firebaseData && localData) {
+      const firebaseTime = firebaseData.timestamp || 0;
+      const localTime = localData.timestamp || 0;
+      
+      // Используем более свежие данные
+      if (localTime > firebaseTime) {
+        console.log('📱 Локальные данные новее (input), синхронизируем в Firebase...');
+        await saveState();
+        return localData;
+      } else {
+        console.log('☁️ Firebase данные новее (input)');
+        return firebaseData;
+      }
+    }
+    
+    // Если есть только Firebase данные
+    if (firebaseData) {
+      return firebaseData;
+    }
+    
+    // Если есть только локальные данные
+    if (localData) {
+      return localData;
+    }
   }
   
   // Fallback: только localStorage
-  return safeLocalStorageGet(PREFIX + 'state');
+  return safeLocalStorageGet(PREFIX + 'state', 0);
 }
 
 async function clearState(){
