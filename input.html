@@ -6,6 +6,7 @@
 <title>Тренажер Заучка + Практика - Арабские слова</title>
     <script src="dua.js"></script>
     <script src="service-worker-register.js"></script>
+    <script src="storage-protection.js"></script>
 <script type="module">
 /* ========== ✅ ИДЕНТИФИКАТОР ТРЕНАЖЕРА ========== */
 const TRAINER_ID = 'input';
@@ -55,10 +56,10 @@ function generateCode() {
 }
 
 function getUserCode() {
-  let code = localStorage.getItem(SHARED_CODE_KEY);
+  let code = safeLocalStorageGet(SHARED_CODE_KEY);
   if (!code) {
     code = generateCode();
-    localStorage.setItem(SHARED_CODE_KEY, code);
+    safeLocalStorageSet(SHARED_CODE_KEY, code, false);
     console.log('🆕 Создан новый код:', code);
   }
   return code;
@@ -153,98 +154,85 @@ async function saveState(){
     phase, currentRaw,
     timestamp: Date.now()
   };
-  try{
-    // ✅ Сохраняем в localStorage с префиксом
-    localStorage.setItem(PREFIX + 'state', JSON.stringify(st));
-    localStorage.setItem(PREFIX + 'state_backup', JSON.stringify(st));
-  }catch(e){ console.warn('localStorage save failed', e); }
   
-  // ✅ Сохраняем в Firebase (подколлекция)
+  // ✅ Сохраняем в Firebase (подколлекция) + backup в localStorage
   if(window.firebaseEnabled && window.firestore && window.firebaseModules){
-    try{
-      const docRef = window.firebaseModules.doc(
-        window.firestore, 
-        'users', USER_CODE, 
-        'trainers', TRAINER_ID
-      );
-      await window.firebaseModules.setDoc(docRef, st, { merge: true });
-      console.log('✓ Сохранено в Firestore (input)');
-    }catch(e){ console.warn('Firestore save failed:', e); }
+    await safeFirebaseSave(
+      async () => {
+        const docRef = window.firebaseModules.doc(
+          window.firestore, 
+          'users', USER_CODE, 
+          'trainers', TRAINER_ID
+        );
+        return await window.firebaseModules.setDoc(docRef, st, { merge: true });
+      },
+      PREFIX + 'state',
+      st
+    );
+    console.log('✓ Сохранено в Firestore (input)');
+  } else {
+    // Fallback: только localStorage
+    safeLocalStorageSet(PREFIX + 'state', st);
   }
 }
 
 async function loadState(){
-  // ✅ Загружаем из localStorage с префиксом
-  try{
-    const raw = localStorage.getItem(PREFIX + 'state');
-    if(raw){
-      const st = JSON.parse(raw);
-      return st;
-    }
-  }catch(e){ console.warn('localStorage load failed', e); }
-  
-  // ✅ Загружаем из Firebase (подколлекция)
+  // ✅ Загружаем с использованием safeFirebaseLoad (Firebase + fallback localStorage)
   if(window.firebaseEnabled && window.firestore && window.firebaseModules){
-    try{
-      const docRef = window.firebaseModules.doc(
-        window.firestore, 
-        'users', USER_CODE, 
-        'trainers', TRAINER_ID
-      );
-      const docSnap = await window.firebaseModules.getDoc(docRef);
-      if(docSnap.exists()){
-        const data = docSnap.data();
-        console.log('✓ Загружено из Firestore (input)');
-        try{
-          localStorage.setItem(PREFIX + 'state', JSON.stringify(data));
-          localStorage.setItem(PREFIX + 'state_backup', JSON.stringify(data));
-        }catch(e){}
-        return data;
-      }
-    }catch(e){ console.warn('Firestore load failed:', e); }
+    const data = await safeFirebaseLoad(
+      async () => {
+        const docRef = window.firebaseModules.doc(
+          window.firestore, 
+          'users', USER_CODE, 
+          'trainers', TRAINER_ID
+        );
+        const docSnap = await window.firebaseModules.getDoc(docRef);
+        if(docSnap.exists()){
+          console.log('✓ Загружено из Firestore (input)');
+          return docSnap.data();
+        }
+        return null;
+      },
+      PREFIX + 'state'
+    );
+    return data;
   }
-  return null;
+  
+  // Fallback: только localStorage
+  return safeLocalStorageGet(PREFIX + 'state');
 }
 
 async function clearState(){
-  // ✅ Удаляем из localStorage с префиксом
+  // ✅ Удаляем из localStorage
   try{
     localStorage.removeItem(PREFIX + 'state');
     localStorage.removeItem(PREFIX + 'state_backup');
+    // Очистка старых backup'ов
+    cleanOldBackups(0);
   }catch(e){}
   
-  // ✅ Удаляем из Firebase (подколлекция)
+  // ✅ Удаляем из Firebase (подколлекция) с retry
   if(window.firebaseEnabled && window.firestore && window.firebaseModules){
-    try{
-      const docRef = window.firebaseModules.doc(
-        window.firestore, 
-        'users', USER_CODE, 
-        'trainers', TRAINER_ID
-      );
-      await window.firebaseModules.deleteDoc(docRef);
-      console.log('✓ Удалено из Firestore (input)');
-    }catch(e){ console.warn('Firestore delete failed:', e); }
+    await safeFirebaseOperation(
+      async () => {
+        const docRef = window.firebaseModules.doc(
+          window.firestore, 
+          'users', USER_CODE, 
+          'trainers', TRAINER_ID
+        );
+        await window.firebaseModules.deleteDoc(docRef);
+        console.log('✓ Удалено из Firestore (input)');
+      },
+      'Удаление прогресса (input)',
+      2
+    );
   }
 }
 
 /* ---------- robust fetch ---------- */
 async function robustFetchWords(){
-  const timestamp = Date.now();
-  const tries = ['words.txt','./words.txt'];
-  try{ tries.push(location.pathname.replace(/\/[^/]*$/,'/') + 'words.txt'); }catch(e){}
-  for(const p of tries){
-    try{ const r = await fetch(p + '?_' + timestamp, {cache: 'no-store'}); if(r.ok) return await r.text(); }catch(e){}
-  }
-  try{
-    const user = location.hostname.split('.')[0] || '';
-    const repo = (location.pathname.split('/').filter(Boolean)[0] || '');
-    if(user && repo){
-      const raw = `https://raw.githubusercontent.com/${user}/${repo}/main/words.txt`;
-      const r = await fetch(raw + '?_' + timestamp, {cache: 'no-store'});
-      if(r.ok) return await r.text();
-    }
-  }catch(e){}
-  throw new Error('Не удалось загрузить words.txt');
+  // ✅ Используем безопасную загрузку с retry
+  return await safeLoadWordsFile('words.txt', 3);
 }
 
 /* ---------- Инициализация словаря ---------- */
@@ -686,3 +674,5 @@ function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(moda
   .modal .pair{margin-top:8px}
 </style>
 </body>
+</html>
+
