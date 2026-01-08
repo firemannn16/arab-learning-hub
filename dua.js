@@ -6,6 +6,9 @@
     const FIVE_MINUTES = 5 * 60 * 1000; // 5 минут в миллисекундах
     const STORAGE_KEY = 'lastDuaShown';
     
+    // Флаг для предотвращения повторного показа
+    let duaAlreadyShown = false;
+    
     // Проверяем, нужно ли показывать дуа
     function shouldShowDua() {
         // На главной странице показываем ТОЛЬКО для новых пользователей
@@ -14,31 +17,42 @@
                           currentPage === '/' || 
                           currentPage.endsWith('/');
         
+        console.log(`🔍 shouldShowDua(): страница="${currentPage}", isIndexPage=${isIndexPage}`);
+        
         // Не показываем в словаре
         if (currentPage.includes('dictionary.html')) {
+            console.log('⏸️ Словарь - не показываем дуа');
             return false;
         }
         
         // На главной странице проверяем, новый ли пользователь
         if (isIndexPage) {
             const userCode = localStorage.getItem('userProgressCode');
-            return !userCode; // Показываем только для новых пользователей
+            console.log(`🔍 Главная страница: userCode="${userCode}"`);
+            const result = !userCode;
+            console.log(`➡️ shouldShowDua() = ${result} (новый пользователь: ${result})`);
+            return result;
         }
         
         // На других страницах проверяем время последнего показа
         const lastShown = localStorage.getItem(STORAGE_KEY);
-        if (!lastShown) return true;
+        if (!lastShown) {
+            console.log('⏸️ Не на главной, lastShown нет - показываем');
+            return true;
+        }
         
         const now = Date.now();
         const timePassed = now - parseInt(lastShown);
+        const result = timePassed > FIVE_MINUTES;
+        console.log(`➡️ shouldShowDua() = ${result} (прошло ${Math.round(timePassed / 1000)}с)`);
         
-        // Показываем только если прошло больше 5 минут
-        return timePassed > FIVE_MINUTES;
+        return result;
     }
     
     // Сохраняем время показа
     function markDuaShown() {
         localStorage.setItem(STORAGE_KEY, Date.now().toString());
+        console.log('✅ Время показа дуа сохранено');
     }
     
     // Создаем модалку
@@ -265,13 +279,20 @@
         // Обработчик кнопки
         const button = document.getElementById('dua-done-button');
         button.addEventListener('click', () => {
-            closeDuaModal();
-            markDuaShown();
+            console.log('👆 Кнопка "я сделал дуа" нажата');
+            markDuaShown(); // Сохраняем время показа ПЕРЕД закрытием
+            closeDuaModal(); // Закрываем и отправляем событие
         });
     }
     
     // Показать модалку
     function showDuaModal() {
+        // Проверяем флаг - если дуа уже показывалось в этой сессии, не показываем снова
+        if (duaAlreadyShown) {
+            console.log('⏸️ Дуа уже показывалось в этой сессии, пропускаем');
+            return;
+        }
+        
         const modal = document.getElementById('global-dua-modal');
         if (!modal) {
             createDuaModal();
@@ -280,12 +301,17 @@
         const modalElement = document.getElementById('global-dua-modal');
         modalElement.classList.add('show');
         
+        // Устанавливаем флаг
+        duaAlreadyShown = true;
+        console.log('✅ Дуа показано, флаг установлен');
+        
         // Блокируем прокрутку body
         document.body.style.overflow = 'hidden';
     }
     
     // Закрыть модалку
     function closeDuaModal() {
+        console.log('🚪 Закрываем дуа...');
         const modal = document.getElementById('global-dua-modal');
         if (modal) {
             modal.classList.remove('show');
@@ -298,8 +324,11 @@
                               currentPage.endsWith('/');
             
             if (isIndexPage) {
+                console.log('📤 Отправляем событие duaClosed');
                 // Отправляем событие, что дуа закрыто
                 window.dispatchEvent(new CustomEvent('duaClosed'));
+            } else {
+                console.log('⏸️ Не на главной странице, событие не отправляем');
             }
         }
     }
@@ -379,13 +408,21 @@
     // Автоматический показ при загрузке страницы
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('📢 DOMContentLoaded сработал в dua.js');
             if (shouldShowDua()) {
+                console.log('✅ shouldShowDua() = true, показываем дуа через 300мс');
                 setTimeout(showDuaModal, 300);
+            } else {
+                console.log('⏸️ shouldShowDua() = false, не показываем дуа');
             }
         });
     } else {
+        console.log('📢 document.readyState уже не loading');
         if (shouldShowDua()) {
+            console.log('✅ shouldShowDua() = true, показываем дуа через 300мс');
             setTimeout(showDuaModal, 300);
+        } else {
+            console.log('⏸️ shouldShowDua() = false, не показываем дуа');
         }
     }
     
