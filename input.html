@@ -611,22 +611,35 @@ function showResetModal() {
   const onCancel = () => cleanup();
   const onConfirm = async () => {
     cleanup();
+    
+    // ✅ Очищаем состояние
     await clearState();
-    orderQueue = allWords.map(w=>w.rawLine); shuffle(orderQueue);
-    masteredFinal = []; practiceHistory = []; roundMastered = []; practiceAccum = []; practiceOrder = []; phase='learn'; currentRaw=null;
+    
+    // ✅ Сбрасываем все данные
+    orderQueue = allWords.map(w=>w.rawLine);
+    shuffle(orderQueue);
+    masteredFinal = [];
+    practiceHistory = [];
+    roundMastered = [];
+    practiceAccum = [];
+    practiceOrder = [];
+    phase = 'learn';
+    currentRaw = null;
+    
+    // ✅ Обновляем UI
     updateStats();
-    
-    // ✅ Сохраняем состояние
-    await saveState();
-    
     showMessage('Прогресс сброшен.');
     
-    // ✅ Отправляем событие для показа кода после дуа (с задержкой)
+    // ✅ Сохраняем новое состояние
+    await saveState();
+    
+    // ✅ Показываем следующее слово
+    showNextLearn();
+    
+    // ✅ Отправляем событие для показа дуа с кодом (с задержкой)
     setTimeout(() => {
         window.dispatchEvent(new CustomEvent('progressReset'));
-    }, 300);
-    
-    showNextLearn();
+    }, 500);
   };
   document.addEventListener('keydown', onKey);
   document.getElementById('modal-cancel').addEventListener('click', onCancel);
