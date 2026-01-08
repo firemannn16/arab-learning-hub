@@ -959,7 +959,7 @@
                         saveToLocalStorage('errors', errorWords);
                         saveToLocalStorage('pageWordCounts', pageWordCounts);
                         saveToLocalStorage('nextWordId', nextWordId);
-                        saveToLocalStorage('lastSync', firebaseLastSync || new Date().toISOString());
+                        saveToLocalStorage('lastSync', data.lastSync || new Date().toISOString());
                         
                         showSyncStatus('✓ Загружено из облака', 'synced');
                         
