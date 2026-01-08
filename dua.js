@@ -8,16 +8,24 @@
     
     // Проверяем, нужно ли показывать дуа
     function shouldShowDua() {
-        // Не показываем на главной странице и в словаре
+        // На главной странице показываем ТОЛЬКО для новых пользователей
         const currentPage = window.location.pathname.toLowerCase();
-        if (currentPage.includes('index.html') || 
-            currentPage.includes('dictionary.html') || 
-            currentPage === '/' || 
-            currentPage.endsWith('/')) {
+        const isIndexPage = currentPage.includes('index.html') || 
+                          currentPage === '/' || 
+                          currentPage.endsWith('/');
+        
+        // Не показываем в словаре
+        if (currentPage.includes('dictionary.html')) {
             return false;
         }
         
-        // Проверяем время последнего показа
+        // На главной странице проверяем, новый ли пользователь
+        if (isIndexPage) {
+            const userCode = localStorage.getItem('userProgressCode');
+            return !userCode; // Показываем только для новых пользователей
+        }
+        
+        // На других страницах проверяем время последнего показа
         const lastShown = localStorage.getItem(STORAGE_KEY);
         if (!lastShown) return true;
         
@@ -282,6 +290,17 @@
         if (modal) {
             modal.classList.remove('show');
             document.body.style.overflow = '';
+            
+            // Если мы на главной странице, отправляем событие для показа модалки с кодом
+            const currentPage = window.location.pathname.toLowerCase();
+            const isIndexPage = currentPage.includes('index.html') || 
+                              currentPage === '/' || 
+                              currentPage.endsWith('/');
+            
+            if (isIndexPage) {
+                // Отправляем событие, что дуа закрыто
+                window.dispatchEvent(new CustomEvent('duaClosed'));
+            }
         }
     }
     
