@@ -759,26 +759,9 @@ async function showResetModal() {
       localStorage.removeItem(PREFIX + 'state_backup'); 
       // Очистка старых backup'ов
       cleanOldBackups(0);
-    }catch(e){}
+    }catch(e){ console.warn('Ошибка очистки localStorage:', e); }
     
-    // ✅ Удаляем из Firebase (подколлекция) с retry
-    if(window.firebaseEnabled && window.firestore && window.firebaseModules){
-      await safeFirebaseOperation(
-        async () => {
-          const docRef = window.firebaseModules.doc(
-            window.firestore, 
-            'users', USER_CODE, 
-            'trainers', TRAINER_ID
-          );
-          await window.firebaseModules.deleteDoc(docRef);
-          console.log('✓ Удалено из Firestore (choice)');
-        },
-        'Удаление прогресса (choice)',
-        2
-      );
-    }
-    
-    // ✅ Сбрасываем все данные
+    // ✅ СНАЧАЛА сбрасываем все данные и обновляем UI
     orderRaw = allWords.map(w=>w.rawLine);
     shuffle(orderRaw);
     currentRaw = null;
@@ -803,8 +786,25 @@ async function showResetModal() {
     // ✅ Показываем первое слово
     nextWord();
     
-    // ✅ Сохраняем состояние
-    await saveState();
+    // ✅ Сохраняем состояние в localStorage
+    saveState();
+    
+    // ✅ Удаляем из Firebase В ФОНЕ (не блокируем UI)
+    if(window.firebaseEnabled && window.firestore && window.firebaseModules){
+      safeFirebaseOperation(
+        async () => {
+          const docRef = window.firebaseModules.doc(
+            window.firestore, 
+            'users', USER_CODE, 
+            'trainers', TRAINER_ID
+          );
+          await window.firebaseModules.deleteDoc(docRef);
+          console.log('✓ Удалено из Firestore (choice)');
+        },
+        'Удаление прогресса (choice)',
+        2
+      ).catch(e => console.warn('Ошибка удаления из Firebase:', e));
+    }
     
     // ✅ Отправляем событие для показа кода после дуа (с задержкой)
     setTimeout(() => {
