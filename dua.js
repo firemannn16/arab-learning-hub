@@ -60,6 +60,14 @@
     
     // Создаем модалку
     function createDuaModal() {
+        console.log('🏗️ createDuaModal() вызвана - создаём модалку');
+        
+        // Проверяем, может модалка уже существует
+        if (document.getElementById('global-dua-modal')) {
+            console.log('⚠️ Модалка уже существует! Не создаём заново');
+            return;
+        }
+        
         // Добавляем CSS
         const style = document.createElement('style');
         style.textContent = `
@@ -72,7 +80,6 @@
                 width: 100%;
                 height: 100%;
                 background: rgba(0, 0, 0, 0.6);
-                animation: duaFadeIn 0.3s;
                 overflow-y: auto;
                 padding: 20px;
                 box-sizing: border-box;
@@ -87,6 +94,7 @@
                 display: flex;
                 justify-content: center;
                 align-items: center;
+                animation: duaFadeIn 0.3s;
             }
             
             .dua-modal-content {
@@ -278,6 +286,7 @@
         });
         
         document.body.appendChild(modal);
+        console.log('✅ Модалка дуа добавлена в DOM');
         
         // Обработчик кнопки
         const button = document.getElementById('dua-done-button');
@@ -298,11 +307,21 @@
         
         const modal = document.getElementById('global-dua-modal');
         if (!modal) {
+            console.log('🏗️ Модалка не найдена, создаём...');
             createDuaModal();
+        } else {
+            console.log('✅ Модалка уже существует в DOM');
         }
         
         const modalElement = document.getElementById('global-dua-modal');
+        if (!modalElement) {
+            console.log('❌ ОШИБКА: Модалка не найдена после создания!');
+            return;
+        }
+        
+        console.log('➕ Добавляем класс .show к модалке');
         modalElement.classList.add('show');
+        console.log(`✅ Класс добавлен. Текущие классы: ${modalElement.className}`);
         
         // Устанавливаем флаг
         duaAlreadyShown = true;
@@ -317,7 +336,9 @@
         console.log('🚪 Закрываем дуа...');
         const modal = document.getElementById('global-dua-modal');
         if (modal) {
+            console.log('➖ Убираем класс .show');
             modal.classList.remove('show');
+            console.log(`✅ Класс убран. Текущие классы: ${modal.className}`);
             document.body.style.overflow = '';
             
             // Если мы на главной странице, отправляем событие для показа модалки с кодом
