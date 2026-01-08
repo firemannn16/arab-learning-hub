@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Арабские Тренажеры</title>
     <script src="service-worker-register.js"></script>
+    <script src="dua.js"></script>
     <style>
         * {
             margin: 0;
@@ -381,7 +382,7 @@
 
         // Инициализация
         window.addEventListener('DOMContentLoaded', () => {
-            checkNewUser();
+            // Не показываем модалку с кодом сразу - ждём закрытия дуа
             updateOnlineStatus();
             
             // Предотвращаем закрытие модалки при клике на её содержимое
@@ -390,6 +391,12 @@
                     e.stopPropagation();
                 });
             });
+        });
+        
+        // Слушаем событие закрытия дуа для показа модалки с кодом
+        window.addEventListener('duaClosed', () => {
+            console.log('✅ Дуа закрыто, показываем модалку с кодом');
+            checkNewUser();
         });
 
         // Флаги для предотвращения раннего закрытия
@@ -405,19 +412,17 @@
                 localStorage.setItem('userProgressCode', userCode);
                 console.log('🎉 Новый пользователь! Код:', userCode);
                 
-                // Показываем welcome modal с небольшой задержкой
+                // Показываем welcome modal сразу (без задержки, т.к. дуа уже закрыто)
+                modalJustOpened = true;
+                document.getElementById('welcomeCode').textContent = userCode;
+                document.getElementById('welcomeModal').classList.add('show');
+                console.log('✅ Welcome modal открыт');
+                
+                // Разрешаем закрытие через 1000ms
                 setTimeout(() => {
-                    modalJustOpened = true;
-                    document.getElementById('welcomeCode').textContent = userCode;
-                    document.getElementById('welcomeModal').classList.add('show');
-                    console.log('✅ Welcome modal открыт');
-                    
-                    // Разрешаем закрытие через 1000ms
-                    setTimeout(() => {
-                        modalJustOpened = false;
-                        console.log('✅ Модалка разблокирована для закрытия');
-                    }, 1000);
-                }, 100);
+                    modalJustOpened = false;
+                    console.log('✅ Модалка разблокирована для закрытия');
+                }, 1000);
             } else {
                 console.log('👋 Пользователь вернулся, код:', userCode);
             }
