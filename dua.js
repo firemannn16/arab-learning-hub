@@ -9,6 +9,9 @@
     // Флаг для предотвращения повторного показа
     let duaAlreadyShown = false;
     
+    // Флаг для предотвращения двойной инициализации
+    let initialized = false;
+    
     // Проверяем, нужно ли показывать дуа
     function shouldShowDua() {
         // На главной странице показываем ТОЛЬКО для новых пользователей
@@ -405,25 +408,30 @@
         }, 300);
     });
     
-    // Автоматический показ при загрузке страницы
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('📢 DOMContentLoaded сработал в dua.js');
-            if (shouldShowDua()) {
-                console.log('✅ shouldShowDua() = true, показываем дуа через 300мс');
-                setTimeout(showDuaModal, 300);
-            } else {
-                console.log('⏸️ shouldShowDua() = false, не показываем дуа');
-            }
-        });
-    } else {
-        console.log('📢 document.readyState уже не loading');
+    // Функция инициализации (вызывается только один раз)
+    function initDua() {
+        if (initialized) {
+            console.log('⏸️ Дуа уже инициализировано, пропускаем');
+            return;
+        }
+        initialized = true;
+        console.log('🚀 Инициализация dua.js');
+        
         if (shouldShowDua()) {
             console.log('✅ shouldShowDua() = true, показываем дуа через 300мс');
             setTimeout(showDuaModal, 300);
         } else {
             console.log('⏸️ shouldShowDua() = false, не показываем дуа');
         }
+    }
+    
+    // Автоматический показ при загрузке страницы
+    if (document.readyState === 'loading') {
+        console.log('📢 document.readyState = loading, ждём DOMContentLoaded');
+        document.addEventListener('DOMContentLoaded', initDua);
+    } else {
+        console.log('📢 document.readyState = ' + document.readyState + ', инициализируем сразу');
+        initDua();
     }
     
 })();
