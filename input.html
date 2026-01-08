@@ -616,6 +616,10 @@ function showResetModal() {
     masteredFinal = []; practiceHistory = []; roundMastered = []; practiceAccum = []; practiceOrder = []; phase='learn'; currentRaw=null;
     updateStats();
     showMessage('Прогресс сброшен.');
+    
+    // ✅ Отправляем событие для показа кода после дуа
+    window.dispatchEvent(new CustomEvent('progressReset'));
+    
     showNextLearn();
   };
   document.addEventListener('keydown', onKey);
@@ -702,4 +706,3 @@ function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(moda
 </style>
 </body>
 </html>
-
