@@ -412,10 +412,11 @@
                     document.getElementById('welcomeModal').classList.add('show');
                     console.log('✅ Welcome modal открыт');
                     
-                    // Разрешаем закрытие через 500ms
+                    // Разрешаем закрытие через 1000ms
                     setTimeout(() => {
                         modalJustOpened = false;
-                    }, 500);
+                        console.log('✅ Модалка разблокирована для закрытия');
+                    }, 1000);
                 }, 100);
             } else {
                 console.log('👋 Пользователь вернулся, код:', userCode);
@@ -429,7 +430,11 @@
                 modalJustOpened = true;
                 document.getElementById('myCodeValue').textContent = userCode;
                 document.getElementById('myCodeModal').classList.add('show');
-                setTimeout(() => { modalJustOpened = false; }, 500);
+                console.log('✅ "Мой код" modal открыт');
+                setTimeout(() => { 
+                    modalJustOpened = false;
+                    console.log('✅ Модалка разблокирована для закрытия');
+                }, 1000);
             } else {
                 alert('⚠️ Код не найден');
             }
@@ -440,7 +445,11 @@
             modalJustOpened = true;
             document.getElementById('codeInput').value = '';
             document.getElementById('enterCodeModal').classList.add('show');
-            setTimeout(() => { modalJustOpened = false; }, 500);
+            console.log('✅ "Ввести код" modal открыт');
+            setTimeout(() => { 
+                modalJustOpened = false;
+                console.log('✅ Модалка разблокирована для закрытия');
+            }, 1000);
         }
 
         // Применить код
@@ -525,13 +534,20 @@
             window.pendingCode = null;
         }
 
-        // Закрытие по клику на overlay
-        document.addEventListener('click', (e) => {
-            if (modalJustOpened) return; // Игнорируем клики сразу после открытия
-            
-            if (e.target.classList.contains('modal-overlay') && e.target.classList.contains('show')) {
-                e.target.classList.remove('show');
-            }
+        // Закрытие по клику на overlay (только прямой клик на серую область)
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (modalJustOpened) {
+                    console.log('⏸️ Клик игнорируется - модалка только открылась');
+                    return;
+                }
+                
+                // Закрываем только если кликнули на сам overlay, а не на содержимое
+                if (e.target === overlay) {
+                    console.log('✅ Закрываем модалку по клику на overlay');
+                    overlay.classList.remove('show');
+                }
+            });
         });
 
         // Закрытие по ESC
