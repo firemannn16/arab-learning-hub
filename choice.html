@@ -778,6 +778,7 @@ async function showResetModal() {
       );
     }
     
+    // ✅ Сбрасываем все данные
     orderRaw = allWords.map(w=>w.rawLine);
     shuffle(orderRaw);
     currentRaw = null;
@@ -787,13 +788,20 @@ async function showResetModal() {
     direction = 'arab-to-rus';
     formatToggle.classList.remove('active');
     
+    // ✅ Очищаем UI
     correctListDiv.innerHTML = '—';
     mistakeListDiv.innerHTML = '—';
     afterDiv.classList.add('hidden');
+    arabicWordDiv.textContent = ''; // Очищаем текущее слово
     
     // ✅ Обновляем прогресс и списки
     updateProgress();
     renderLists();
+    
+    console.log('✅ Прогресс сброшен (choice), показываем первое слово...');
+    
+    // ✅ Показываем первое слово
+    nextWord();
     
     // ✅ Сохраняем состояние
     await saveState();
@@ -802,8 +810,6 @@ async function showResetModal() {
     setTimeout(() => {
         window.dispatchEvent(new CustomEvent('progressReset'));
     }, 500);
-    
-    nextWord();
   }
   
   document.addEventListener('keydown', onKey);
