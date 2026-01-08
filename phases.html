@@ -765,6 +765,16 @@
         function getFromLocalStorage(key, defaultValue = null) {
             // ✅ Используем безопасное чтение
             const result = safeLocalStorageGet(PREFIX + key);
+            
+            // ✅ Очищаем timestamp из данных (он нужен только для сравнения)
+            if (result && typeof result === 'object' && 'timestamp' in result && !Array.isArray(result)) {
+                const { timestamp, ...cleanData } = result;
+                // Если после удаления timestamp остались другие ключи, возвращаем их
+                if (Object.keys(cleanData).length > 0) {
+                    return cleanData;
+                }
+            }
+            
             return result !== null ? result : defaultValue;
         }
 
