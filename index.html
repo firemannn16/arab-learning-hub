@@ -28,59 +28,149 @@
             text-align: center;
             color: white;
             font-size: 2.5em;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
-        .code-section {
+        .code-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        .code-btn {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .code-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .modal-overlay.show {
+            display: flex;
+        }
+        .modal-content {
             background: white;
             border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            padding: 30px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease-out;
         }
-        .code-section h2 {
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        .modal-title {
+            font-size: 1.5em;
+            font-weight: bold;
             color: #667eea;
             margin-bottom: 15px;
-            font-size: 1.3em;
+            text-align: center;
         }
-        .code-input-group {
-            display: flex;
-            gap: 10px;
+        .modal-text {
+            font-size: 1em;
+            color: #666;
+            margin-bottom: 20px;
+            text-align: center;
+            line-height: 1.6;
+        }
+        .code-display-box {
+            background: #f5f5f5;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .code-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #667eea;
+            letter-spacing: 3px;
             margin-bottom: 10px;
         }
-        .code-input-group input {
-            flex: 1;
-            padding: 12px 15px;
+        .code-input {
+            width: 100%;
+            padding: 12px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
             font-size: 1.1em;
-            transition: border-color 0.3s;
+            text-align: center;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 15px;
         }
-        .code-input-group input:focus {
+        .code-input:focus {
             outline: none;
             border-color: #667eea;
         }
-        .code-input-group button {
-            padding: 12px 25px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .modal-btn {
+            flex: 1;
+            padding: 12px;
             border: none;
             border-radius: 8px;
             font-size: 1em;
-            font-weight: bold;
+            font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s, opacity 0.3s;
+            transition: all 0.3s;
         }
-        .code-input-group button:hover {
+        .modal-btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .modal-btn-primary:hover {
             opacity: 0.9;
-            transform: translateY(-2px);
         }
-        .code-display {
-            padding: 10px;
+        .modal-btn-secondary {
             background: #f5f5f5;
-            border-radius: 8px;
-            color: #333;
+            color: #666;
+        }
+        .modal-btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        .copy-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
             font-size: 0.9em;
+            transition: all 0.3s;
+        }
+        .copy-btn:hover {
+            background: #45a049;
         }
         .trainers-grid {
             display: grid;
@@ -134,15 +224,10 @@
     <div class="container">
         <h1>🌙 Арабские Тренажеры</h1>
         
-        <div class="code-section">
-            <h2>Ваш Код Прогресса</h2>
-            <div class="code-input-group">
-                <input type="text" id="userCodeInput" placeholder="Введите или сохраните ваш код">
-                <button onclick="saveCode()">Сохранить</button>
-            </div>
-            <div class="code-display">
-                Текущий код: <strong id="currentCode">не установлен</strong>
-            </div>
+        <!-- Кнопки управления кодом -->
+        <div class="code-buttons">
+            <button class="code-btn" onclick="showMyCode()">Мой код</button>
+            <button class="code-btn" onclick="showEnterCode()">Ввести код</button>
         </div>
 
         <div class="trainers-grid">
@@ -178,44 +263,214 @@
         </div>
     </div>
 
+    <!-- Модальное окно для нового пользователя -->
+    <div class="modal-overlay" id="welcomeModal">
+        <div class="modal-content">
+            <div class="modal-title">🎉 Добро пожаловать!</div>
+            <div class="modal-text">
+                Ваш код для сохранения прогресса:
+            </div>
+            <div class="code-display-box">
+                <div class="code-value" id="welcomeCode"></div>
+                <button class="copy-btn" onclick="copyWelcomeCode()">📋 Копировать</button>
+            </div>
+            <div class="modal-text" style="font-size: 0.9em; color: #999;">
+                Сохраните этот код чтобы не потерять прогресс при переходе на другое устройство!
+            </div>
+            <button class="modal-btn modal-btn-primary" onclick="closeWelcomeModal()">Понятно</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно "Мой код" -->
+    <div class="modal-overlay" id="myCodeModal">
+        <div class="modal-content">
+            <div class="modal-title">Ваш код</div>
+            <div class="code-display-box">
+                <div class="code-value" id="myCodeValue"></div>
+                <button class="copy-btn" onclick="copyMyCode()">📋 Копировать</button>
+            </div>
+            <div class="modal-text" style="font-size: 0.9em; color: #999;">
+                Используйте этот код для синхронизации прогресса на других устройствах
+            </div>
+            <button class="modal-btn modal-btn-primary" onclick="closeMyCodeModal()">Закрыть</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно "Ввести код" -->
+    <div class="modal-overlay" id="enterCodeModal">
+        <div class="modal-content">
+            <div class="modal-title">Ввести код</div>
+            <div class="modal-text">
+                Введите код для загрузки вашего прогресса:
+            </div>
+            <input type="text" class="code-input" id="codeInput" placeholder="ABCDEF" maxlength="6">
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-secondary" onclick="closeEnterCodeModal()">Отмена</button>
+                <button class="modal-btn modal-btn-primary" onclick="applyCode()">Применить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно подтверждения -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-title">⚠️ Подтверждение</div>
+            <div class="modal-text">
+                Текущий прогресс будет заменён прогрессом из введённого кода.<br><br>
+                Продолжить?
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-secondary" onclick="closeConfirmModal()">Отмена</button>
+                <button class="modal-btn modal-btn-primary" onclick="confirmApplyCode()">Да, применить</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // Загружаем код при загрузке страницы
+        // Генерация кода
+        function generateCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        // Инициализация
         window.addEventListener('DOMContentLoaded', () => {
-            loadCode();
+            checkNewUser();
         });
 
-        function saveCode() {
-            const input = document.getElementById('userCodeInput');
-            const code = input.value.trim();
+        // Проверка нового пользователя
+        function checkNewUser() {
+            let userCode = localStorage.getItem('userProgressCode');
             
-            if (code) {
-                localStorage.setItem('userProgressCode', code);
-                displayCurrentCode();
-                alert('✅ Код успешно сохранен!');
-            } else {
-                alert('⚠️ Введите код для сохранения');
+            if (!userCode) {
+                // Новый пользователь - генерируем код
+                userCode = generateCode();
+                localStorage.setItem('userProgressCode', userCode);
+                
+                // Показываем welcome modal
+                document.getElementById('welcomeCode').textContent = userCode;
+                document.getElementById('welcomeModal').classList.add('show');
             }
         }
 
-        function loadCode() {
-            const savedCode = localStorage.getItem('userProgressCode');
-            if (savedCode) {
-                document.getElementById('userCodeInput').value = savedCode;
-                displayCurrentCode();
+        // Показать "Мой код"
+        function showMyCode() {
+            const userCode = localStorage.getItem('userProgressCode');
+            if (userCode) {
+                document.getElementById('myCodeValue').textContent = userCode;
+                document.getElementById('myCodeModal').classList.add('show');
+            } else {
+                alert('⚠️ Код не найден');
             }
         }
 
-        function displayCurrentCode() {
-            const savedCode = localStorage.getItem('userProgressCode');
-            const codeDisplay = document.getElementById('currentCode');
-            if (savedCode) {
-                codeDisplay.textContent = savedCode;
-                codeDisplay.style.color = '#667eea';
-            } else {
-                codeDisplay.textContent = 'не установлен';
-                codeDisplay.style.color = '#999';
+        // Показать "Ввести код"
+        function showEnterCode() {
+            document.getElementById('codeInput').value = '';
+            document.getElementById('enterCodeModal').classList.add('show');
+        }
+
+        // Применить код
+        function applyCode() {
+            const code = document.getElementById('codeInput').value.trim().toUpperCase();
+            
+            if (!code) {
+                alert('⚠️ Введите код');
+                return;
+            }
+            
+            if (code.length !== 6) {
+                alert('⚠️ Код должен содержать 6 символов');
+                return;
+            }
+            
+            // Сохраняем код для подтверждения
+            window.pendingCode = code;
+            
+            // Закрываем модалку ввода и показываем подтверждение
+            document.getElementById('enterCodeModal').classList.remove('show');
+            document.getElementById('confirmModal').classList.add('show');
+        }
+
+        // Подтвердить применение кода
+        function confirmApplyCode() {
+            if (window.pendingCode) {
+                localStorage.setItem('userProgressCode', window.pendingCode);
+                document.getElementById('confirmModal').classList.remove('show');
+                alert('✅ Код успешно применён! Перезагрузите страницу для загрузки прогресса.');
+                window.pendingCode = null;
             }
         }
+
+        // Копировать код (welcome)
+        function copyWelcomeCode() {
+            const code = document.getElementById('welcomeCode').textContent;
+            copyToClipboard(code);
+        }
+
+        // Копировать код (мой код)
+        function copyMyCode() {
+            const code = document.getElementById('myCodeValue').textContent;
+            copyToClipboard(code);
+        }
+
+        // Копировать в буфер обмена
+        function copyToClipboard(text) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('✅ Код скопирован в буфер обмена!');
+                }).catch(() => {
+                    alert('❌ Не удалось скопировать код');
+                });
+            } else {
+                // Fallback для старых браузеров
+                const input = document.createElement('input');
+                input.value = text;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                alert('✅ Код скопирован!');
+            }
+        }
+
+        // Закрыть модалки
+        function closeWelcomeModal() {
+            document.getElementById('welcomeModal').classList.remove('show');
+        }
+
+        function closeMyCodeModal() {
+            document.getElementById('myCodeModal').classList.remove('show');
+        }
+
+        function closeEnterCodeModal() {
+            document.getElementById('enterCodeModal').classList.remove('show');
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').classList.remove('show');
+            window.pendingCode = null;
+        }
+
+        // Закрытие по клику на overlay
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                e.target.classList.remove('show');
+            }
+        });
+
+        // Закрытие по ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal-overlay').forEach(modal => {
+                    modal.classList.remove('show');
+                });
+            }
+        });
     </script>
 </body>
 </html>
