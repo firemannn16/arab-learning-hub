@@ -615,10 +615,16 @@ function showResetModal() {
     orderQueue = allWords.map(w=>w.rawLine); shuffle(orderQueue);
     masteredFinal = []; practiceHistory = []; roundMastered = []; practiceAccum = []; practiceOrder = []; phase='learn'; currentRaw=null;
     updateStats();
+    
+    // ✅ Сохраняем состояние
+    await saveState();
+    
     showMessage('Прогресс сброшен.');
     
-    // ✅ Отправляем событие для показа кода после дуа
-    window.dispatchEvent(new CustomEvent('progressReset'));
+    // ✅ Отправляем событие для показа кода после дуа (с задержкой)
+    setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('progressReset'));
+    }, 300);
     
     showNextLearn();
   };
