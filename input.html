@@ -626,12 +626,20 @@ function showResetModal() {
     phase = 'learn';
     currentRaw = null;
     
-    // ✅ Обновляем UI
+    // ✅ Очищаем UI
+    arabicDiv.textContent = '';
+    practiceInput.value = '';
+    
+    console.log('✅ Прогресс сброшен (input), всего слов:', allWords.length);
+    
+    // ✅ Обновляем статистику
     updateStats();
     showMessage('Прогресс сброшен.');
     
     // ✅ Сохраняем новое состояние
     await saveState();
+    
+    console.log('✅ Показываем первое слово для заучивания...');
     
     // ✅ Показываем следующее слово
     showNextLearn();
