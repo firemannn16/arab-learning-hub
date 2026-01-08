@@ -612,10 +612,14 @@ function showResetModal() {
   const onConfirm = async () => {
     cleanup();
     
-    // ✅ Очищаем состояние
-    await clearState();
+    // ✅ Очищаем localStorage СРАЗУ (синхронно)
+    try{
+      localStorage.removeItem(PREFIX + 'state');
+      localStorage.removeItem(PREFIX + 'state_backup');
+      cleanOldBackups(0);
+    }catch(e){ console.warn('Ошибка очистки localStorage:', e); }
     
-    // ✅ Сбрасываем все данные
+    // ✅ СРАЗУ сбрасываем все данные
     orderQueue = allWords.map(w=>w.rawLine);
     shuffle(orderQueue);
     masteredFinal = [];
@@ -626,23 +630,40 @@ function showResetModal() {
     phase = 'learn';
     currentRaw = null;
     
-    // ✅ Очищаем UI
+    // ✅ СРАЗУ очищаем UI
     arabicDiv.textContent = '';
     practiceInput.value = '';
     
     console.log('✅ Прогресс сброшен (input), всего слов:', allWords.length);
     
-    // ✅ Обновляем статистику
+    // ✅ СРАЗУ обновляем статистику
     updateStats();
     showMessage('Прогресс сброшен.');
     
-    // ✅ Сохраняем новое состояние
-    await saveState();
-    
     console.log('✅ Показываем первое слово для заучивания...');
     
-    // ✅ Показываем следующее слово
+    // ✅ СРАЗУ показываем следующее слово
     showNextLearn();
+    
+    // ✅ Сохраняем состояние в localStorage (синхронно)
+    saveState();
+    
+    // ✅ Удаляем из Firebase В ФОНЕ (не блокируем UI)
+    if(window.firebaseEnabled && window.firestore && window.firebaseModules){
+      safeFirebaseOperation(
+        async () => {
+          const docRef = window.firebaseModules.doc(
+            window.firestore, 
+            'users', USER_CODE, 
+            'trainers', TRAINER_ID
+          );
+          await window.firebaseModules.deleteDoc(docRef);
+          console.log('✓ Удалено из Firestore (input)');
+        },
+        'Удаление прогресса (input)',
+        2
+      ).catch(e => console.warn('Ошибка удаления из Firebase:', e));
+    }
     
     // ✅ Отправляем событие для показа дуа с кодом (с задержкой)
     setTimeout(() => {
@@ -733,3 +754,4 @@ function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(moda
 </style>
 </body>
 </html>
+
