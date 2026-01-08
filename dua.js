@@ -309,26 +309,35 @@
         if (!modal) {
             console.log('🏗️ Модалка не найдена, создаём...');
             createDuaModal();
+            
+            // Даём браузеру время применить стили перед показом
+            setTimeout(() => {
+                const modalElement = document.getElementById('global-dua-modal');
+                if (!modalElement) {
+                    console.log('❌ ОШИБКА: Модалка не найдена после создания!');
+                    return;
+                }
+                
+                console.log('➕ Добавляем класс .show к модалке');
+                modalElement.classList.add('show');
+                console.log(`✅ Класс добавлен. Текущие классы: ${modalElement.className}`);
+                
+                // Блокируем прокрутку body
+                document.body.style.overflow = 'hidden';
+            }, 50); // Небольшая задержка для применения CSS
         } else {
             console.log('✅ Модалка уже существует в DOM');
+            console.log('➕ Добавляем класс .show к модалке');
+            modal.classList.add('show');
+            console.log(`✅ Класс добавлен. Текущие классы: ${modal.className}`);
+            
+            // Блокируем прокрутку body
+            document.body.style.overflow = 'hidden';
         }
-        
-        const modalElement = document.getElementById('global-dua-modal');
-        if (!modalElement) {
-            console.log('❌ ОШИБКА: Модалка не найдена после создания!');
-            return;
-        }
-        
-        console.log('➕ Добавляем класс .show к модалке');
-        modalElement.classList.add('show');
-        console.log(`✅ Класс добавлен. Текущие классы: ${modalElement.className}`);
         
         // Устанавливаем флаг
         duaAlreadyShown = true;
         console.log('✅ Дуа показано, флаг установлен');
-        
-        // Блокируем прокрутку body
-        document.body.style.overflow = 'hidden';
     }
     
     // Закрыть модалку
