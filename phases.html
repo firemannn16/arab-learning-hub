@@ -744,11 +744,13 @@
 
         // ✅ ФУНКЦИИ ДЛЯ РАБОТЫ С ОБЩИМ КОДОМ
         function getUserCode() {
-            return localStorage.getItem(SHARED_CODE_KEY) || '';
+            // ✅ Используем безопасное чтение
+            return safeLocalStorageGet(SHARED_CODE_KEY) || '';
         }
 
         function saveUserCode(code) {
-            localStorage.setItem(SHARED_CODE_KEY, code);
+            // ✅ Используем безопасное сохранение (без timestamp для кода)
+            safeLocalStorageSet(SHARED_CODE_KEY, code, false);
         }
 
         function generateWordId() {
@@ -756,8 +758,8 @@
         }
 
         function saveToLocalStorage(key, value) {
-            // ✅ Используем безопасное сохранение
-            return safeLocalStorageSet(PREFIX + key, value);
+            // ✅ Используем безопасное сохранение с timestamp для данных прогресса
+            return safeLocalStorageSet(PREFIX + key, value, true);
         }
 
         function getFromLocalStorage(key, defaultValue = null) {
@@ -803,6 +805,7 @@
                     currentPage: currentPage,
                     pageWordCounts: pageWordCounts,
                     nextWordId: nextWordId,
+                    timestamp: Date.now(), // ✅ Добавлен timestamp для сравнения
                     lastSync: new Date().toISOString(),
                     lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
                 };
@@ -875,23 +878,39 @@
                 
                 if (data) {
                     // ✅ СРАВНИВАЕМ TIMESTAMP: локальные VS Firebase
-                    const localLastSync = getFromLocalStorage('lastSync', null);
-                    const firebaseLastSync = data.lastSync || null;
+                    const firebaseTimestamp = data.timestamp || 0;
+                    
+                    // Получаем timestamp из localStorage (используем прямое чтение чтобы получить обёртку с timestamp)
+                    let localTimestamp = 0;
+                    try {
+                        const rawData = localStorage.getItem(PREFIX + 'openedWords');
+                        if (rawData) {
+                            const parsed = JSON.parse(rawData);
+                            if (parsed && parsed.timestamp) {
+                                localTimestamp = parsed.timestamp;
+                            }
+                        }
+                    } catch(e) {
+                        console.warn('Не удалось прочитать локальный timestamp:', e);
+                    }
                     
                     let useFirebaseData = true;
                     
-                    if (localLastSync && firebaseLastSync) {
-                        const localTime = new Date(localLastSync).getTime();
-                        const firebaseTime = new Date(firebaseLastSync).getTime();
-                        
+                    if (localTimestamp > 0 && firebaseTimestamp > 0) {
                         // Если локальные данные НОВЕЕ - не перезаписываем
-                        if (localTime > firebaseTime) {
-                            console.log('📱 Локальные данные новее, синхронизируем в Firebase...');
+                        if (localTimestamp > firebaseTimestamp) {
+                            console.log(`📱 Локальные данные новее (${new Date(localTimestamp).toLocaleString()} > ${new Date(firebaseTimestamp).toLocaleString()}), синхронизируем в Firebase...`);
                             useFirebaseData = false;
                             await syncToFirebase();
                         } else {
-                            console.log('☁️ Firebase данные новее, загружаем...');
+                            console.log(`☁️ Firebase данные новее (${new Date(firebaseTimestamp).toLocaleString()} >= ${new Date(localTimestamp).toLocaleString()}), загружаем...`);
                         }
+                    } else if (firebaseTimestamp > 0) {
+                        console.log('☁️ Загружаем данные из Firebase (нет локальных данных)');
+                    } else if (localTimestamp > 0) {
+                        console.log('📱 Используем локальные данные (нет данных в Firebase)');
+                        useFirebaseData = false;
+                        await syncToFirebase();
                     }
                     
                     if (useFirebaseData) {
