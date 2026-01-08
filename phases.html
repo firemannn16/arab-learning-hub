@@ -1319,20 +1319,21 @@
                 saveToLocalStorage('pageWordCounts', pageWordCounts);
                 saveToLocalStorage('nextWordId', nextWordId);
                 
+                // ✅ СНАЧАЛА закрываем модалку
+                document.getElementById('reset-modal').classList.remove('show');
+                
+                // ✅ Обновляем UI и синхронизируем
                 renderErrors();
                 updateStats();
                 renderWords();
-                
                 await syncToFirebase();
                 
-                document.getElementById('reset-modal').classList.remove('show');
+                console.log('✓ Прогресс сброшен');
                 
-                // ✅ Отправляем событие для показа кода после дуа (с задержкой)
+                // ✅ Отправляем событие для показа дуа с кодом (с задержкой для анимации)
                 setTimeout(() => {
                     window.dispatchEvent(new CustomEvent('progressReset'));
-                }, 300);
-                
-                console.log('✓ Прогресс сброшен');
+                }, 500);
                 
             } catch (error) {
                 console.error('Ошибка при сбросе:', error);
