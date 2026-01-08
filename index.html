@@ -383,6 +383,13 @@
         window.addEventListener('DOMContentLoaded', () => {
             checkNewUser();
             updateOnlineStatus();
+            
+            // Предотвращаем закрытие модалки при клике на её содержимое
+            document.querySelectorAll('.modal-content').forEach(content => {
+                content.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+            });
         });
 
         // Проверка нового пользователя
@@ -393,10 +400,16 @@
                 // Новый пользователь - генерируем код
                 userCode = generateCode();
                 localStorage.setItem('userProgressCode', userCode);
+                console.log('🎉 Новый пользователь! Код:', userCode);
                 
-                // Показываем welcome modal
-                document.getElementById('welcomeCode').textContent = userCode;
-                document.getElementById('welcomeModal').classList.add('show');
+                // Показываем welcome modal с небольшой задержкой
+                setTimeout(() => {
+                    document.getElementById('welcomeCode').textContent = userCode;
+                    document.getElementById('welcomeModal').classList.add('show');
+                    console.log('✅ Welcome modal открыт');
+                }, 100);
+            } else {
+                console.log('👋 Пользователь вернулся, код:', userCode);
             }
         }
 
@@ -501,8 +514,13 @@
 
         // Закрытие по клику на overlay
         document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('modal-overlay')) {
-                e.target.classList.remove('show');
+            if (e.target.classList.contains('modal-overlay') && e.target.classList.contains('show')) {
+                // Небольшая задержка для предотвращения конфликта при открытии
+                setTimeout(() => {
+                    if (e.target.classList.contains('show')) {
+                        e.target.classList.remove('show');
+                    }
+                }, 10);
             }
         });
 
