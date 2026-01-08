@@ -1327,8 +1327,10 @@
                 
                 document.getElementById('reset-modal').classList.remove('show');
                 
-                // ✅ Отправляем событие для показа кода после дуа
-                window.dispatchEvent(new CustomEvent('progressReset'));
+                // ✅ Отправляем событие для показа кода после дуа (с задержкой)
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('progressReset'));
+                }, 300);
                 
                 console.log('✓ Прогресс сброшен');
                 
