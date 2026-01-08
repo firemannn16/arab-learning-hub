@@ -149,6 +149,51 @@
                 transform: translateY(0);
             }
             
+            .dua-code-section {
+                margin-top: 25px;
+                padding-top: 25px;
+                border-top: 2px dashed #e0e0e0;
+            }
+            
+            .dua-code-label {
+                font-size: 14px;
+                color: #666;
+                text-align: center;
+                margin-bottom: 10px;
+            }
+            
+            .dua-code-box {
+                background: #f5f5f5;
+                border: 2px solid #667eea;
+                border-radius: 10px;
+                padding: 15px;
+                text-align: center;
+                margin-bottom: 10px;
+            }
+            
+            .dua-code-value {
+                font-size: 1.8em;
+                font-weight: bold;
+                color: #667eea;
+                letter-spacing: 3px;
+                margin-bottom: 10px;
+            }
+            
+            .dua-copy-btn {
+                background: #4CAF50;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 0.9em;
+                transition: all 0.3s;
+            }
+            
+            .dua-copy-btn:hover {
+                background: #45a049;
+            }
+            
             @media (max-width: 600px) {
                 .dua-modal-content {
                     padding: 20px;
@@ -239,6 +284,78 @@
             document.body.style.overflow = '';
         }
     }
+    
+    // Показать дуа с кодом после сброса
+    function showDuaWithCode() {
+        const userCode = localStorage.getItem('userProgressCode');
+        
+        // Создаем модалку если её нет
+        if (!document.getElementById('global-dua-modal')) {
+            createDuaModal();
+        }
+        
+        const modal = document.getElementById('global-dua-modal');
+        const content = modal.querySelector('.dua-modal-content');
+        
+        // Добавляем секцию с кодом
+        const codeSection = document.createElement('div');
+        codeSection.className = 'dua-code-section';
+        codeSection.innerHTML = `
+            <div class="dua-code-label">Ваш код для сохранения прогресса:</div>
+            <div class="dua-code-box">
+                <div class="dua-code-value">${userCode || 'НЕТ КОДА'}</div>
+                <button class="dua-copy-btn" onclick="copyDuaCode()">📋 Копировать</button>
+            </div>
+        `;
+        
+        // Вставляем перед кнопкой
+        const button = content.querySelector('.dua-button');
+        content.insertBefore(codeSection, button);
+        
+        // Показываем модалку
+        modal.classList.add('show');
+        document.body.style.overflow = 'hidden';
+        
+        // Обновляем обработчик кнопки для удаления секции с кодом
+        const doneButton = document.getElementById('dua-done-button');
+        doneButton.onclick = () => {
+            codeSection.remove();
+            closeDuaModal();
+            markDuaShown();
+        };
+    }
+    
+    // Глобальная функция для копирования кода из дуа
+    window.copyDuaCode = function() {
+        const codeElement = document.querySelector('.dua-code-value');
+        if (codeElement) {
+            const code = codeElement.textContent;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(code).then(() => {
+                    alert('✅ Код скопирован!');
+                }).catch(() => {
+                    alert('❌ Не удалось скопировать');
+                });
+            } else {
+                // Fallback
+                const input = document.createElement('input');
+                input.value = code;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                alert('✅ Код скопирован!');
+            }
+        }
+    };
+    
+    // Слушаем событие сброса прогресса
+    window.addEventListener('progressReset', () => {
+        console.log('📢 Событие progressReset получено, показываем дуа с кодом');
+        setTimeout(() => {
+            showDuaWithCode();
+        }, 300);
+    });
     
     // Автоматический показ при загрузке страницы
     if (document.readyState === 'loading') {
