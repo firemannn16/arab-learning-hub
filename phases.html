@@ -1327,6 +1327,9 @@
                 
                 document.getElementById('reset-modal').classList.remove('show');
                 
+                // ✅ Отправляем событие для показа кода после дуа
+                window.dispatchEvent(new CustomEvent('progressReset'));
+                
                 console.log('✓ Прогресс сброшен');
                 
             } catch (error) {
