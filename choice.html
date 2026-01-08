@@ -188,10 +188,21 @@ function generateCode() {
 }
 
 function getUserCode() {
-  let code = safeLocalStorageGet(SHARED_CODE_KEY);
+  // ✅ Читаем напрямую (код хранится как простая строка в index.html)
+  let code = null;
+  try {
+    code = localStorage.getItem(SHARED_CODE_KEY);
+  } catch(e) {
+    console.warn('Ошибка чтения кода:', e);
+  }
+  
   if (!code) {
     code = generateCode();
-    safeLocalStorageSet(SHARED_CODE_KEY, code, false);
+    try {
+      localStorage.setItem(SHARED_CODE_KEY, code);
+    } catch(e) {
+      console.warn('Ошибка сохранения кода:', e);
+    }
     console.log('🆕 Создан новый код:', code);
   }
   return code;
