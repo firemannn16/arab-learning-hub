@@ -350,7 +350,7 @@ async function loadState(){
       PREFIX + 'state'
     );
     
-    // ✅ Сравниваем timestamp: локальные VS Firebase
+    // ✅ СРАВНИВАЕМ TIMESTAMP: локальные VS Firebase
     const localData = safeLocalStorageGet(PREFIX + 'state', 0);
     
     if (firebaseData && localData) {
@@ -359,17 +359,18 @@ async function loadState(){
       
       // Используем более свежие данные
       if (localTime > firebaseTime) {
-        console.log('📱 Локальные данные новее (choice), синхронизируем в Firebase...');
+        console.log(`📱 Локальные данные новее (choice): ${new Date(localTime).toLocaleString()} > ${new Date(firebaseTime).toLocaleString()}`);
+        // Синхронизируем локальные данные в Firebase
         await saveState();
         return localData;
       } else {
-        console.log('☁️ Firebase данные новее (choice)');
+        console.log(`☁️ Firebase данные новее (choice): ${new Date(firebaseTime).toLocaleString()} >= ${new Date(localTime).toLocaleString()}`);
         return firebaseData;
       }
     }
     
     // Если есть только Firebase данные
-    if (firebaseData) {
+    if (firebaseData && firebaseData.timestamp) {
       return firebaseData;
     }
     
