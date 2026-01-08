@@ -791,8 +791,14 @@ async function showResetModal() {
     mistakeListDiv.innerHTML = '—';
     afterDiv.classList.add('hidden');
     
-    // ✅ Отправляем событие для показа кода после дуа
-    window.dispatchEvent(new CustomEvent('progressReset'));
+    // ✅ Сохраняем состояние и обновляем UI
+    saveState();
+    renderLists();
+    
+    // ✅ Отправляем событие для показа кода после дуа (с задержкой)
+    setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('progressReset'));
+    }, 300);
     
     nextWord();
   }
