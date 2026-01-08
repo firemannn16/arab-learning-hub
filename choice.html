@@ -790,6 +790,10 @@ async function showResetModal() {
     correctListDiv.innerHTML = '—';
     mistakeListDiv.innerHTML = '—';
     afterDiv.classList.add('hidden');
+    
+    // ✅ Отправляем событие для показа кода после дуа
+    window.dispatchEvent(new CustomEvent('progressReset'));
+    
     nextWord();
   }
   
