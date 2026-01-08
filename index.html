@@ -382,6 +382,7 @@
 
         // Инициализация
         window.addEventListener('DOMContentLoaded', () => {
+            console.log('📢 DOMContentLoaded сработал в index.html');
             // Не показываем модалку с кодом сразу - ждём закрытия дуа
             updateOnlineStatus();
             
@@ -395,7 +396,7 @@
         
         // Слушаем событие закрытия дуа для показа модалки с кодом
         window.addEventListener('duaClosed', () => {
-            console.log('✅ Дуа закрыто, показываем модалку с кодом');
+            console.log('📨 Получено событие duaClosed');
             checkNewUser();
         });
 
@@ -404,27 +405,29 @@
 
         // Проверка нового пользователя
         function checkNewUser() {
+            console.log('🔍 checkNewUser() вызвана');
             let userCode = localStorage.getItem('userProgressCode');
+            console.log(`🔍 Текущий код: "${userCode}"`);
             
             if (!userCode) {
                 // Новый пользователь - генерируем код
                 userCode = generateCode();
                 localStorage.setItem('userProgressCode', userCode);
-                console.log('🎉 Новый пользователь! Код:', userCode);
+                console.log('🎉 Новый пользователь! Сгенерирован код:', userCode);
                 
                 // Показываем welcome modal сразу (без задержки, т.к. дуа уже закрыто)
                 modalJustOpened = true;
                 document.getElementById('welcomeCode').textContent = userCode;
                 document.getElementById('welcomeModal').classList.add('show');
-                console.log('✅ Welcome modal открыт');
+                console.log('✅ Welcome modal открыт с кодом');
                 
                 // Разрешаем закрытие через 1000ms
                 setTimeout(() => {
                     modalJustOpened = false;
-                    console.log('✅ Модалка разблокирована для закрытия');
+                    console.log('✅ Модалка с кодом разблокирована для закрытия');
                 }, 1000);
             } else {
-                console.log('👋 Пользователь вернулся, код:', userCode);
+                console.log('👋 Пользователь вернулся, код уже есть:', userCode);
             }
         }
 
