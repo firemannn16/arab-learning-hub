@@ -744,13 +744,22 @@
 
         // ✅ ФУНКЦИИ ДЛЯ РАБОТЫ С ОБЩИМ КОДОМ
         function getUserCode() {
-            // ✅ Используем безопасное чтение
-            return safeLocalStorageGet(SHARED_CODE_KEY) || '';
+            // ✅ Читаем напрямую (код хранится как простая строка)
+            try {
+                return localStorage.getItem(SHARED_CODE_KEY) || '';
+            } catch(e) {
+                console.warn('Ошибка чтения кода:', e);
+                return '';
+            }
         }
 
         function saveUserCode(code) {
-            // ✅ Используем безопасное сохранение (без timestamp для кода)
-            safeLocalStorageSet(SHARED_CODE_KEY, code, false);
+            // ✅ Сохраняем напрямую (как простая строка, совместимо с index.html)
+            try {
+                localStorage.setItem(SHARED_CODE_KEY, code);
+            } catch(e) {
+                console.warn('Ошибка сохранения кода:', e);
+            }
         }
 
         function generateWordId() {
