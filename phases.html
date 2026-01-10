@@ -823,12 +823,66 @@
             }
             
             try {
+                // ✅ ЗАЩИТА: Если данные из Firebase НЕ загружены - отправляем только базовые поля
+                // Это предотвращает перезапись существующих данных в Firebase
+                // (merge: true НЕ делает глубокое слияние для вложенных объектов!)
+                
+                if (!firebaseDataLoaded) {
+                    console.log('⚠️ Firebase данные не были загружены - синхронизация ограничена');
+                    console.log('   Будут обновлены только: timestamp, lastSync, lastUpdated');
+                    
+                    // Минимальные данные - только метки времени
+                    // Это позволит следующей загрузке получить актуальные данные
+                    const minimalData = {
+                        code: userCode,
+                        trainerId: TRAINER_ID,
+                        timestamp: Date.now(),
+                        lastSync: new Date().toISOString(),
+                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+                    
+                    // Если есть хоть какой-то прогресс - добавляем его через dot notation
+                    // Это ДОБАВИТ слова, а не перезапишет весь объект
+                    const updateData = { ...minimalData };
+                    
+                    if (Object.keys(openedWordsMap).length > 0) {
+                        // Используем dot notation для безопасного добавления
+                        Object.keys(openedWordsMap).forEach(wordId => {
+                            updateData[`openedWords.${wordId}`] = openedWordsMap[wordId];
+                        });
+                        console.log(`   + Добавлено ${Object.keys(openedWordsMap).length} слов через dot notation`);
+                    }
+                    
+                    const success = await safeFirebaseSave(
+                        async () => {
+                            return await db.collection('users')
+                                   .doc(userCode)
+                                   .collection('trainers')
+                                   .doc(TRAINER_ID)
+                                   .set(updateData, { merge: true });
+                        },
+                        PREFIX + 'firebase_backup',
+                        updateData
+                    );
+                    
+                    if (success) {
+                        saveToLocalStorage('lastSync', new Date().toISOString());
+                        console.log('✓ Ограниченная синхронизация выполнена');
+                        showSyncStatus('✓ Синхронизировано', 'synced');
+                    }
+                    return;
+                }
+                
+                // ✅ ПОЛНАЯ синхронизация - данные из Firebase были загружены
+                console.log('✓ Полная синхронизация (Firebase данные были загружены)');
+                
                 const data = {
                     code: userCode,
                     trainerId: TRAINER_ID,
                     initialWordCount: getFromLocalStorage('initialWordCount', 0),
                     openedWords: openedWordsMap,
                     errors: errorWords,
+                    wordsOrder: words,
                     currentPage: currentPage,
                     pageWordCounts: pageWordCounts,
                     nextWordId: nextWordId,
@@ -836,15 +890,6 @@
                     lastSync: new Date().toISOString(),
                     lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
                 };
-                
-                // ✅ ЗАЩИТА: wordsOrder отправляем ТОЛЬКО если данные были загружены из Firebase
-                // Это предотвращает перезапись существующего wordsOrder локально сгенерированным
-                if (firebaseDataLoaded) {
-                    data.wordsOrder = words;
-                    console.log('✓ wordsOrder будет синхронизирован (Firebase данные были загружены)');
-                } else {
-                    console.log('⚠️ wordsOrder НЕ синхронизируется (Firebase данные не были загружены)');
-                }
 
                 // ✅ Используем безопасное сохранение в Firebase
                 const success = await safeFirebaseSave(
