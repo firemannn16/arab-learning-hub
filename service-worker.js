@@ -1,6 +1,6 @@
 // 🛡️ Service Worker для offline работы
 // Версия кэша (увеличивай при изменениях)
-const CACHE_VERSION = 'v1.0.0';
+const CACHE_VERSION = 'v1.1.0';
 const CACHE_NAME = `arab-learning-hub-${CACHE_VERSION}`;
 
 // 📦 Файлы для кэширования
@@ -86,61 +86,39 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
     
-    // Игнорируем запросы к Firebase Firestore (они должны быть всегда свежими)
+    // ✅ ИСПРАВЛЕНО: Полностью игнорируем Firebase и Google API запросы
+    // Они должны идти напрямую в сеть без участия Service Worker
     if (url.hostname.includes('firestore.googleapis.com') || 
-        url.hostname.includes('firebase')) {
-        return; // Не кэшируем Firebase запросы
+        url.hostname.includes('googleapis.com') ||
+        url.hostname.includes('firebase') ||
+        url.hostname.includes('gstatic.com')) {
+        // Не вызываем respondWith — браузер обработает запрос сам
+        return;
     }
     
-    event.respondWith(
-        caches.match(event.request)
-            .then(cachedResponse => {
-                // Если есть в кэше
-                if (cachedResponse) {
-                    // Для HTML и words.txt: Network First, Cache Fallback
-                    if (event.request.url.endsWith('.html') || 
-                        event.request.url.endsWith('words.txt')) {
-                        
-                        // Пытаемся обновить из сети в фоне
-                        fetch(event.request)
-                            .then(networkResponse => {
-                                if (networkResponse && networkResponse.status === 200) {
-                                    caches.open(CACHE_NAME).then(cache => {
-                                        cache.put(event.request, networkResponse.clone());
-                                    });
-                                }
-                            })
-                            .catch(() => {
-                                // Сеть недоступна, используем кэш
-                            });
-                        
-                        // Возвращаем кэшированную версию сразу
-                        return cachedResponse;
+    // ✅ ИСПРАВЛЕНО: Для HTML файлов — НАСТОЯЩИЙ Network First
+    // Сначала пробуем сеть, только потом кэш
+    if (event.request.url.endsWith('.html') || event.request.destination === 'document') {
+        event.respondWith(
+            fetch(event.request)
+                .then(networkResponse => {
+                    // Успешно загрузили из сети — обновляем кэш
+                    if (networkResponse && networkResponse.status === 200) {
+                        const responseToCache = networkResponse.clone();
+                        caches.open(CACHE_NAME).then(cache => {
+                            cache.put(event.request, responseToCache);
+                        });
                     }
-                    
-                    // Для остальных файлов: Cache First
-                    return cachedResponse;
-                }
-                
-                // Если нет в кэше - загружаем из сети
-                return fetch(event.request)
-                    .then(networkResponse => {
-                        // Кэшируем успешные ответы
-                        if (networkResponse && networkResponse.status === 200) {
-                            const responseToCache = networkResponse.clone();
-                            
-                            caches.open(CACHE_NAME).then(cache => {
-                                cache.put(event.request, responseToCache);
-                            });
-                        }
-                        
-                        return networkResponse;
-                    })
-                    .catch(error => {
-                        console.error('[SW] Ошибка загрузки:', event.request.url, error);
-                        
-                        // Возвращаем базовую страницу ошибки для HTML
-                        if (event.request.destination === 'document') {
+                    return networkResponse;
+                })
+                .catch(() => {
+                    // Сеть недоступна — пробуем кэш
+                    return caches.match(event.request)
+                        .then(cachedResponse => {
+                            if (cachedResponse) {
+                                return cachedResponse;
+                            }
+                            // Нет в кэше — показываем страницу ошибки
                             return new Response(
                                 `<!DOCTYPE html>
                                 <html lang="ru">
@@ -161,9 +139,7 @@ self.addEventListener('fetch', event => {
                                             text-align: center;
                                             padding: 20px;
                                         }
-                                        .error-container {
-                                            max-width: 500px;
-                                        }
+                                        .error-container { max-width: 500px; }
                                         h1 { font-size: 3rem; margin: 0 0 20px 0; }
                                         p { font-size: 1.2rem; margin: 10px 0; }
                                         button {
@@ -176,28 +152,43 @@ self.addEventListener('fetch', event => {
                                             cursor: pointer;
                                             margin-top: 20px;
                                         }
-                                        button:hover { transform: scale(1.05); }
                                     </style>
                                 </head>
                                 <body>
                                     <div class="error-container">
                                         <h1>📡</h1>
                                         <h2>Нет интернета</h2>
-                                        <p>Эта страница еще не кэширована</p>
                                         <p>Проверьте подключение и попробуйте снова</p>
                                         <button onclick="location.reload()">🔄 Обновить</button>
-                                        <button onclick="location.href='./'" style="background:#764ba2;color:white;">🏠 На главную</button>
                                     </div>
                                 </body>
                                 </html>`,
-                                {
-                                    headers: { 'Content-Type': 'text/html; charset=utf-8' }
-                                }
+                                { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
                             );
+                        });
+                })
+        );
+        return;
+    }
+    
+    // Для остальных файлов (JS, CSS, картинки) — Cache First с обновлением в фоне
+    event.respondWith(
+        caches.match(event.request)
+            .then(cachedResponse => {
+                // Запускаем обновление в фоне
+                const fetchPromise = fetch(event.request)
+                    .then(networkResponse => {
+                        if (networkResponse && networkResponse.status === 200) {
+                            caches.open(CACHE_NAME).then(cache => {
+                                cache.put(event.request, networkResponse.clone());
+                            });
                         }
-                        
-                        throw error;
-                    });
+                        return networkResponse;
+                    })
+                    .catch(() => null);
+                
+                // Возвращаем кэш сразу, или ждём сеть если кэша нет
+                return cachedResponse || fetchPromise;
             })
     );
 });
