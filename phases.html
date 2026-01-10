@@ -814,65 +814,16 @@
         async function syncToFirebase() {
             if (!userCode) return;
             
-            // ✅ ЗАЩИТА: Не синхронизировать пустые данные если Firebase ещё не загружен
-            // Это предотвращает перезапись существующих данных в Firebase пустыми
-            if (!firebaseDataLoaded && Object.keys(openedWordsMap).length === 0) {
-                console.log('⚠️ Синхронизация отменена: данные из Firebase не загружены и openedWords пуст');
-                console.log('   Это защита от перезаписи существующих данных пустыми');
+            // ✅ ЗАЩИТА: Синхронизация ТОЛЬКО если данные из Firebase загружены
+            // Это предотвращает перезапись существующих данных в Firebase
+            if (!firebaseDataLoaded) {
+                console.log('⚠️ Синхронизация отложена: данные из Firebase ещё не загружены');
+                console.log('   Дождитесь загрузки данных из облака');
+                showSyncStatus('⏳ Ожидание облака...', 'syncing');
                 return;
             }
             
             try {
-                // ✅ ЗАЩИТА: Если данные из Firebase НЕ загружены - отправляем только базовые поля
-                // Это предотвращает перезапись существующих данных в Firebase
-                // (merge: true НЕ делает глубокое слияние для вложенных объектов!)
-                
-                if (!firebaseDataLoaded) {
-                    console.log('⚠️ Firebase данные не были загружены - синхронизация ограничена');
-                    console.log('   Будут обновлены только: timestamp, lastSync, lastUpdated');
-                    
-                    // Минимальные данные - только метки времени
-                    // Это позволит следующей загрузке получить актуальные данные
-                    const minimalData = {
-                        code: userCode,
-                        trainerId: TRAINER_ID,
-                        timestamp: Date.now(),
-                        lastSync: new Date().toISOString(),
-                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-                    };
-                    
-                    // Если есть хоть какой-то прогресс - добавляем его через dot notation
-                    // Это ДОБАВИТ слова, а не перезапишет весь объект
-                    const updateData = { ...minimalData };
-                    
-                    if (Object.keys(openedWordsMap).length > 0) {
-                        // Используем dot notation для безопасного добавления
-                        Object.keys(openedWordsMap).forEach(wordId => {
-                            updateData[`openedWords.${wordId}`] = openedWordsMap[wordId];
-                        });
-                        console.log(`   + Добавлено ${Object.keys(openedWordsMap).length} слов через dot notation`);
-                    }
-                    
-                    const success = await safeFirebaseSave(
-                        async () => {
-                            return await db.collection('users')
-                                   .doc(userCode)
-                                   .collection('trainers')
-                                   .doc(TRAINER_ID)
-                                   .set(updateData, { merge: true });
-                        },
-                        PREFIX + 'firebase_backup',
-                        updateData
-                    );
-                    
-                    if (success) {
-                        saveToLocalStorage('lastSync', new Date().toISOString());
-                        console.log('✓ Ограниченная синхронизация выполнена');
-                        showSyncStatus('✓ Синхронизировано', 'synced');
-                    }
-                    return;
-                }
-                
                 // ✅ ПОЛНАЯ синхронизация - данные из Firebase были загружены
                 console.log('✓ Полная синхронизация (Firebase данные были загружены)');
                 
@@ -958,6 +909,9 @@
                 );
                 
                 if (data) {
+                    // ✅ Firebase подключен и вернул данные - синхронизация разрешена
+                    firebaseDataLoaded = true;
+                    
                     // ✅ СРАВНИВАЕМ TIMESTAMP: локальные VS Firebase
                     const firebaseTimestamp = data.timestamp || 0;
                     
@@ -989,13 +943,26 @@
                     } else if (firebaseTimestamp > 0) {
                         console.log('☁️ Загружаем данные из Firebase (нет локальных данных)');
                     } else if (localTimestamp > 0) {
-                        console.log('📱 Используем локальные данные (нет данных в Firebase)');
+                        console.log('📱 Используем локальные данные (Firebase пуст)');
                         useFirebaseData = false;
                         await syncToFirebase();
                     }
                     
                     if (useFirebaseData) {
-                        openedWordsMap = data.openedWords || {};
+                        // ✅ ИСПРАВЛЕНИЕ: Парсим "плоские" ключи с точкой (openedWords.word_xxx)
+                        // Это исправляет баг когда set() с merge создаёт поля с точкой в имени
+                        let parsedOpenedWords = data.openedWords || {};
+                        
+                        // Проверяем наличие "плоских" ключей типа "openedWords.word_xxx"
+                        for (const key of Object.keys(data)) {
+                            if (key.startsWith('openedWords.')) {
+                                const wordId = key.replace('openedWords.', '');
+                                parsedOpenedWords[wordId] = data[key];
+                                console.log(`   🔧 Восстановлено из плоского ключа: ${wordId}`);
+                            }
+                        }
+                        
+                        openedWordsMap = parsedOpenedWords;
                         errorWords = data.errors || [];
                         pageWordCounts = data.pageWordCounts || {};
                         nextWordId = data.nextWordId || 0;
