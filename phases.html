@@ -713,6 +713,7 @@
         const wordsPerPage = 100;
         let pageWordCounts = {};
         let userCode = '';
+        let firebaseDataLoaded = false; // ✅ Флаг: данные из Firebase загружены?
         let pendingSync = false;
         let syncTimeout = null;
         let nextWordId = 0;
@@ -813,6 +814,14 @@
         async function syncToFirebase() {
             if (!userCode) return;
             
+            // ✅ ЗАЩИТА: Не синхронизировать пустые данные если Firebase ещё не загружен
+            // Это предотвращает перезапись существующих данных в Firebase пустыми
+            if (!firebaseDataLoaded && Object.keys(openedWordsMap).length === 0) {
+                console.log('⚠️ Синхронизация отменена: данные из Firebase не загружены и openedWords пуст');
+                console.log('   Это защита от перезаписи существующих данных пустыми');
+                return;
+            }
+            
             try {
                 const data = {
                     code: userCode,
@@ -820,14 +829,22 @@
                     initialWordCount: getFromLocalStorage('initialWordCount', 0),
                     openedWords: openedWordsMap,
                     errors: errorWords,
-                    wordsOrder: words,
                     currentPage: currentPage,
                     pageWordCounts: pageWordCounts,
                     nextWordId: nextWordId,
-                    timestamp: Date.now(), // ✅ Добавлен timestamp для сравнения
+                    timestamp: Date.now(),
                     lastSync: new Date().toISOString(),
                     lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
                 };
+                
+                // ✅ ЗАЩИТА: wordsOrder отправляем ТОЛЬКО если данные были загружены из Firebase
+                // Это предотвращает перезапись существующего wordsOrder локально сгенерированным
+                if (firebaseDataLoaded) {
+                    data.wordsOrder = words;
+                    console.log('✓ wordsOrder будет синхронизирован (Firebase данные были загружены)');
+                } else {
+                    console.log('⚠️ wordsOrder НЕ синхронизируется (Firebase данные не были загружены)');
+                }
 
                 // ✅ Используем безопасное сохранение в Firebase
                 const success = await safeFirebaseSave(
@@ -972,13 +989,24 @@
                         // ✅ НЕ синхронизируем обратно сразу после загрузки!
                         // Это предотвращает перезапись данных пустыми значениями
                         // Синхронизация произойдёт автоматически при изменении прогресса
+                        
+                        firebaseDataLoaded = true; // ✅ Данные загружены из Firebase
+                        console.log('✅ Firebase данные загружены, синхронизация разрешена');
+                        
+                        // ✅ Обновляем UI после загрузки данных
+                        updateStats();
+                        renderWords();
+                        renderErrors();
                     }
                     
                     return true;
                 } else {
-                    console.log('Документ не найден, создаем новый');
-                    await syncToFirebase();
-                    return true;
+                    // ⚠️ НЕ синхронизируем сразу! 
+                    // Если Firebase был offline, мы не знаем есть ли там данные
+                    // Синхронизация произойдёт только при реальном изменении прогресса
+                    console.log('📭 Данные не загружены (возможно offline или новый пользователь)');
+                    console.log('⏳ Синхронизация произойдёт при изменении прогресса');
+                    return false; // Возвращаем false чтобы не блокировать интерфейс
                 }
             } catch (error) {
                 console.error('Ошибка загрузки из Firebase:', error);
@@ -1287,8 +1315,6 @@
                 
                 await loadWords();
                 await loadFromFirebase(userCode);
-                // ✅ УБРАНО: checkAndApplyFileChanges() больше не вызывается автоматически
-                // Эта функция удаляла "новые" слова, считая их лишними
                 
                 validateProgress(words);
                 
