@@ -705,7 +705,6 @@
         const db = firebase.firestore();
         // 🔧 Для сетей с прокси/блокировками: форсируем long-polling и отключаем stream
         db.settings({
-            experimentalAutoDetectLongPolling: true,
             experimentalForceLongPolling: true,
             useFetchStreams: false
         });
