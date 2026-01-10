@@ -2,6 +2,48 @@
 (function() {
     'use strict';
 
+    // ⚡ ВЕРСИЯ ПРИЛОЖЕНИЯ — при изменении принудительно обновляем
+    const APP_VERSION = 'v1.2.0';
+    const STORED_VERSION = localStorage.getItem('app_version');
+
+    // 🔥 Принудительное обновление при изменении версии
+    if (STORED_VERSION && STORED_VERSION !== APP_VERSION) {
+        console.log('🔥 Обнаружена новая версия! Очищаем кэш...');
+        
+        // Удаляем все кэши
+        if ('caches' in window) {
+            caches.keys().then(names => {
+                names.forEach(name => {
+                    console.log('🗑️ Удаляем кэш:', name);
+                    caches.delete(name);
+                });
+            });
+        }
+        
+        // Удаляем Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                registrations.forEach(registration => {
+                    console.log('🗑️ Удаляем SW:', registration.scope);
+                    registration.unregister();
+                });
+            });
+        }
+        
+        // Сохраняем новую версию и перезагружаем
+        localStorage.setItem('app_version', APP_VERSION);
+        console.log('🔄 Перезагрузка через 500мс...');
+        setTimeout(() => {
+            window.location.reload(true);
+        }, 500);
+        return;
+    }
+    
+    // Сохраняем версию при первом запуске
+    if (!STORED_VERSION) {
+        localStorage.setItem('app_version', APP_VERSION);
+    }
+
     // Проверяем поддержку Service Worker
     if (!('serviceWorker' in navigator)) {
         console.warn('⚠️ Service Worker не поддерживается этим браузером');
