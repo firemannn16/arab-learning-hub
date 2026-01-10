@@ -25,8 +25,7 @@ try {
   // 🔧 Для сетей с блокировками: форсируем long-polling и отключаем stream
   window.firestore = initializeFirestore(window.firebaseApp, {
     experimentalForceLongPolling: true,
-    useFetchStreams: false,
-    experimentalAutoDetectLongPolling: true
+    useFetchStreams: false
   });
   window.firebaseEnabled = true;
   window.firebaseModules = { doc: null, setDoc: null, getDoc: null, deleteDoc: null };
