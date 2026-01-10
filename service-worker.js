@@ -1,207 +1,207 @@
-// 🛡️ Service Worker для offline работы
-// Версия кэша (увеличивай при изменениях)
-const CACHE_VERSION = 'v1.1.0';
-const CACHE_NAME = `arab-learning-hub-${CACHE_VERSION}`;
+// 🔧 Регистрация Service Worker
+(function() {
+    'use strict';
 
-// 📦 Файлы для кэширования
-const STATIC_CACHE = [
-    './',
-    './index.html',
-    './phases.html',
-    './choice.html',
-    './input.html',
-    './simple.html',
-    './dictionary.html',
-    './words.txt',
-    './dua.js'
-];
+    // Проверяем поддержку Service Worker
+    if (!('serviceWorker' in navigator)) {
+        console.warn('⚠️ Service Worker не поддерживается этим браузером');
+        return;
+    }
 
-// 🌐 Внешние ресурсы (Firebase, шрифты)
-const EXTERNAL_CACHE = [
-    'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js',
-    'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js',
-    'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js',
-    'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js',
-    'https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&display=swap'
-];
+    // Регистрируем Service Worker при загрузке страницы
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js')
+            .then(registration => {
+                console.log('✅ Service Worker зарегистрирован:', registration.scope);
 
-// 📥 Установка Service Worker
-self.addEventListener('install', event => {
-    console.log('[SW] Установка Service Worker...');
-    
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => {
-                console.log('[SW] Кэширование файлов...');
-                
-                // Кэшируем статичные файлы
-                const staticPromise = cache.addAll(STATIC_CACHE)
-                    .catch(err => {
-                        console.warn('[SW] Ошибка кэширования статичных файлов:', err);
+                // ✅ СРАЗУ активируем ожидающий SW если есть
+                if (registration.waiting) {
+                    console.log('🔄 Найден ожидающий SW — активируем...');
+                    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                }
+
+                // Проверяем обновления каждые 60 секунд
+                setInterval(() => {
+                    registration.update();
+                }, 60000);
+
+                // Обработка обновления SW
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    console.log('🔄 Найдено обновление Service Worker');
+
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // Новая версия доступна — СРАЗУ активируем без ожидания
+                            console.log('✨ Новая версия — автоматическое обновление...');
+                            newWorker.postMessage({ type: 'SKIP_WAITING' });
+                        }
                     });
-                
-                // Кэшируем внешние ресурсы (по одному, чтобы одна ошибка не сломала все)
-                const externalPromises = EXTERNAL_CACHE.map(url => 
-                    cache.add(url).catch(err => {
-                        console.warn(`[SW] Не удалось кэшировать ${url}:`, err);
-                    })
-                );
-                
-                return Promise.all([staticPromise, ...externalPromises]);
+                });
             })
-            .then(() => {
-                console.log('[SW] ✅ Кэширование завершено');
-                // Принудительно активировать новый SW
-                return self.skipWaiting();
-            })
-    );
-});
+            .catch(error => {
+                console.error('❌ Ошибка регистрации Service Worker:', error);
+            });
 
-// 🔄 Активация Service Worker
-self.addEventListener('activate', event => {
-    console.log('[SW] Активация Service Worker...');
-    
-    event.waitUntil(
-        caches.keys()
-            .then(cacheNames => {
-                // Удаляем старые версии кэша
-                return Promise.all(
-                    cacheNames.map(cacheName => {
-                        if (cacheName !== CACHE_NAME) {
-                            console.log('[SW] 🗑️ Удаление старого кэша:', cacheName);
-                            return caches.delete(cacheName);
-                        }
-                    })
-                );
-            })
-            .then(() => {
-                console.log('[SW] ✅ Активация завершена');
-                // Захватываем контроль над всеми страницами
-                return self.clients.claim();
-            })
-    );
-});
+        // Отслеживаем изменение контроллера (новый SW активировался)
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            console.log('🔄 Service Worker обновлен, перезагружаем страницу...');
+            window.location.reload();
+        });
+    });
 
-// 🌐 Обработка запросов
-self.addEventListener('fetch', event => {
-    const url = new URL(event.request.url);
-    
-    // ✅ ИСПРАВЛЕНО: Полностью игнорируем Firebase и Google API запросы
-    // Они должны идти напрямую в сеть без участия Service Worker
-    if (url.hostname.includes('firestore.googleapis.com') || 
-        url.hostname.includes('googleapis.com') ||
-        url.hostname.includes('firebase') ||
-        url.hostname.includes('gstatic.com')) {
-        // Не вызываем respondWith — браузер обработает запрос сам
-        return;
-    }
-    
-    // ✅ ИСПРАВЛЕНО: Для HTML файлов — НАСТОЯЩИЙ Network First
-    // Сначала пробуем сеть, только потом кэш
-    if (event.request.url.endsWith('.html') || event.request.destination === 'document') {
-        event.respondWith(
-            fetch(event.request)
-                .then(networkResponse => {
-                    // Успешно загрузили из сети — обновляем кэш
-                    if (networkResponse && networkResponse.status === 200) {
-                        const responseToCache = networkResponse.clone();
-                        caches.open(CACHE_NAME).then(cache => {
-                            cache.put(event.request, responseToCache);
-                        });
+    // Показываем уведомление об обновлении
+    function showUpdateNotification() {
+        // Проверяем, показывали ли уже уведомление
+        if (sessionStorage.getItem('updateNotificationShown')) {
+            return;
+        }
+
+        const notification = document.createElement('div');
+        notification.id = 'sw-update-notification';
+        notification.innerHTML = `
+            <style>
+                #sw-update-notification {
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                    z-index: 999999;
+                    max-width: 300px;
+                    animation: slideIn 0.3s ease-out;
+                }
+                @keyframes slideIn {
+                    from { transform: translateX(400px); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
+                }
+                #sw-update-notification h3 {
+                    margin: 0 0 10px 0;
+                    font-size: 1.1rem;
+                }
+                #sw-update-notification p {
+                    margin: 0 0 15px 0;
+                    font-size: 0.9rem;
+                    opacity: 0.9;
+                }
+                #sw-update-notification button {
+                    background: white;
+                    color: #667eea;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    margin-right: 10px;
+                    font-size: 0.9rem;
+                }
+                #sw-update-notification button:hover {
+                    transform: scale(1.05);
+                }
+                #sw-update-notification .btn-later {
+                    background: transparent;
+                    color: white;
+                    border: 1px solid white;
+                }
+                @media (max-width: 600px) {
+                    #sw-update-notification {
+                        top: 10px;
+                        right: 10px;
+                        left: 10px;
+                        max-width: none;
                     }
-                    return networkResponse;
-                })
-                .catch(() => {
-                    // Сеть недоступна — пробуем кэш
-                    return caches.match(event.request)
-                        .then(cachedResponse => {
-                            if (cachedResponse) {
-                                return cachedResponse;
-                            }
-                            // Нет в кэше — показываем страницу ошибки
-                            return new Response(
-                                `<!DOCTYPE html>
-                                <html lang="ru">
-                                <head>
-                                    <meta charset="UTF-8">
-                                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                                    <title>Нет соединения</title>
-                                    <style>
-                                        body {
-                                            font-family: Arial, sans-serif;
-                                            display: flex;
-                                            justify-content: center;
-                                            align-items: center;
-                                            height: 100vh;
-                                            margin: 0;
-                                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                            color: white;
-                                            text-align: center;
-                                            padding: 20px;
-                                        }
-                                        .error-container { max-width: 500px; }
-                                        h1 { font-size: 3rem; margin: 0 0 20px 0; }
-                                        p { font-size: 1.2rem; margin: 10px 0; }
-                                        button {
-                                            background: white;
-                                            color: #667eea;
-                                            border: none;
-                                            padding: 15px 30px;
-                                            font-size: 1rem;
-                                            border-radius: 10px;
-                                            cursor: pointer;
-                                            margin-top: 20px;
-                                        }
-                                    </style>
-                                </head>
-                                <body>
-                                    <div class="error-container">
-                                        <h1>📡</h1>
-                                        <h2>Нет интернета</h2>
-                                        <p>Проверьте подключение и попробуйте снова</p>
-                                        <button onclick="location.reload()">🔄 Обновить</button>
-                                    </div>
-                                </body>
-                                </html>`,
-                                { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
-                            );
-                        });
-                })
-        );
-        return;
-    }
-    
-    // Для остальных файлов (JS, CSS, картинки) — Cache First с обновлением в фоне
-    event.respondWith(
-        caches.match(event.request)
-            .then(cachedResponse => {
-                // Запускаем обновление в фоне
-                const fetchPromise = fetch(event.request)
-                    .then(networkResponse => {
-                        if (networkResponse && networkResponse.status === 200) {
-                            caches.open(CACHE_NAME).then(cache => {
-                                cache.put(event.request, networkResponse.clone());
-                            });
-                        }
-                        return networkResponse;
-                    })
-                    .catch(() => null);
-                
-                // Возвращаем кэш сразу, или ждём сеть если кэша нет
-                return cachedResponse || fetchPromise;
-            })
-    );
-});
+                }
+            </style>
+            <h3>✨ Доступна новая версия</h3>
+            <p>Обновите страницу, чтобы получить последние улучшения</p>
+            <button onclick="updateServiceWorker()">🔄 Обновить</button>
+            <button class="btn-later" onclick="dismissUpdateNotification()">Позже</button>
+        `;
 
-// 📨 Обработка сообщений от страниц
-self.addEventListener('message', event => {
-    if (event.data && event.data.type === 'SKIP_WAITING') {
-        self.skipWaiting();
+        document.body.appendChild(notification);
+        sessionStorage.setItem('updateNotificationShown', 'true');
     }
-    
-    if (event.data && event.data.type === 'GET_VERSION') {
-        event.ports[0].postMessage({ version: CACHE_VERSION });
-    }
-});
 
-console.log('[SW] 🚀 Service Worker загружен');
+    // Обновить Service Worker
+    window.updateServiceWorker = function() {
+        navigator.serviceWorker.getRegistration().then(registration => {
+            if (registration && registration.waiting) {
+                // Отправляем сообщение новому SW чтобы он активировался
+                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            } else {
+                // Просто перезагружаем
+                window.location.reload();
+            }
+        });
+    };
+
+    // Закрыть уведомление
+    window.dismissUpdateNotification = function() {
+        const notification = document.getElementById('sw-update-notification');
+        if (notification) {
+            notification.style.animation = 'slideIn 0.3s ease-out reverse';
+            setTimeout(() => notification.remove(), 300);
+        }
+    };
+
+    // Показываем статус подключения
+    function updateOnlineStatus() {
+        if (!navigator.onLine) {
+            showOfflineIndicator();
+        } else {
+            hideOfflineIndicator();
+        }
+    }
+
+    function showOfflineIndicator() {
+        let indicator = document.getElementById('offline-indicator');
+        if (indicator) return;
+
+        indicator = document.createElement('div');
+        indicator.id = 'offline-indicator';
+        indicator.innerHTML = `
+            <style>
+                #offline-indicator {
+                    position: fixed;
+                    bottom: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: #ff6b6b;
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 25px;
+                    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+                    z-index: 999999;
+                    font-size: 0.9rem;
+                    animation: slideUp 0.3s ease-out;
+                }
+                @keyframes slideUp {
+                    from { transform: translateX(-50%) translateY(100px); opacity: 0; }
+                    to { transform: translateX(-50%) translateY(0); opacity: 1; }
+                }
+            </style>
+            📡 Нет интернета - работаем offline
+        `;
+        document.body.appendChild(indicator);
+    }
+
+    function hideOfflineIndicator() {
+        const indicator = document.getElementById('offline-indicator');
+        if (indicator) {
+            indicator.style.animation = 'slideUp 0.3s ease-out reverse';
+            setTimeout(() => indicator.remove(), 300);
+        }
+    }
+
+    // Отслеживаем статус подключения
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    // Проверяем статус при загрузке
+    updateOnlineStatus();
+
+})();
+
