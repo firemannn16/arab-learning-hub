@@ -119,6 +119,24 @@ try {
   .toggle-switch.active .toggle-slider{
     left:33px;
   }
+  /* Состояние синхронизации */
+  .sync-status{
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    background:#fff;
+    padding:10px 15px;
+    border-radius:20px;
+    box-shadow:0 2px 10px rgba(0,0,0,0.2);
+    font-size:12px;
+    color:#666;
+    display:none;
+    z-index:10000;
+  }
+  .sync-status.show{display:block;}
+  .sync-status.syncing{color:#2196F3;}
+  .sync-status.synced{color:#4CAF50;}
+  .sync-status.error{color:#f44336;}
   
   @media(max-width:560px){
     #arabic-word{font-size:2.2rem;padding:12px}
@@ -168,6 +186,7 @@ try {
     </div>
   </div>
   <div id="modal-root"></div>
+  <div class="sync-status" id="sync-status">⏳ Синхронизация...</div>
 <script>
 /* ========== ✅ ИДЕНТИФИКАТОР ТРЕНАЖЕРА ========== */
 const TRAINER_ID = 'choice';
@@ -230,6 +249,13 @@ function getWordContentHash(wordObj) {
   return `${rusContent}|||${arabContent}`;
 }
 
+function showSyncStatus(message, type = 'syncing') {
+  if (!syncStatus) return;
+  syncStatus.textContent = message;
+  syncStatus.className = `sync-status show ${type}`;
+  setTimeout(() => syncStatus.classList.remove('show'), 2000);
+}
+
 /* ========== Состояния ========== */
 let allWords = [];
 let orderRaw = [];
@@ -239,6 +265,7 @@ let corrects = [];
 let mode = 'all';
 let loadingPromise = null;
 let direction = 'arab-to-rus'; // 'arab-to-rus' или 'rus-to-arab'
+let resetVersion = safeLocalStorageGet(PREFIX + 'resetVersion', 0) || 0;
 
 /* ========== DOM ========== */
 const trainer = document.getElementById('trainer');
@@ -255,6 +282,7 @@ const retryAllBtn = document.getElementById('retry-all');
 const workMistakesBtn = document.getElementById('work-mistakes');
 const modalRoot = document.getElementById('modal-root');
 const formatToggle = document.getElementById('format-toggle');
+const syncStatus = document.getElementById('sync-status');
 
 /* ========== Парсер / нормализация ========== */
 function normalizeLine(line){
@@ -318,8 +346,11 @@ async function saveState(){
       correctsRaw: corrects.slice(),
       mode,
       direction,
+      resetVersion,
       timestamp: Date.now()
     };
+    
+    safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
     
     // ✅ Сохраняем в Firebase (подколлекция) + backup в localStorage
     if (window.firebaseEnabled && window.firestore && window.firebaseModules && st) {
@@ -336,18 +367,21 @@ async function saveState(){
         st
       );
       console.log('✓ Сохранено в Firestore (choice)');
+      showSyncStatus('✓ Синхронизировано', 'synced');
     } else {
       // Fallback: только localStorage
       safeLocalStorageSet(PREFIX + 'state', st);
     }
   } catch(e) {
     console.warn('Не удалось сохранить прогресс:', e);
+    showSyncStatus('❌ Ошибка синхронизации', 'error');
   }
 }
 
 async function loadState(){
   // ✅ Загружаем с использованием safeFirebaseLoad (Firebase + fallback localStorage)
   if(window.firebaseEnabled && window.firestore && window.firebaseModules){
+    showSyncStatus('⏳ Загрузка из облака...', 'syncing');
     const firebaseData = await safeFirebaseLoad(
       async () => {
         const docRef = window.firebaseModules.doc(
@@ -358,6 +392,7 @@ async function loadState(){
         const docSnap = await window.firebaseModules.getDoc(docRef);
         if(docSnap.exists()){
           console.log('✓ Загружено из Firestore (choice)');
+          showSyncStatus('✓ Загружено из облака', 'synced');
           return docSnap.data();
         }
         return null;
@@ -365,9 +400,20 @@ async function loadState(){
       PREFIX + 'state'
     );
     
-    // ✅ СРАВНИВАЕМ TIMESTAMP: локальные VS Firebase
     const localData = safeLocalStorageGet(PREFIX + 'state', 0);
+    const localReset = safeLocalStorageGet(PREFIX + 'resetVersion', 0) || 0;
+    const firebaseReset = firebaseData?.resetVersion || 0;
+    if (localReset > firebaseReset) {
+      resetVersion = localReset;
+      safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
+      await saveState();
+      return localData || firebaseData;
+    } else if (firebaseReset > localReset) {
+      resetVersion = firebaseReset;
+      safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
+    }
     
+    // ✅ СРАВНИВАЕМ TIMESTAMP: локальные VS Firebase
     if (firebaseData && localData) {
       const firebaseTime = firebaseData.timestamp || 0;
       const localTime = localData.timestamp || 0;
@@ -797,6 +843,9 @@ async function showResetModal() {
     renderLists();
     
     console.log('✅ Прогресс сброшен (choice), показываем первое слово...');
+    
+    resetVersion = Date.now();
+    safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
     
     // ✅ Показываем первое слово
     nextWord();
