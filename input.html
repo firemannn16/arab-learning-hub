@@ -97,6 +97,7 @@ let practiceOrder = [];
 let phase = 'learn';
 let currentRaw = null;
 let modalTimer = null;
+let resetVersion = safeLocalStorageGet(PREFIX + 'resetVersion', 0) || 0;
 
 /* ---------- DOM ---------- */
 const screenMain = document.getElementById('screen-main');
@@ -117,6 +118,9 @@ const practiceSubmit = document.getElementById('practice-submit');
 const practiceSkip = document.getElementById('practice-skip');
 const oralAnswerBtn = document.getElementById('oral-answer');
 const modalRoot = document.getElementById('modal-root');
+// syncStatus появится после вставки элемента ниже по разметке
+let syncStatusEl = null;
+syncStatusEl = document.getElementById('sync-status');
 
 /* ---------- Утилиты ---------- */
 function normalizeRu(s){
@@ -154,6 +158,13 @@ function isLastCharMistake(userRaw, correctRaw){
   return false;
 }
 
+function showSyncStatus(message, type = 'syncing') {
+  if (!syncStatusEl) return;
+  syncStatusEl.textContent = message;
+  syncStatusEl.className = `sync-status show ${type}`;
+  setTimeout(() => syncStatusEl.classList.remove('show'), 2000);
+}
+
 /* ========== ✅ Save / Load / Clear (ПОДКОЛЛЕКЦИЯ) ========== */
 async function saveState(){
   const st = {
@@ -167,8 +178,10 @@ async function saveState(){
     practiceAccum: practiceAccum.slice(),
     practiceOrder: practiceOrder.slice(),
     phase, currentRaw,
+    resetVersion,
     timestamp: Date.now()
   };
+  safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
   
   // ✅ Сохраняем в Firebase (подколлекция) + backup в localStorage
   if(window.firebaseEnabled && window.firestore && window.firebaseModules){
@@ -185,6 +198,7 @@ async function saveState(){
       st
     );
     console.log('✓ Сохранено в Firestore (input)');
+    showSyncStatus('✓ Синхронизировано', 'synced');
   } else {
     // Fallback: только localStorage
     safeLocalStorageSet(PREFIX + 'state', st);
@@ -194,6 +208,7 @@ async function saveState(){
 async function loadState(){
   // ✅ Загружаем с использованием safeFirebaseLoad (Firebase + fallback localStorage)
   if(window.firebaseEnabled && window.firestore && window.firebaseModules){
+    showSyncStatus('⏳ Загрузка из облака...', 'syncing');
     const firebaseData = await safeFirebaseLoad(
       async () => {
         const docRef = window.firebaseModules.doc(
@@ -204,6 +219,7 @@ async function loadState(){
         const docSnap = await window.firebaseModules.getDoc(docRef);
         if(docSnap.exists()){
           console.log('✓ Загружено из Firestore (input)');
+          showSyncStatus('✓ Загружено из облака', 'synced');
           return docSnap.data();
         }
         return null;
@@ -211,9 +227,20 @@ async function loadState(){
       PREFIX + 'state'
     );
     
-    // ✅ Сравниваем timestamp: локальные VS Firebase
     const localData = safeLocalStorageGet(PREFIX + 'state', 0);
+    const localReset = safeLocalStorageGet(PREFIX + 'resetVersion', 0) || 0;
+    const firebaseReset = firebaseData?.resetVersion || 0;
+    if (localReset > firebaseReset) {
+      resetVersion = localReset;
+      safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
+      await saveState();
+      return localData || firebaseData;
+    } else if (firebaseReset > localReset) {
+      resetVersion = firebaseReset;
+      safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
+    }
     
+    // ✅ Сравниваем timestamp: локальные VS Firebase
     if (firebaseData && localData) {
       const firebaseTime = firebaseData.timestamp || 0;
       const localTime = localData.timestamp || 0;
@@ -644,6 +671,8 @@ function showResetModal() {
     practiceOrder = [];
     phase = 'learn';
     currentRaw = null;
+    resetVersion = Date.now();
+    safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
     
     // ✅ СРАЗУ очищаем UI
     arabicDiv.textContent = '';
@@ -766,6 +795,24 @@ function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(moda
   .overlay{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:9999}
   .modal{background:#fff;padding:16px;border-radius:8px;max-width:720px;width:92%;box-shadow:0 8px 30px rgba(0,0,0,0.2)}
   .modal .pair{margin-top:8px}
+  .sync-status{
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    background:#fff;
+    padding:10px 15px;
+    border-radius:20px;
+    box-shadow:0 2px 10px rgba(0,0,0,0.2);
+    font-size:12px;
+    color:#666;
+    display:none;
+    z-index:10000;
+  }
+  .sync-status.show{display:block;}
+  .sync-status.syncing{color:#2196F3;}
+  .sync-status.synced{color:#4CAF50;}
+  .sync-status.error{color:#f44336;}
 </style>
+  <div class="sync-status" id="sync-status">⏳ Синхронизация...</div>
 </body>
 </html>
