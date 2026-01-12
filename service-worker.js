@@ -12,6 +12,7 @@ const STATIC_CACHE = [
     './input.html',
     './simple.html',
     './dictionary.html',
+    './words-list.html',
     './words.txt',
     './dua.js',
     './sidebar-menu.js'
