@@ -159,7 +159,9 @@ function parseWordText(txt) {
   const parsed = [];
   let id = 1;
   for (const raw of lines) {
-    const line = raw.trim();
+    let line = raw.trim();
+    // Нормализуем все варианты тире в обычный дефис
+    line = line.replace(/[\u2010-\u2015–—−]/g, ' - ');
     if (!line || line.startsWith("#")) continue;
     let ru = "", gloss = "", arabicVariants = [], note = "";
 
