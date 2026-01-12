@@ -159,7 +159,10 @@ function isLastCharMistake(userRaw, correctRaw){
 }
 
 function showSyncStatus(message, type = 'syncing') {
-  if (!syncStatusEl) return;
+  if (!syncStatusEl) {
+    syncStatusEl = document.getElementById('sync-status');
+    if (!syncStatusEl) return;
+  }
   syncStatusEl.textContent = message;
   syncStatusEl.className = `sync-status show ${type}`;
   setTimeout(() => syncStatusEl.classList.remove('show'), 2000);
