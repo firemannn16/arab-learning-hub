@@ -71,6 +71,12 @@
             return;
         }
         
+        // Подключаем шрифт Amiri
+        const fontLink = document.createElement('link');
+        fontLink.href = 'https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap';
+        fontLink.rel = 'stylesheet';
+        document.head.appendChild(fontLink);
+        
         // Добавляем CSS
         const style = document.createElement('style');
         style.textContent = `
@@ -134,17 +140,18 @@
             }
             
             .dua-arabic {
-                font-size: 32px;
+                font-family: 'Amiri', serif;
+                font-size: 34px;
                 color: white;
                 text-align: center;
                 direction: rtl;
-                line-height: 1.8;
+                line-height: 2;
                 padding: 25px 20px;
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 border-radius: 15px;
                 box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
                 margin-bottom: 12px;
-                font-weight: 500;
+                font-weight: 700;
             }
             
             .dua-translation {
@@ -241,8 +248,9 @@
                 }
                 
                 .dua-arabic {
-                    font-size: 24px;
+                    font-size: 26px;
                     padding: 20px 15px;
+                    line-height: 1.9;
                 }
                 
                 .dua-translation {
