@@ -1,6 +1,6 @@
 // 🛡️ Service Worker для offline работы
 // Версия кэша (увеличивай при изменениях)
-const CACHE_VERSION = 'v1.2.2';
+const CACHE_VERSION = 'v1.3.0';
 const CACHE_NAME = `arab-learning-hub-${CACHE_VERSION}`;
 
 // 📦 Файлы для кэширования
@@ -13,7 +13,8 @@ const STATIC_CACHE = [
     './simple.html',
     './dictionary.html',
     './words.txt',
-    './dua.js'
+    './dua.js',
+    './sidebar-menu.js'
 ];
 
 // 🌐 Внешние ресурсы (Firebase, шрифты)
