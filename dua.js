@@ -151,7 +151,7 @@
                 border-radius: 15px;
                 box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
                 margin-bottom: 12px;
-                font-weight: 700;
+                font-weight: 400;
             }
             
             .dua-translation {
