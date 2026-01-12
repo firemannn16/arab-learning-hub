@@ -160,8 +160,9 @@ function parseWordText(txt) {
   let id = 1;
   for (const raw of lines) {
     let line = raw.trim();
-    // Нормализуем все варианты тире в обычный дефис
-    line = line.replace(/[\u2010-\u2015–—−]/g, ' - ');
+    // Нормализуем тире: любые варианты → дефис, затем ставим пробелы вокруг
+    line = line.replace(/[\u2010-\u2015–—−]+/g, '-');
+    line = line.replace(/\s*-\s*/g, ' - ');
     if (!line || line.startsWith("#")) continue;
     let ru = "", gloss = "", arabicVariants = [], note = "";
 
