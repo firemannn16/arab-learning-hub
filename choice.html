@@ -250,6 +250,7 @@ function getWordContentHash(wordObj) {
 }
 
 function showSyncStatus(message, type = 'syncing') {
+  if (!syncStatus) syncStatus = document.getElementById('sync-status');
   if (!syncStatus) return;
   syncStatus.textContent = message;
   syncStatus.className = `sync-status show ${type}`;
@@ -282,7 +283,7 @@ const retryAllBtn = document.getElementById('retry-all');
 const workMistakesBtn = document.getElementById('work-mistakes');
 const modalRoot = document.getElementById('modal-root');
 const formatToggle = document.getElementById('format-toggle');
-const syncStatus = document.getElementById('sync-status');
+let syncStatus = document.getElementById('sync-status'); // лениво обновим при первом вызове
 
 /* ========== Парсер / нормализация ========== */
 function normalizeLine(line){
@@ -371,6 +372,7 @@ async function saveState(){
     } else {
       // Fallback: только localStorage
       safeLocalStorageSet(PREFIX + 'state', st);
+      showSyncStatus('✓ Сохранено локально', 'synced');
     }
   } catch(e) {
     console.warn('Не удалось сохранить прогресс:', e);
