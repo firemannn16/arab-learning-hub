@@ -1112,6 +1112,8 @@
             
             lines.forEach((line, index) => {
                 line = line.trim().replace(/\r/g, '');
+                // Нормализуем все варианты тире в обычный дефис с пробелами
+                line = line.replace(/[\u2010-\u2015–—−]/g, ' - ');
                 
                 if (!line || line.length < 3) return;
                 
