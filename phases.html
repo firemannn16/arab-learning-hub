@@ -1297,6 +1297,24 @@
                         return w;
                     });
                     pageWordCounts = getFromLocalStorage('pageWordCounts', {});
+                    
+                    // 🔄 Добавляем новые слова, которых не было в сохранённом порядке
+                    const existingKeys = new Set(words.map(w => `${w.ru}|||${w.ar}`));
+                    let addedNew = 0;
+                    allWordsFromFile.forEach(w => {
+                        const key = `${w.ru}|||${w.ar}`;
+                        if (!existingKeys.has(key)) {
+                            const newWord = { ...w, id: generateWordId() };
+                            words.push(newWord);
+                            existingKeys.add(key);
+                            addedNew++;
+                        }
+                    });
+                    if (addedNew > 0) {
+                        console.log(`➕ Добавлено новых слов: ${addedNew}`);
+                        saveToLocalStorage('wordsOrder', words);
+                        saveToLocalStorage('initialWordCount', allWordsFromFile.length);
+                    }
                 }
                 
                 validateProgress(words);
