@@ -154,6 +154,12 @@
                 font-weight: 400;
             }
             
+            .dua-arabic-small {
+                font-size: 26px;
+                white-space: nowrap;
+                line-height: 1.8;
+            }
+            
             .dua-translation {
                 font-size: 16px;
                 color: #555;
@@ -253,6 +259,10 @@
                     line-height: 1.9;
                 }
                 
+                .dua-arabic-small {
+                    font-size: 18px;
+                }
+                
                 .dua-translation {
                     font-size: 14px;
                 }
@@ -281,7 +291,7 @@
                 <div class="dua-divider"></div>
                 
                 <div class="dua-block">
-                    <div class="dua-arabic">اللَّهُمَّ أَصْلِحْ أَحْوَالَ الْمُسْلِمِينَ فِي فِلَسْطِينَ</div>
+                    <div class="dua-arabic dua-arabic-small">اللَّهُمَّ أَصْلِحْ أَحْوَالَ الْمُسْلِمِينَ فِي فِلَسْطِينَ</div>
                     <div class="dua-translation">«О Аллах, улучши положение мусульман в Палестине»</div>
                 </div>
                 
