@@ -440,7 +440,6 @@ function openModal(item) {
       ${item.note ? '<div class="note">Примечание: ' + escapeHtml(item.note) + '</div>' : ''}
       <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
         <button id="copyBtn" class="btn">Копировать всё</button>
-        <button id="searchArBtn" class="btn">Поиск по арабскому</button>
       </div>
     </div>
   </div>`;
@@ -454,11 +453,6 @@ function openModal(item) {
     } catch(e) { 
       showTemporaryNotify("Не удалось скопировать"); 
     }
-  });
-  document.getElementById("searchArBtn").addEventListener("click", () => {
-    qEl.value = item.arabicVariants[0];
-    qEl.dispatchEvent(new Event("input", { bubbles:true }));
-    closeModal();
   });
   modalEl.addEventListener("click", (ev) => { 
     if (ev.target.id === "modalWrap") closeModal(); 
