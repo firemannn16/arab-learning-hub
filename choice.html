@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Тренажер выборка - Арабские слова</title>
+<title>Тренажер выбора - Арабские слова</title>
     <script src="dua.js"></script>
     <script src="service-worker-register.js"></script>
     <script src="storage-protection.js"></script>
+    <script src="sidebar-menu.js"></script>
 <script type="module">
 /* ---------- Firebase инициализация ---------- */
 const firebaseConfig = {
@@ -45,8 +46,6 @@ try {
   #container{max-width:980px;margin:0 auto}
   .hidden{display:none}
   .button{padding:8px 12px;margin:6px;font-size:1rem;cursor:pointer;border-radius:6px;border:1px solid #bbb;background:#f6f6f6}
-  .home-btn{display:inline-block;padding:10px 20px;margin-bottom:20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;transition:opacity .3s}
-  .home-btn:hover{opacity:.9}
   h1{font-size:1.6rem;margin:6px 0}
   #progress{margin:12px 0;color:#333}
   #arabic-word{
@@ -147,8 +146,7 @@ try {
 </head>
 <body>
   <div id="container">
-    <a href="index.html" class="home-btn">← Вернуться на главную</a>
-    <h1>Тренажёр выборка</h1>
+    <h1>Тренажёр выбора</h1>
     <div id="trainer" style="margin-top:14px">
       <div class="format-toggle">
         <span>АРБ → РУС</span>
