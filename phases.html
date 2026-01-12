@@ -722,6 +722,7 @@
         let pendingSync = false;
         let syncTimeout = null;
         let nextWordId = 0;
+        let resetVersion = getFromLocalStorage('resetVersion', 0); // 🔄 Версия сброса для приоритета
 
         let formattedCache = new Map();
         
@@ -843,7 +844,8 @@
                         trainerId: TRAINER_ID,
                         timestamp: Date.now(),
                         lastSync: new Date().toISOString(),
-                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+                        resetVersion
                     };
                     
                     // Если есть хоть какой-то прогресс - добавляем его через dot notation
@@ -891,6 +893,7 @@
                     currentPage: currentPage,
                     pageWordCounts: pageWordCounts,
                     nextWordId: nextWordId,
+                    resetVersion,
                     timestamp: Date.now(),
                     lastSync: new Date().toISOString(),
                     lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
@@ -963,6 +966,17 @@
                 );
                 
                 if (data) {
+                    const firebaseReset = data.resetVersion || 0;
+                    const localReset = getFromLocalStorage('resetVersion', 0);
+                    if (localReset > firebaseReset) {
+                        resetVersion = localReset;
+                        saveToLocalStorage('resetVersion', resetVersion);
+                        await syncToFirebase();
+                        showSyncStatus('✓ Синхронизировано (после сброса)', 'synced');
+                    } else if (firebaseReset > localReset) {
+                        resetVersion = firebaseReset;
+                        saveToLocalStorage('resetVersion', resetVersion);
+                    }
                     // ✅ СРАВНИВАЕМ TIMESTAMP: локальные VS Firebase
                     const firebaseTimestamp = data.timestamp || 0;
                     
@@ -1027,6 +1041,7 @@
                         saveToLocalStorage('pageWordCounts', pageWordCounts);
                         saveToLocalStorage('nextWordId', nextWordId);
                         saveToLocalStorage('lastSync', data.lastSync || new Date().toISOString());
+                        saveToLocalStorage('resetVersion', resetVersion);
                         
                         showSyncStatus('✓ Загружено из облака', 'synced');
                         
@@ -1396,6 +1411,8 @@
                 saveToLocalStorage('wordsOrder', words);
                 saveToLocalStorage('currentPage', 0);
                 saveToLocalStorage('initialWordCount', allWords.length);
+                resetVersion = Date.now();
+                saveToLocalStorage('resetVersion', resetVersion);
                 
                 openedWordsMap = {};
                 errorWords = [];
