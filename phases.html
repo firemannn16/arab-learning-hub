@@ -1119,7 +1119,9 @@
                 if (!line || line.length < 3) return;
                 
                 const separator = findSeparator(line);
-                if (!separator) return;
+                if (!separator) {
+                    return;
+                }
                 
                 const parts = line.split(separator);
                 if (parts.length < 2) return;
