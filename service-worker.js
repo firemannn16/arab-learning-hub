@@ -98,9 +98,11 @@ self.addEventListener('fetch', event => {
         return;
     }
     
-    // ✅ ИСПРАВЛЕНО: Для HTML файлов — НАСТОЯЩИЙ Network First
+    // ✅ ИСПРАВЛЕНО: Для HTML файлов и words.txt — НАСТОЯЩИЙ Network First
     // Сначала пробуем сеть, только потом кэш
-    if (event.request.url.endsWith('.html') || event.request.destination === 'document') {
+    if (event.request.url.endsWith('.html') || 
+        event.request.url.endsWith('words.txt') || 
+        event.request.destination === 'document') {
         event.respondWith(
             fetch(event.request)
                 .then(networkResponse => {
