@@ -8,6 +8,8 @@
     <script src="service-worker-register.js"></script>
     <script src="storage-protection.js"></script>
     <script src="sidebar-menu.js"></script>
+    <script src="favorites.js"></script>
+    <script src="streak.js"></script>
     <style>
         * {
             margin: 0;
@@ -122,6 +124,31 @@
             transition: background-color 0.3s ease;
             position: relative;
             background: white;
+        }
+        
+        .fav-cell {
+            width: 40px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        
+        .fav-star-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            opacity: 0.3;
+            transition: all 0.2s;
+            padding: 5px;
+        }
+        
+        .fav-star-btn:hover {
+            opacity: 1;
+            transform: scale(1.2);
+        }
+        
+        .fav-star-btn.active {
+            opacity: 1;
         }
 
         .word-row:hover {
@@ -1777,13 +1804,20 @@
                 
                 row.dataset.wordIndex = item.originalIndex;
                 
+                // Формируем rawLine для избранного
+                const rawLine = `${word.ru} - ${word.ar}`;
+                const isFav = typeof isFavorite === 'function' && isFavorite(rawLine);
+                const starCell = `<td class="fav-cell"><button class="fav-star-btn ${isFav ? 'active' : ''}" onclick="toggleWordFavorite(event, ${item.originalIndex})" title="${isFav ? 'Убрать из избранного' : 'В избранное'}">${isFav ? '⭐' : '☆'}</button></td>`;
+                
                 if (mode === 'ar-ru') {
                     row.innerHTML = `
+                        ${starCell}
                         <td class="word-cell russian ${isOpened ? '' : 'hidden'}" data-ru="${word.ru}">${isOpened ? formattedRu : ''}</td>
                         <td class="word-cell arabic ${sizeClass} ${hasMultiline ? 'has-multiline' : ''}">${formattedAr}</td>
                     `;
                 } else {
                     row.innerHTML = `
+                        ${starCell}
                         <td class="word-cell russian">${formattedRu}</td>
                         <td class="word-cell arabic ${sizeClass} ${hasMultiline ? 'has-multiline' : ''} ${isOpened ? '' : 'hidden'}" data-ar="${word.ar}">${isOpened ? formattedAr : ''}</td>
                     `;
@@ -1868,6 +1902,7 @@
                 row.classList.add('revealed');
                 
                 markWordAsOpened(word);
+                if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
                 updateStats();
             }
         });
@@ -1978,6 +2013,22 @@
             
             renderWords();
         });
+
+        // Функция для переключения избранного
+        function toggleWordFavorite(event, wordIndex) {
+            event.stopPropagation();
+            const word = words[wordIndex];
+            if (!word) return;
+            
+            const rawLine = `${word.ru} - ${word.ar}`;
+            const isNowFav = typeof toggleFavorite === 'function' && toggleFavorite(rawLine);
+            
+            // Обновляем кнопку
+            const btn = event.target;
+            btn.classList.toggle('active', isNowFav);
+            btn.innerHTML = isNowFav ? '⭐' : '☆';
+            btn.title = isNowFav ? 'Убрать из избранного' : 'В избранное';
+        }
 
         initialize();
     </script>
