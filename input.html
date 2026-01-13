@@ -762,7 +762,7 @@ function updateFavStar() {
   favStarBtn.title = isFav ? 'Убрать из избранного' : 'В избранное';
 }
 
-function toggleCurrentFavorite() {
+window.toggleCurrentFavorite = function() {
   if (!currentRaw) return;
   if (typeof toggleFavorite === 'function') toggleFavorite(currentRaw);
   updateFavStar();
