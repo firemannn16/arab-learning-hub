@@ -8,6 +8,8 @@
     <script src="service-worker-register.js"></script>
     <script src="storage-protection.js"></script>
     <script src="sidebar-menu.js"></script>
+    <script src="favorites.js"></script>
+    <script src="streak.js"></script>
 <script type="module">
 /* ---------- Firebase инициализация ---------- */
 const firebaseConfig = {
@@ -48,6 +50,7 @@ try {
   .button{padding:8px 12px;margin:6px;font-size:1rem;cursor:pointer;border-radius:6px;border:1px solid #bbb;background:#f6f6f6}
   h1{font-size:1.6rem;margin:6px 0}
   #progress{margin:12px 0;color:#333}
+  .word-display{position:relative}
   #arabic-word{
     font-size:3rem;
     padding:18px 14px;
@@ -62,6 +65,9 @@ try {
     min-height:3.6em;
     font-family: "Noto Naskh Arabic", "Arial", "Tahoma", "Segoe UI", system-ui, sans-serif;
   }
+  .fav-star{position:absolute;top:8px;right:8px;background:none;border:none;font-size:24px;cursor:pointer;opacity:0.4;transition:all 0.2s;z-index:10}
+  .fav-star:hover{opacity:1;transform:scale(1.2)}
+  .fav-star.active{opacity:1}
   #arabic-word.rus-mode{
     direction:ltr;
     font-family:Arial,Helvetica,sans-serif;
@@ -156,7 +162,10 @@ try {
         <span>РУС → АРБ</span>
       </div>
       <div id="progress">0/0 слов пройдено – 0 ошибок</div>
-      <div id="arabic-word" aria-live="polite"></div>
+      <div class="word-display">
+        <button class="fav-star" id="favStar" onclick="toggleCurrentFavorite()" title="В избранное">☆</button>
+        <div id="arabic-word" aria-live="polite"></div>
+      </div>
       <div class="choices" id="choices">
         <button class="choice-btn" id="opt0"></button>
         <button class="choice-btn" id="opt1"></button>
@@ -721,6 +730,7 @@ optButtons.forEach(btn=>{
     if(isCorrect){
       chosen.classList.add('correct');
       if(!corrects.includes(obj.rawLine)) corrects.push(obj.rawLine);
+      if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
       renderLists(); 
       saveState();
       setTimeout(()=>{ 
@@ -1036,6 +1046,30 @@ window.addEventListener('visibilitychange', ()=>{
     saveState().catch(e => console.warn('Save on visibility change failed:', e)); 
   }
 });
+
+/* ========== Избранное ========== */
+const favStarBtn = document.getElementById('favStar');
+
+function updateFavStar() {
+  if (!currentRaw || !favStarBtn) return;
+  const isFav = typeof isFavorite === 'function' && isFavorite(currentRaw);
+  favStarBtn.classList.toggle('active', isFav);
+  favStarBtn.innerHTML = isFav ? '⭐' : '☆';
+  favStarBtn.title = isFav ? 'Убрать из избранного' : 'В избранное';
+}
+
+function toggleCurrentFavorite() {
+  if (!currentRaw) return;
+  const isNowFav = typeof toggleFavorite === 'function' && toggleFavorite(currentRaw);
+  updateFavStar();
+}
+
+// Обновляем звёздочку при смене слова
+const origNextWord = nextWord;
+nextWord = function() {
+  origNextWord();
+  updateFavStar();
+};
 </script>
 </body>
 </html>
