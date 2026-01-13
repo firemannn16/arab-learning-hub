@@ -7,6 +7,8 @@
   <script src="dua.js"></script>
   <script src="service-worker-register.js"></script>
   <script src="sidebar-menu.js"></script>
+  <script src="favorites.js"></script>
+  <script src="streak.js"></script>
   <script defer src="https://cloud.umami.is/script.js" data-website-id="c36890d7-f350-4f42-acbf-0fae5d376929"></script>
   
   <style>
@@ -93,7 +95,11 @@
       <h2>Пустой тренажер</h2>
       <p>Вставьте список слов (формат: русский - арабский, каждое слово с новой строки):</p>
       <textarea id="word-list" placeholder="Например:&#10;Аллах - الله&#10;Господь - الرَّبّ&#10;милостивый - الرَّحْمَـٰن"></textarea>
-      <button id="load-list" class="button">Загрузить список</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+        <button id="load-list" class="button">Загрузить список</button>
+        <button id="load-favorites" class="button" style="background:#fff8e1;border-color:#ffc107;">⭐ Добавить из избранного</button>
+      </div>
+      <p id="fav-count-hint" style="font-size:0.85em;color:#888;margin-top:8px;"></p>
     </div>
 
     <!-- Кнопка старта -->
@@ -169,6 +175,39 @@
         }
         loader.classList.add('hidden');
         controls.classList.remove('hidden');
+      });
+
+      // Кнопка добавления из избранного
+      const loadFavoritesBtn = document.getElementById('load-favorites');
+      const favCountHint = document.getElementById('fav-count-hint');
+      
+      // Показываем количество избранных
+      function updateFavHint() {
+        const count = typeof getFavoritesCount === 'function' ? getFavoritesCount() : 0;
+        if (count > 0) {
+          favCountHint.textContent = `⭐ В избранном: ${count} слов`;
+        } else {
+          favCountHint.textContent = 'В избранном пока нет слов';
+        }
+      }
+      updateFavHint();
+      
+      loadFavoritesBtn.addEventListener('click', function() {
+        const favText = typeof getFavoritesAsText === 'function' ? getFavoritesAsText() : '';
+        if (!favText) {
+          alert('В избранном пока нет слов. Добавляйте слова в избранное из других тренажеров.');
+          return;
+        }
+        
+        // Добавляем к существующему тексту
+        const current = wordListTextarea.value.trim();
+        if (current) {
+          wordListTextarea.value = current + '\n' + favText;
+        } else {
+          wordListTextarea.value = favText;
+        }
+        
+        alert(`✅ Добавлено ${getFavoritesCount()} слов из избранного!`);
       });
 
       function parseText(text) {
@@ -307,6 +346,7 @@
         const ok = it.rusVariants.some(function(v) { return v === ans || v === norm; });
         if (ok) {
           correctListDiv.innerHTML += '<div>' + escapeHtml(it.originalLine) + '</div>';
+          if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
           currentIndex++;
           nextWord();
         } else {
@@ -319,6 +359,7 @@
       function handleOralAnswer() {
         const it = sessionWords[currentIndex];
         correctListDiv.innerHTML += '<div>' + escapeHtml(it.originalLine) + '</div>';
+        if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
         currentIndex++;
         nextWord();
       }
