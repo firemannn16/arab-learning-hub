@@ -1,0 +1,502 @@
+/**
+ * Тёмная тема для всех страниц арабских тренажеров
+ */
+
+/* ===== БАЗОВЫЕ СТИЛИ ===== */
+.dark-theme,
+.dark-theme body {
+  background: #1a1a2e !important;
+  color: #e0e0e0 !important;
+}
+
+/* ===== КОНТЕЙНЕРЫ ===== */
+.dark-theme .container,
+.dark-theme #container,
+.dark-theme #main,
+.dark-theme .words-container,
+.dark-theme .header,
+.dark-theme .modal,
+.dark-theme .card,
+.dark-theme #loader,
+.dark-theme .streak-card {
+  background: #16213e !important;
+  color: #e0e0e0 !important;
+  border-color: #2d3748 !important;
+}
+
+/* ===== ЗАГОЛОВКИ ===== */
+.dark-theme h1,
+.dark-theme h2,
+.dark-theme h3,
+.dark-theme h4 {
+  color: #e0e0e0 !important;
+}
+
+/* ===== ТЕКСТ ===== */
+.dark-theme p,
+.dark-theme span,
+.dark-theme label,
+.dark-theme .hint,
+.dark-theme .small,
+.dark-theme .label {
+  color: #b0b0b0 !important;
+}
+
+/* ===== СПИСКИ СЛОВ (Тетрадь, Словарь, Words-list) ===== */
+.dark-theme .word-item,
+.dark-theme .word-row,
+.dark-theme tr,
+.dark-theme .words-table tr,
+.dark-theme .dict-item,
+.dark-theme .result-item {
+  background: #1e2a47 !important;
+  border-color: #2d3748 !important;
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .word-item:hover,
+.dark-theme .word-row:hover,
+.dark-theme tr:hover,
+.dark-theme .dict-item:hover,
+.dark-theme .result-item:hover {
+  background: #253254 !important;
+}
+
+.dark-theme .word-row.revealed,
+.dark-theme .word-item.copied {
+  background: #1e3a2f !important;
+}
+
+.dark-theme .word-cell,
+.dark-theme td {
+  color: #e0e0e0 !important;
+  border-color: #2d3748 !important;
+}
+
+.dark-theme .word-cell.hidden {
+  color: transparent !important;
+}
+
+.dark-theme .russian,
+.dark-theme .arabic {
+  color: #e0e0e0 !important;
+}
+
+/* ===== ИНПУТЫ И ТЕКСТОВЫЕ ПОЛЯ ===== */
+.dark-theme input,
+.dark-theme input[type="text"],
+.dark-theme input[type="search"],
+.dark-theme textarea,
+.dark-theme select {
+  background: #1e2a47 !important;
+  color: #e0e0e0 !important;
+  border-color: #4a5568 !important;
+}
+
+.dark-theme input::placeholder,
+.dark-theme textarea::placeholder {
+  color: #6b7280 !important;
+}
+
+.dark-theme input:focus,
+.dark-theme textarea:focus {
+  border-color: #667eea !important;
+  outline: none;
+}
+
+/* ===== КНОПКИ (общие) ===== */
+.dark-theme button,
+.dark-theme .button,
+.dark-theme .btn {
+  background: #2d3748 !important;
+  color: #e0e0e0 !important;
+  border-color: #4a5568 !important;
+}
+
+.dark-theme button:hover,
+.dark-theme .button:hover,
+.dark-theme .btn:hover {
+  background: #3d4a5c !important;
+}
+
+/* Исключения для специальных кнопок */
+.dark-theme .sidebar-toggle,
+.dark-theme .fav-star,
+.dark-theme .fav-star-btn,
+.dark-theme .star-btn,
+.dark-theme .theme-switch,
+.dark-theme .theme-toggle-btn,
+.dark-theme #themeToggleBtn {
+  background: transparent !important;
+  border: none !important;
+}
+
+.dark-theme .copy-all-btn,
+.dark-theme .tab-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  color: white !important;
+  border: none !important;
+}
+
+/* ===== КНОПКИ ВЫБОРА (choice.html) ===== */
+.dark-theme .choice-btn {
+  background: #1e2a47 !important;
+  color: #e0e0e0 !important;
+  border-color: #4a5568 !important;
+}
+
+.dark-theme .choice-btn:hover {
+  background: #253254 !important;
+  border-color: #667eea !important;
+}
+
+.dark-theme .choice-btn.correct {
+  background: #1e4731 !important;
+  border-color: #22c55e !important;
+  color: #86efac !important;
+}
+
+.dark-theme .choice-btn.wrong {
+  background: #4a1a1a !important;
+  border-color: #ef4444 !important;
+  color: #fca5a5 !important;
+}
+
+/* ===== БЛОК С АРАБСКИМ СЛОВОМ ===== */
+.dark-theme #arabic-word,
+.dark-theme #arabic,
+.dark-theme .word-display {
+  background: #253254 !important;
+  color: #e0e0e0 !important;
+  border-color: #4a5568 !important;
+}
+
+/* ===== СТАТИСТИКА ===== */
+.dark-theme .stats,
+.dark-theme .stat,
+.dark-theme .word-count,
+.dark-theme #stats {
+  background: #1e2a47 !important;
+  color: #b0b0b0 !important;
+  border-color: #2d3748 !important;
+}
+
+/* ===== ТАБЫ ===== */
+.dark-theme .tab-btn:not(.active),
+.dark-theme .tabs button:not(.active) {
+  background: #2d3748 !important;
+  color: #9ca3af !important;
+}
+
+.dark-theme .tab-badge {
+  background: rgba(255,255,255,0.2) !important;
+}
+
+.dark-theme .tab-btn:not(.active) .tab-badge {
+  background: #4a5568 !important;
+  color: #9ca3af !important;
+}
+
+/* ===== МОДАЛЬНЫЕ ОКНА ===== */
+.dark-theme .overlay {
+  background: rgba(0, 0, 0, 0.75) !important;
+}
+
+.dark-theme .modal,
+.dark-theme .modal-content,
+.dark-theme .dua-modal-content {
+  background: #16213e !important;
+  color: #e0e0e0 !important;
+  border-color: #2d3748 !important;
+}
+
+.dark-theme .dua-translation {
+  color: #9ca3af !important;
+}
+
+/* ===== УВЕДОМЛЕНИЯ ===== */
+.dark-theme .toast,
+.dark-theme .sync-status {
+  background: #2d3748 !important;
+  color: #e0e0e0 !important;
+}
+
+/* ===== ОШИБКИ И УСПЕХ ===== */
+.dark-theme .errors-section,
+.dark-theme .errors-list,
+.dark-theme #correct-list,
+.dark-theme #mistake-list {
+  background: #1e2a47 !important;
+  border-color: #2d3748 !important;
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .no-errors {
+  color: #6b7280 !important;
+}
+
+/* ===== КАРТОЧКИ ТРЕНАЖЕРОВ (главная) ===== */
+.dark-theme .trainer-card {
+  background: #16213e !important;
+  color: #e0e0e0 !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+}
+
+.dark-theme .trainer-card:hover {
+  background: #1e2a47 !important;
+}
+
+.dark-theme .trainer-card h3 {
+  color: #a78bfa !important;
+}
+
+.dark-theme .trainer-card p {
+  color: #9ca3af !important;
+}
+
+/* ===== БЛОК КОДА (главная) ===== */
+.dark-theme .code-buttons {
+  background: transparent !important;
+}
+
+.dark-theme .code-btn {
+  background: rgba(255,255,255,0.15) !important;
+  color: #e0e0e0 !important;
+  border: none !important;
+}
+
+.dark-theme .code-btn:hover {
+  background: rgba(255,255,255,0.25) !important;
+}
+
+.dark-theme .status-indicator {
+  background: rgba(255,255,255,0.1) !important;
+  color: #e0e0e0 !important;
+}
+
+/* ===== БЛОК ЦЕЛИ/СЕРИИ ===== */
+.dark-theme .streak-card {
+  background: #16213e !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+}
+
+.dark-theme .streak-title {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .streak-count {
+  color: #fbbf24 !important;
+}
+
+.dark-theme .streak-goal {
+  background: #2d3748 !important;
+  color: #9ca3af !important;
+}
+
+.dark-theme .streak-day {
+  background: #2d3748 !important;
+  color: #9ca3af !important;
+}
+
+.dark-theme .streak-day.completed {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  color: white !important;
+}
+
+.dark-theme .streak-day.today {
+  border-color: #667eea !important;
+}
+
+.dark-theme .streak-progress {
+  color: #9ca3af !important;
+}
+
+.dark-theme .streak-progress-bar {
+  background: #2d3748 !important;
+}
+
+/* ===== ПАГИНАЦИЯ ===== */
+.dark-theme .pagination,
+.dark-theme .page-info {
+  color: #9ca3af !important;
+}
+
+.dark-theme .arrow-btn {
+  background: #2d3748 !important;
+  color: #e0e0e0 !important;
+  border-color: #4a5568 !important;
+}
+
+.dark-theme .arrow-btn:hover:not(:disabled) {
+  background: #3d4a5c !important;
+}
+
+.dark-theme .arrow-btn:disabled {
+  background: #1e2a47 !important;
+  color: #4a5568 !important;
+}
+
+/* ===== ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМА ===== */
+.dark-theme .mode-toggle {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .switch .slider {
+  background: #4a5568 !important;
+}
+
+.dark-theme .switch input:checked + .slider {
+  background: #667eea !important;
+}
+
+/* ===== СЛОВАРЬ ===== */
+.dark-theme .dict-card,
+.dark-theme .search-container {
+  background: #16213e !important;
+  border-color: #2d3748 !important;
+}
+
+.dark-theme .dict-results {
+  background: #16213e !important;
+}
+
+/* ===== СПИСКИ (Правильно/Ошибки) ===== */
+.dark-theme #lists,
+.dark-theme #lists > div {
+  background: transparent !important;
+}
+
+.dark-theme #correct-list,
+.dark-theme #mistake-list {
+  background: #1e2a47 !important;
+}
+
+/* ===== КНОПКИ ДЕЙСТВИЙ ===== */
+.dark-theme .action-btn,
+.dark-theme .action-buttons button {
+  background: #2d3748 !important;
+  color: #e0e0e0 !important;
+  border-color: #4a5568 !important;
+}
+
+.dark-theme .action-btn:hover {
+  background: #3d4a5c !important;
+}
+
+.dark-theme .btn-primary {
+  background: #1e4731 !important;
+  border-color: #22c55e !important;
+  color: #86efac !important;
+}
+
+.dark-theme .btn-danger,
+.dark-theme .reset-btn {
+  background: #4a1a1a !important;
+  border-color: #ef4444 !important;
+  color: #fca5a5 !important;
+}
+
+.dark-theme .add-words-btn {
+  background: #1e3a5f !important;
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+}
+
+/* ===== САЙДБАР МЕНЮ ===== */
+.dark-theme .sidebar-menu {
+  background: #16213e !important;
+}
+
+.dark-theme .sidebar-header {
+  background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%) !important;
+}
+
+.dark-theme .sidebar-nav-item {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .sidebar-nav-item:hover {
+  background: #1a1a2e !important;
+}
+
+.dark-theme .sidebar-nav-item.active {
+  background: linear-gradient(90deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.1) 100%) !important;
+}
+
+.dark-theme .sidebar-footer {
+  border-top-color: #2d3748 !important;
+}
+
+.dark-theme .theme-toggle-label {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .theme-switch {
+  background: #4a5568 !important;
+}
+
+/* ===== ГЛАВНАЯ СТРАНИЦА (градиентный фон) ===== */
+.dark-theme.main-page,
+html.dark-theme body.main-page {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
+}
+
+/* ===== КНОПКА ПЕРЕКЛЮЧЕНИЯ ТЕМЫ (главная) ===== */
+.theme-toggle-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.2);
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+}
+
+.theme-toggle-btn:hover {
+  background: rgba(255,255,255,0.3);
+  transform: scale(1.1);
+}
+
+.dark-theme .theme-toggle-btn {
+  background: rgba(255,255,255,0.15) !important;
+}
+
+.dark-theme .theme-toggle-btn:hover {
+  background: rgba(255,255,255,0.25) !important;
+}
+
+/* ===== EMPTY STATE ===== */
+.dark-theme .empty-state {
+  color: #6b7280 !important;
+}
+
+.dark-theme .loading {
+  color: #9ca3af !important;
+}
+
+.dark-theme .error {
+  color: #f87171 !important;
+}
+
+/* ===== СКРОЛЛБАР ===== */
+.dark-theme ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark-theme ::-webkit-scrollbar-track {
+  background: #1a1a2e;
+}
+
+.dark-theme ::-webkit-scrollbar-thumb {
+  background: #4a5568;
+  border-radius: 4px;
+}
+
+.dark-theme ::-webkit-scrollbar-thumb:hover {
+  background: #5a6578;
+}
