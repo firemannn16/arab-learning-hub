@@ -98,7 +98,7 @@
       <p>Вставьте список слов (формат: русский - арабский, каждое слово с новой строки):</p>
       <textarea id="word-list" placeholder="Например:&#10;Аллах - الله&#10;Господь - الرَّبّ&#10;милостивый - الرَّحْمَـٰن"></textarea>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
-        <button id="load-list" class="button">Загрузить список</button>
+        <button id="load-list" class="button">Начать тренировку</button>
         <button id="load-favorites" class="button" style="background:#fff8e1;border-color:#ffc107;">⭐ Добавить из избранного</button>
       </div>
       <p id="fav-count-hint" style="font-size:0.85em;color:#888;margin-top:8px;"></p>
@@ -176,7 +176,7 @@
           return;
         }
         loader.classList.add('hidden');
-        controls.classList.remove('hidden');
+        startSession(false);
       });
 
       // Кнопка добавления из избранного
