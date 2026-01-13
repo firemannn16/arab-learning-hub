@@ -4,15 +4,6 @@
  * Закрывается по клику на затемнённую область, свайпом влево или при переходе
  */
 
-// Применяем тему сразу (до загрузки DOM) чтобы не было мигания
-(function() {
-  const savedTheme = localStorage.getItem('arabTheme');
-  if (savedTheme === 'dark') {
-    document.documentElement.classList.add('dark-theme');
-    document.body && document.body.classList.add('dark-theme');
-  }
-})();
-
 (function() {
   'use strict';
 
@@ -251,155 +242,6 @@
       margin-top: 12px;
     }
 
-    /* Тёмная тема */
-    body.dark-theme {
-      background: #1a1a2e !important;
-      color: #e0e0e0 !important;
-    }
-
-    body.dark-theme .sidebar-menu {
-      background: #16213e;
-    }
-
-    body.dark-theme .sidebar-header {
-      background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-    }
-
-    body.dark-theme .sidebar-nav-item {
-      color: #e0e0e0;
-    }
-
-    body.dark-theme .sidebar-nav-item:hover {
-      background: #1a1a2e;
-    }
-
-    body.dark-theme .sidebar-nav-item.active {
-      background: linear-gradient(90deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.1) 100%);
-    }
-
-    body.dark-theme .sidebar-footer {
-      border-top-color: #2d3748;
-    }
-
-    body.dark-theme .theme-toggle-label {
-      color: #e0e0e0;
-    }
-
-    body.dark-theme .theme-switch {
-      background: #4a5568;
-    }
-
-    /* Тёмная тема - общие элементы */
-    body.dark-theme .container,
-    body.dark-theme #container,
-    body.dark-theme #main,
-    body.dark-theme .words-container,
-    body.dark-theme .header,
-    body.dark-theme .modal,
-    body.dark-theme .card {
-      background: #16213e !important;
-      color: #e0e0e0 !important;
-      border-color: #2d3748 !important;
-    }
-
-    body.dark-theme .word-item,
-    body.dark-theme .word-row,
-    body.dark-theme tr {
-      background: #16213e !important;
-      border-color: #2d3748 !important;
-      color: #e0e0e0 !important;
-    }
-
-    body.dark-theme .word-item:hover,
-    body.dark-theme .word-row:hover {
-      background: #1a1a2e !important;
-    }
-
-    body.dark-theme input,
-    body.dark-theme textarea,
-    body.dark-theme select {
-      background: #1a1a2e !important;
-      color: #e0e0e0 !important;
-      border-color: #4a5568 !important;
-    }
-
-    body.dark-theme .button,
-    body.dark-theme button:not(.sidebar-toggle):not(.fav-star):not(.fav-star-btn):not(.star-btn):not(.theme-switch) {
-      background: #2d3748 !important;
-      color: #e0e0e0 !important;
-      border-color: #4a5568 !important;
-    }
-
-    body.dark-theme .trainer-card {
-      background: #16213e !important;
-      color: #e0e0e0 !important;
-    }
-
-    body.dark-theme .trainer-card h3 {
-      color: #a78bfa !important;
-    }
-
-    body.dark-theme .trainer-card p {
-      color: #9ca3af !important;
-    }
-
-    body.dark-theme #arabic-word,
-    body.dark-theme #arabic,
-    body.dark-theme .dua-arabic {
-      background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%) !important;
-    }
-
-    body.dark-theme .choice-btn {
-      background: #1a1a2e !important;
-      color: #e0e0e0 !important;
-      border-color: #4a5568 !important;
-    }
-
-    body.dark-theme .choice-btn.correct {
-      background: #1a4731 !important;
-      border-color: #22c55e !important;
-    }
-
-    body.dark-theme .choice-btn.wrong {
-      background: #4a1a1a !important;
-      border-color: #ef4444 !important;
-    }
-
-    body.dark-theme h1, 
-    body.dark-theme h2, 
-    body.dark-theme h3 {
-      color: #e0e0e0 !important;
-    }
-
-    body.dark-theme .tab-btn:not(.active) {
-      background: #2d3748 !important;
-      color: #9ca3af !important;
-    }
-
-    body.dark-theme .word-count,
-    body.dark-theme .stat {
-      background: #2d3748 !important;
-      color: #9ca3af !important;
-      border-color: #4a5568 !important;
-    }
-
-    body.dark-theme .toast {
-      background: #4a5568 !important;
-    }
-
-    body.dark-theme .overlay {
-      background: rgba(0, 0, 0, 0.7) !important;
-    }
-
-    body.dark-theme .dua-modal-content {
-      background: #16213e !important;
-      color: #e0e0e0 !important;
-    }
-
-    body.dark-theme .dua-translation {
-      color: #9ca3af !important;
-    }
-
     /* Адаптация отступа для контента страницы */
     body.sidebar-enabled {
       padding-top: 70px !important;
@@ -617,31 +459,31 @@
       });
     });
 
-    // Переключатель темы
-    const THEME_KEY = 'arabTheme';
+    // Переключатель темы в сайдбаре
     const themeSwitch = document.getElementById('themeSwitch');
     
-    // Загружаем сохранённую тему
-    function loadTheme() {
-      const savedTheme = localStorage.getItem(THEME_KEY);
-      if (savedTheme === 'dark') {
-        document.body.classList.add('dark-theme');
-        themeSwitch.classList.add('active');
+    // Обновляем состояние переключателя
+    function updateSidebarThemeSwitch() {
+      if (themeSwitch && typeof isDarkTheme === 'function') {
+        themeSwitch.classList.toggle('active', isDarkTheme());
       }
     }
     
-    // Переключаем тему
-    function toggleTheme() {
-      const isDark = document.body.classList.toggle('dark-theme');
-      themeSwitch.classList.toggle('active', isDark);
-      localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+    // Инициализация состояния
+    updateSidebarThemeSwitch();
+    
+    // Обработчик клика
+    if (themeSwitch) {
+      themeSwitch.addEventListener('click', () => {
+        if (typeof toggleTheme === 'function') {
+          toggleTheme();
+          updateSidebarThemeSwitch();
+        }
+      });
     }
     
-    // Применяем сохранённую тему сразу
-    loadTheme();
-    
-    // Обработчик клика на переключатель
-    themeSwitch.addEventListener('click', toggleTheme);
+    // Слушаем изменения темы (от других переключателей)
+    window.addEventListener('themeChanged', updateSidebarThemeSwitch);
   }
 
   // Запуск после загрузки DOM
