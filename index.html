@@ -3,9 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.svg">
     <title>Арабские Тренажеры</title>
     <script src="service-worker-register.js"></script>
     <script src="dua.js"></script>
+    <script src="streak.js"></script>
     <style>
         * {
             margin: 0;
@@ -254,15 +260,123 @@
         .card-simple { border-top: 4px solid #43e97b; }
         .card-dictionary { border-top: 4px solid #fa709a; }
         .card-wordslist { border-top: 4px solid #64748b; }
+        
+        /* Блок цели */
+        .streak-card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .streak-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .streak-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .streak-count {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+        }
+        .streak-goal {
+            font-size: 14px;
+            color: #666;
+            background: #f3f4f6;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+        .streak-days {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .streak-day {
+            width: 40px;
+            height: 50px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: #f5f5f5;
+            font-size: 12px;
+        }
+        .streak-day.completed {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .streak-day.today {
+            border: 2px solid #667eea;
+        }
+        .streak-day .day-num {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .streak-day .day-icon {
+            font-size: 16px;
+        }
+        .streak-progress {
+            margin-top: 12px;
+            text-align: center;
+            font-size: 13px;
+            color: #666;
+        }
+        .streak-progress-bar {
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .streak-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+        
         @media (max-width: 768px) {
             h1 { font-size: 1.8em; }
             .trainers-grid { grid-template-columns: 1fr; }
+            .streak-day { width: 36px; height: 44px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🌙 Арабские Тренажеры</h1>
+        
+        <!-- Блок цели/серии -->
+        <div class="streak-card" id="streakCard">
+            <div class="streak-header">
+                <div class="streak-title">
+                    🎯 Цель: <span id="streakGoalText">7 дней подряд</span>
+                </div>
+                <div class="streak-count">🔥 <span id="streakCount">0</span> дней</div>
+            </div>
+            <div class="streak-days" id="streakDays">
+                <!-- Заполняется через JS -->
+            </div>
+            <div class="streak-progress">
+                <span id="streakProgressText">Сегодня: 0/5 слов</span>
+                <div class="streak-progress-bar">
+                    <div class="streak-progress-fill" id="streakProgressFill" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
         
         <!-- Кнопки управления кодом -->
         <div class="code-buttons">
@@ -598,6 +712,47 @@
         // Слушаем изменения статуса
         window.addEventListener('online', updateOnlineStatus);
         window.addEventListener('offline', updateOnlineStatus);
+
+        // Обновление блока цели/серии
+        function updateStreakUI() {
+            if (typeof getStreakInfo !== 'function') return;
+            
+            const info = getStreakInfo();
+            
+            // Обновляем счётчик
+            document.getElementById('streakCount').textContent = info.currentStreak;
+            
+            // Обновляем текст цели
+            let goalText = info.currentGoal === 7 ? '7 дней подряд' : 
+                          info.currentGoal === 30 ? '1 месяц' : 
+                          `${Math.floor(info.currentGoal / 30)} мес.`;
+            document.getElementById('streakGoalText').textContent = goalText;
+            
+            // Обновляем прогресс за сегодня
+            const progressText = info.todayComplete ? 
+                '✅ Сегодня выполнено!' : 
+                `Сегодня: ${info.todayWords}/${info.wordsNeeded} слов`;
+            document.getElementById('streakProgressText').textContent = progressText;
+            
+            const progressPercent = Math.min(100, (info.todayWords / info.wordsNeeded) * 100);
+            document.getElementById('streakProgressFill').style.width = progressPercent + '%';
+            
+            // Обновляем дни
+            if (typeof getStreakDays === 'function') {
+                const days = getStreakDays(7);
+                const daysContainer = document.getElementById('streakDays');
+                daysContainer.innerHTML = days.map(day => `
+                    <div class="streak-day ${day.completed ? 'completed' : ''} ${day.isToday ? 'today' : ''}">
+                        <span class="day-num">${day.day}</span>
+                        <span class="day-icon">${day.completed ? '✅' : (day.isToday ? '📍' : '☐')}</span>
+                    </div>
+                `).join('');
+            }
+        }
+        
+        // Обновляем при загрузке и при изменении
+        window.addEventListener('DOMContentLoaded', updateStreakUI);
+        window.addEventListener('streakUpdated', updateStreakUI);
     </script>
 </body>
 </html>
