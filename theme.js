@@ -88,4 +88,31 @@
   }
 
   console.log('🎨 Система темы загружена');
+
+  // === Сохранение последней страницы для PWA ===
+  const LAST_PAGE_KEY = 'arabLastPage';
+  
+  // Сохраняем текущую страницу (кроме index.html)
+  function saveCurrentPage() {
+    const path = window.location.pathname;
+    const filename = path.split('/').pop() || 'index.html';
+    
+    // Не сохраняем главную страницу
+    if (filename !== 'index.html' && filename !== '') {
+      localStorage.setItem(LAST_PAGE_KEY, filename);
+    }
+  }
+  
+  // Получить последнюю страницу
+  window.getLastPage = function() {
+    return localStorage.getItem(LAST_PAGE_KEY);
+  };
+  
+  // Очистить последнюю страницу
+  window.clearLastPage = function() {
+    localStorage.removeItem(LAST_PAGE_KEY);
+  };
+  
+  // Сохраняем страницу при загрузке
+  saveCurrentPage();
 })();
