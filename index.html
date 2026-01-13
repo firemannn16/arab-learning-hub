@@ -10,6 +10,21 @@
     <link rel="apple-touch-icon" href="icon-192.svg">
     <title>Арабские Тренажеры</title>
     <script src="theme.js"></script>
+    <script>
+      // Редирект на последнюю страницу при открытии PWA
+      (function() {
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches 
+          || window.navigator.standalone 
+          || document.referrer.includes('android-app://');
+        
+        if (isStandalone) {
+          const lastPage = localStorage.getItem('arabLastPage');
+          if (lastPage && lastPage !== 'index.html') {
+            window.location.replace(lastPage);
+          }
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="theme.css">
     <script src="service-worker-register.js"></script>
     <script src="dua.js"></script>
