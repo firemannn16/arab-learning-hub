@@ -8,6 +8,8 @@
     <script src="service-worker-register.js"></script>
     <script src="storage-protection.js"></script>
     <script src="sidebar-menu.js"></script>
+    <script src="favorites.js"></script>
+    <script src="streak.js"></script>
 <script type="module">
 /* ========== ✅ ИДЕНТИФИКАТОР ТРЕНАЖЕРА ========== */
 const TRAINER_ID = 'input';
@@ -414,6 +416,7 @@ btnKnow.addEventListener('click', () => {
   orderQueue.shift();
   if(!roundMastered.includes(currentRaw)) roundMastered.push(currentRaw);
   if(!practiceAccum.includes(currentRaw)) practiceAccum.push(currentRaw);
+  if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
   currentRaw = null;
   if (practiceAccum.length >= BATCH_SIZE) {
     startPractice();
@@ -533,6 +536,7 @@ function showNextPractice(){
 oralAnswerBtn.addEventListener('click', () => {
   if(!currentRaw || !masteredFinal.includes(currentRaw)) return;
   if(!roundMastered.includes(currentRaw)) roundMastered.push(currentRaw);
+  if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
   showMessage('Засчитано как верный (устно)');
   currentRaw = null;
   showNextPractice();
@@ -558,6 +562,7 @@ practiceSubmit.addEventListener('click', () => {
       if(!roundMastered.includes(currentRaw)) roundMastered.push(currentRaw);
       if(!masteredFinal.includes(currentRaw)) masteredFinal.push(currentRaw);
       if(!practiceHistory.includes(currentRaw)) practiceHistory.push(currentRaw);
+      if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
       updateStats();
       saveState();
     };
@@ -745,6 +750,30 @@ window.addEventListener('beforeunload', saveState);
 window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') saveState(); });
 function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(modalTimer); modalTimer=null; } }
 
+/* ========== Избранное ========== */
+const favStarBtn = document.getElementById('favStar');
+
+function updateFavStar() {
+  if (!currentRaw || !favStarBtn) return;
+  const isFav = typeof isFavorite === 'function' && isFavorite(currentRaw);
+  favStarBtn.classList.toggle('active', isFav);
+  favStarBtn.innerHTML = isFav ? '⭐' : '☆';
+  favStarBtn.title = isFav ? 'Убрать из избранного' : 'В избранное';
+}
+
+function toggleCurrentFavorite() {
+  if (!currentRaw) return;
+  const isNowFav = typeof toggleFavorite === 'function' && toggleFavorite(currentRaw);
+  updateFavStar();
+}
+
+// Переопределяем display для обновления звёздочки
+const origDisplay = display;
+display = function() {
+  origDisplay();
+  updateFavStar();
+};
+
 </script>
 </head>
 <body>
@@ -756,7 +785,10 @@ function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(moda
       <div class="stat">В очереди: <span id="stat-remaining">0</span></div>
       <div class="stat">Фаза: <span id="stat-phase">—</span></div>
     </div>
-    <div id="arabic">…</div>
+    <div class="word-display">
+      <button class="fav-star" id="favStar" onclick="toggleCurrentFavorite()" title="В избранное">☆</button>
+      <div id="arabic">…</div>
+    </div>
     <div id="learn-controls" class="controls">
       <button id="btn-know" class="btn-primary">Знаю</button>
       <button id="btn-dont">Не знаю</button>
@@ -781,7 +813,11 @@ function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(moda
   <div id="modal-root"></div>
 <style>
   body{font-family:Arial,Helvetica,sans-serif;margin:18px;color:#111;background:#fff;max-width:980px}
+  .word-display{position:relative}
   #arabic{direction:rtl;font-size:2.6rem;text-align:center;min-height:3.6em;padding:14px;border-radius:8px;border:1px solid #eee}
+  .fav-star{position:absolute;top:8px;right:8px;background:none;border:none;font-size:24px;cursor:pointer;opacity:0.4;transition:all 0.2s;z-index:10}
+  .fav-star:hover{opacity:1;transform:scale(1.2)}
+  .fav-star.active{opacity:1}
   .controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:12px}
   .controls-vertical{display:block;text-align:center;margin-top:10px}
   .controls-vertical .controls{justify-content:center}
