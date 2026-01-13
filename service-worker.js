@@ -1,6 +1,6 @@
 // 🛡️ Service Worker для offline работы
 // Версия кэша (увеличивай при изменениях)
-const CACHE_VERSION = 'v1.5.0';
+const CACHE_VERSION = 'v1.6.0';
 const CACHE_NAME = `arab-learning-hub-${CACHE_VERSION}`;
 
 // 📦 Файлы для кэширования
@@ -18,6 +18,8 @@ const STATIC_CACHE = [
     './sidebar-menu.js',
     './favorites.js',
     './streak.js',
+    './theme.js',
+    './theme.css',
     './manifest.json',
     './icon-192.svg'
 ];
