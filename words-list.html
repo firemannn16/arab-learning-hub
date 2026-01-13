@@ -6,6 +6,7 @@
   <title>Список слов - Арабские слова</title>
   <script src="service-worker-register.js"></script>
   <script src="sidebar-menu.js"></script>
+  <script src="favorites.js"></script>
   <style>
     * {
       margin: 0;
@@ -32,11 +33,15 @@
       border-radius: 12px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.08);
       margin-bottom: 20px;
+    }
+
+    .header-top {
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
       gap: 15px;
+      margin-bottom: 15px;
     }
 
     .header h1 {
@@ -83,6 +88,50 @@
       transform: translateY(0);
     }
 
+    /* Табы */
+    .tabs {
+      display: flex;
+      gap: 10px;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 15px;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      border: none;
+      background: #f3f4f6;
+      color: #6b7280;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tab-btn:hover {
+      background: #e5e7eb;
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .tab-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+    }
+
+    .tab-btn:not(.active) .tab-badge {
+      background: #d1d5db;
+      color: #374151;
+    }
+
     .words-container {
       background: white;
       border-radius: 12px;
@@ -98,6 +147,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 10px;
     }
 
     .word-item:hover {
@@ -119,13 +169,38 @@
       word-break: break-word;
     }
 
+    .word-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .star-btn {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px;
+      opacity: 0.4;
+      transition: all 0.2s;
+    }
+
+    .star-btn:hover {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+
+    .star-btn.active {
+      opacity: 1;
+    }
+
     .copy-icon {
       opacity: 0;
       color: #667eea;
       font-size: 14px;
       padding: 4px 8px;
       transition: opacity 0.2s;
-      flex-shrink: 0;
     }
 
     .word-item:hover .copy-icon {
@@ -179,6 +254,21 @@
       color: #ef4444;
     }
 
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #9ca3af;
+    }
+
+    .empty-state .icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+
+    .empty-state p {
+      font-size: 16px;
+    }
+
     /* Адаптив */
     @media (max-width: 600px) {
       body {
@@ -200,17 +290,37 @@
       .word-text {
         font-size: 15px;
       }
+
+      .tabs {
+        flex-wrap: wrap;
+      }
+
+      .tab-btn {
+        flex: 1;
+        justify-content: center;
+        min-width: 120px;
+      }
     }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>📋 Список слов</h1>
-      <div class="header-info">
-        <span class="word-count" id="wordCount">Загрузка...</span>
-        <button class="copy-all-btn" id="copyAllBtn" disabled>
-          <span>📋</span> Копировать всё
+      <div class="header-top">
+        <h1>📋 Список слов</h1>
+        <div class="header-info">
+          <span class="word-count" id="wordCount">Загрузка...</span>
+          <button class="copy-all-btn" id="copyAllBtn" disabled>
+            <span>📋</span> Копировать всё
+          </button>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab-btn active" id="tabAll" onclick="showTab('all')">
+          📚 Все слова <span class="tab-badge" id="allCount">0</span>
+        </button>
+        <button class="tab-btn" id="tabFavorites" onclick="showTab('favorites')">
+          ⭐ Избранное <span class="tab-badge" id="favCount">0</span>
         </button>
       </div>
     </div>
@@ -227,6 +337,8 @@
 
   <script>
     let allWordsText = '';
+    let allWords = [];
+    let currentTab = 'all';
 
     // Показать уведомление
     function showToast(message) {
@@ -244,7 +356,6 @@
         await navigator.clipboard.writeText(text);
         return true;
       } catch (e) {
-        // Fallback
         const textarea = document.createElement('textarea');
         textarea.value = text;
         textarea.style.position = 'fixed';
@@ -257,10 +368,117 @@
       }
     }
 
-    // Загрузка и отображение слов
+    // Экранирование HTML
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Переключение табов
+    function showTab(tab) {
+      currentTab = tab;
+      
+      document.getElementById('tabAll').classList.toggle('active', tab === 'all');
+      document.getElementById('tabFavorites').classList.toggle('active', tab === 'favorites');
+      
+      renderWords();
+      updateCounts();
+    }
+
+    // Обновить счётчики
+    function updateCounts() {
+      document.getElementById('allCount').textContent = allWords.length;
+      document.getElementById('favCount').textContent = getFavoritesCount();
+      
+      if (currentTab === 'all') {
+        document.getElementById('wordCount').textContent = `${allWords.length} слов`;
+      } else {
+        document.getElementById('wordCount').textContent = `${getFavoritesCount()} избранных`;
+      }
+    }
+
+    // Отрисовка слов
+    function renderWords() {
+      const container = document.getElementById('wordsContainer');
+      let wordsToShow = currentTab === 'all' ? allWords : getFavorites();
+      
+      if (wordsToShow.length === 0) {
+        if (currentTab === 'favorites') {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="icon">⭐</div>
+              <p>Нет избранных слов</p>
+              <p style="font-size: 14px; margin-top: 8px;">Добавляйте слова в избранное из тренажеров</p>
+            </div>
+          `;
+        } else {
+          container.innerHTML = '<div class="error">Нет слов для отображения</div>';
+        }
+        return;
+      }
+
+      let html = '';
+      wordsToShow.forEach((line) => {
+        const cleanLine = typeof line === 'string' ? line.trim() : line;
+        if (cleanLine) {
+          const isFav = isFavorite(cleanLine);
+          html += `
+            <div class="word-item" data-text="${escapeHtml(cleanLine).replace(/"/g, '&quot;')}">
+              <span class="word-text">${escapeHtml(cleanLine)}</span>
+              <div class="word-actions">
+                <button class="star-btn ${isFav ? 'active' : ''}" onclick="toggleStar(event, this)" title="${isFav ? 'Убрать из избранного' : 'В избранное'}">
+                  ${isFav ? '⭐' : '☆'}
+                </button>
+                <span class="copy-icon" onclick="copyWord(event, this.parentElement.parentElement)">📋</span>
+              </div>
+            </div>
+          `;
+        }
+      });
+
+      container.innerHTML = html;
+    }
+
+    // Переключить избранное
+    function toggleStar(event, btn) {
+      event.stopPropagation();
+      const wordItem = btn.closest('.word-item');
+      const text = wordItem.getAttribute('data-text');
+      
+      const isNowFavorite = toggleFavorite(text);
+      
+      btn.classList.toggle('active', isNowFavorite);
+      btn.innerHTML = isNowFavorite ? '⭐' : '☆';
+      btn.title = isNowFavorite ? 'Убрать из избранного' : 'В избранное';
+      
+      showToast(isNowFavorite ? 'Добавлено в избранное' : 'Удалено из избранного');
+      
+      // Если мы в табе избранного и удалили слово - перерисовать
+      if (currentTab === 'favorites' && !isNowFavorite) {
+        setTimeout(() => renderWords(), 300);
+      }
+      
+      updateCounts();
+    }
+
+    // Копировать слово
+    async function copyWord(event, element) {
+      event.stopPropagation();
+      const text = element.getAttribute('data-text');
+      await copyText(text);
+      
+      element.classList.add('copied');
+      setTimeout(() => {
+        element.classList.remove('copied');
+      }, 500);
+      
+      showToast('Скопировано!');
+    }
+
+    // Загрузка слов
     async function loadWords() {
       const container = document.getElementById('wordsContainer');
-      const countEl = document.getElementById('wordCount');
       const copyAllBtn = document.getElementById('copyAllBtn');
 
       try {
@@ -270,60 +488,52 @@
         const text = await response.text();
         allWordsText = text;
         
-        const lines = text.split('\n').filter(line => line.trim() && !line.trim().startsWith('#'));
+        allWords = text.split('\n').filter(line => line.trim() && !line.trim().startsWith('#'));
         
-        countEl.textContent = `${lines.length} слов`;
         copyAllBtn.disabled = false;
-
-        // Создаём HTML для слов
-        let html = '';
-        lines.forEach((line, index) => {
-          const cleanLine = line.trim();
-          if (cleanLine) {
-            html += `
-              <div class="word-item" data-text="${cleanLine.replace(/"/g, '&quot;')}" onclick="copyWord(this)">
-                <span class="word-text">${escapeHtml(cleanLine)}</span>
-                <span class="copy-icon">📋 копировать</span>
-              </div>
-            `;
-          }
-        });
-
-        container.innerHTML = html;
+        
+        renderWords();
+        updateCounts();
 
       } catch (error) {
         console.error('Ошибка загрузки:', error);
         container.innerHTML = '<div class="error">❌ Не удалось загрузить список слов</div>';
-        countEl.textContent = 'Ошибка';
+        document.getElementById('wordCount').textContent = 'Ошибка';
       }
-    }
-
-    // Экранирование HTML
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
-    // Копировать отдельное слово
-    async function copyWord(element) {
-      const text = element.getAttribute('data-text');
-      await copyText(text);
-      
-      // Визуальный фидбек
-      element.classList.add('copied');
-      setTimeout(() => {
-        element.classList.remove('copied');
-      }, 500);
-      
-      showToast('Скопировано!');
     }
 
     // Копировать всё
     document.getElementById('copyAllBtn').addEventListener('click', async () => {
-      if (allWordsText) {
-        await copyText(allWordsText);
-        showToast('Весь список скопирован!');
+      let textToCopy;
+      if (currentTab === 'all') {
+        textToCopy = allWordsText;
+      } else {
+        textToCopy = getFavoritesAsText();
+      }
+      
+      if (textToCopy) {
+        await copyText(textToCopy);
+        showToast(currentTab === 'all' ? 'Весь список скопирован!' : 'Избранное скопировано!');
+      }
+    });
+
+    // Слушаем изменения избранного
+    window.addEventListener('favoritesChanged', () => {
+      if (currentTab === 'favorites') {
+        renderWords();
+      }
+      updateCounts();
+    });
+
+    // Клик на строку - копировать
+    document.getElementById('wordsContainer').addEventListener('click', async (e) => {
+      const wordItem = e.target.closest('.word-item');
+      if (wordItem && !e.target.closest('.star-btn') && !e.target.closest('.copy-icon')) {
+        const text = wordItem.getAttribute('data-text');
+        await copyText(text);
+        wordItem.classList.add('copied');
+        setTimeout(() => wordItem.classList.remove('copied'), 500);
+        showToast('Скопировано!');
       }
     });
 
