@@ -4,6 +4,8 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Тренажер Заучка + Практика - Арабские слова</title>
+    <script src="theme.js"></script>
+    <link rel="stylesheet" href="theme.css">
     <script src="dua.js"></script>
     <script src="service-worker-register.js"></script>
     <script src="storage-protection.js"></script>
@@ -751,9 +753,8 @@ window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState===
 function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(modalTimer); modalTimer=null; } }
 
 /* ========== Избранное ========== */
-const favStarBtn = document.getElementById('favStar');
-
 function updateFavStar() {
+  const favStarBtn = document.getElementById('favStar');
   if (!currentRaw || !favStarBtn) return;
   const isFav = typeof isFavorite === 'function' && isFavorite(currentRaw);
   favStarBtn.classList.toggle('active', isFav);
@@ -763,14 +764,20 @@ function updateFavStar() {
 
 function toggleCurrentFavorite() {
   if (!currentRaw) return;
-  const isNowFav = typeof toggleFavorite === 'function' && toggleFavorite(currentRaw);
+  if (typeof toggleFavorite === 'function') toggleFavorite(currentRaw);
   updateFavStar();
 }
 
-// Переопределяем display для обновления звёздочки
-const origDisplay = display;
-display = function() {
-  origDisplay();
+// Переопределяем функции показа слов для обновления звёздочки
+const origShowNextLearn = showNextLearn;
+showNextLearn = function() {
+  origShowNextLearn();
+  updateFavStar();
+};
+
+const origShowNextPractice = showNextPractice;
+showNextPractice = function() {
+  origShowNextPractice();
   updateFavStar();
 };
 
