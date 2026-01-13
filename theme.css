@@ -360,6 +360,111 @@
   background: #16213e !important;
 }
 
+/* Результаты поиска в словаре */
+.dark-theme li.item,
+.dark-theme #results li,
+.dark-theme #results > div,
+.dark-theme .result-card {
+  background: #1e2a47 !important;
+  border: 1px solid #3d4a5c !important;
+  color: #e0e0e0 !important;
+}
+
+.dark-theme li.item:hover,
+.dark-theme #results li:hover,
+.dark-theme #results > div:hover,
+.dark-theme .result-card:hover {
+  background: #253254 !important;
+  border-color: #667eea !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3) !important;
+}
+
+.dark-theme li.item .ru,
+.dark-theme #results .ru {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme li.item .ar,
+.dark-theme #results .ar {
+  color: #a5b4fc !important;
+}
+
+.dark-theme .highlight {
+  background: #4a5568 !important;
+  color: #fbbf24 !important;
+}
+
+/* Модалка словаря */
+.dark-theme #modal {
+  background: rgba(0, 0, 0, 0.85) !important;
+}
+
+.dark-theme #modal .modal {
+  background: rgba(0, 0, 0, 0.85) !important;
+}
+
+.dark-theme #modal .card,
+.dark-theme .card {
+  background: #16213e !important;
+  color: #e0e0e0 !important;
+  border: 1px solid #3d4a5c !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark-theme #modal h2,
+.dark-theme #modal .card h2,
+.dark-theme .card h2 {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme #modal .ar,
+.dark-theme .card .ar {
+  color: #a5b4fc !important;
+  background: #253254 !important;
+  padding: 15px !important;
+  border-radius: 8px !important;
+  display: block !important;
+}
+
+.dark-theme .note,
+.dark-theme .hint {
+  color: #9ca3af !important;
+}
+
+.dark-theme #modal .btn,
+.dark-theme .card .btn {
+  background: #2d3748 !important;
+  color: #e0e0e0 !important;
+  border: 1px solid #4a5568 !important;
+}
+
+.dark-theme #modal .btn:hover,
+.dark-theme .card .btn:hover {
+  background: #3d4a5c !important;
+  border-color: #667eea !important;
+}
+
+/* Автокомплит словаря */
+.dark-theme .autocomplete {
+  background: #16213e !important;
+  border-color: #3d4a5c !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dark-theme .autocomplete-item {
+  color: #e0e0e0 !important;
+  border-bottom-color: #2d3748 !important;
+}
+
+.dark-theme .autocomplete-item:hover {
+  background: #253254 !important;
+}
+
+/* Счётчик результатов */
+.dark-theme .count {
+  color: #9ca3af !important;
+}
+
 /* ===== СПИСКИ (Правильно/Ошибки) ===== */
 .dark-theme #lists,
 .dark-theme #lists > div {
@@ -383,23 +488,67 @@
   background: #3d4a5c !important;
 }
 
-.dark-theme .btn-primary {
+.dark-theme .btn-primary,
+.dark-theme #btn-know {
   background: #1e4731 !important;
-  border-color: #22c55e !important;
+  border: 2px solid #22c55e !important;
   color: #86efac !important;
 }
 
+.dark-theme .btn-primary:hover,
+.dark-theme #btn-know:hover {
+  background: #256b3e !important;
+}
+
 .dark-theme .btn-danger,
-.dark-theme .reset-btn {
+.dark-theme .reset-btn,
+.dark-theme #btn-reset {
   background: #4a1a1a !important;
-  border-color: #ef4444 !important;
+  border: 2px solid #ef4444 !important;
   color: #fca5a5 !important;
 }
 
-.dark-theme .add-words-btn {
+.dark-theme .btn-danger:hover,
+.dark-theme .reset-btn:hover,
+.dark-theme #btn-reset:hover {
+  background: #6b2a2a !important;
+}
+
+.dark-theme .add-words-btn,
+.dark-theme #btn-add,
+.dark-theme #add-new-btn,
+.dark-theme #add-new-words-btn {
   background: #1e3a5f !important;
-  border-color: #3b82f6 !important;
+  border: 2px solid #3b82f6 !important;
   color: #93c5fd !important;
+}
+
+.dark-theme .add-words-btn:hover,
+.dark-theme #btn-add:hover,
+.dark-theme #add-new-btn:hover,
+.dark-theme #add-new-words-btn:hover {
+  background: #2a4a7f !important;
+}
+
+/* Кнопка "Не знаю" */
+.dark-theme #btn-dont {
+  background: #4a3a1a !important;
+  border: 2px solid #f59e0b !important;
+  color: #fcd34d !important;
+}
+
+.dark-theme #btn-dont:hover {
+  background: #5a4a2a !important;
+}
+
+/* ===== ПРОГРЕСС В ВЫБОРКЕ (как в Тетради) ===== */
+.dark-theme #progress {
+  background: #1e2a47 !important;
+  color: #e0e0e0 !important;
+  padding: 12px 20px !important;
+  border-radius: 8px !important;
+  border: 1px solid #3d4a5c !important;
+  text-align: center !important;
 }
 
 /* ===== САЙДБАР МЕНЮ ===== */
@@ -443,30 +592,35 @@ html.dark-theme body.main-page {
 
 /* ===== КНОПКА ПЕРЕКЛЮЧЕНИЯ ТЕМЫ (главная) ===== */
 .theme-toggle-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
   background: rgba(255,255,255,0.2);
-  border: none;
+  border: 2px solid rgba(255,255,255,0.3);
   font-size: 20px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
 .theme-toggle-btn:hover {
   background: rgba(255,255,255,0.3);
+  border-color: rgba(255,255,255,0.5);
   transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
 .dark-theme .theme-toggle-btn {
-  background: rgba(255,255,255,0.15) !important;
+  background: rgba(255,255,255,0.1) !important;
+  border-color: rgba(255,255,255,0.2) !important;
 }
 
 .dark-theme .theme-toggle-btn:hover {
-  background: rgba(255,255,255,0.25) !important;
+  background: rgba(255,255,255,0.2) !important;
+  border-color: rgba(255,255,255,0.4) !important;
 }
 
 /* ===== EMPTY STATE ===== */
