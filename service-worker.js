@@ -192,11 +192,10 @@ self.addEventListener('fetch', event => {
         return;
     }
     
-    // Для остальных файлов (JS, CSS, картинки) — Cache First с обновлением в фоне
+    // Для остальных файлов (JS, CSS, картинки) — Cache First с безопасным фолбэком
     event.respondWith(
         caches.match(event.request)
             .then(cachedResponse => {
-                // Запускаем обновление в фоне
                 const fetchPromise = fetch(event.request)
                     .then(networkResponse => {
                         if (networkResponse && networkResponse.status === 200) {
@@ -208,8 +207,10 @@ self.addEventListener('fetch', event => {
                     })
                     .catch(() => null);
                 
-                // Возвращаем кэш сразу, или ждём сеть если кэша нет
-                return cachedResponse || fetchPromise;
+                if (cachedResponse) return cachedResponse;
+                
+                // Если кэша нет и сеть упала — вернуть валидный Response, не null
+                return fetchPromise.then(res => res || new Response('', { status: 504, statusText: 'Offline' }));
             })
     );
 });
