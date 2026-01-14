@@ -3,7 +3,7 @@
   "short_name": "Тренажеры",
   "description": "Изучайте арабский язык с помощью интерактивных тренажеров",
   "start_url": "./",
-  "display": "standalone",
+  "display": "browser",
   "background_color": "#667eea",
   "theme_color": "#667eea",
   "orientation": "portrait-primary",
