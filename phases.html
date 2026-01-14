@@ -1274,6 +1274,10 @@
                 scheduleSyncToFirebase();
             }
             
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre',hypothesisId:'H2',location:'phases.html:validateProgress',message:'validateProgress result',data:{changesDetected,removedFromErrors:removedCount,changedOpened:changedCount,currentWordsCount:currentWords.length},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            
             return changesDetected;
         }
 
@@ -1415,7 +1419,16 @@
                 renderErrors();
                 
                 await loadWords();
+                
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre',hypothesisId:'H1',location:'phases.html:initialize',message:'before loadFromFirebase',data:{openedLocal:Object.keys(openedWordsMap).length,wordsLocal:words.length,currentPageLocal:getFromLocalStorage('currentPage',0)},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+                
                 await loadFromFirebase(userCode);
+                
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre',hypothesisId:'H1',location:'phases.html:initialize',message:'after loadFromFirebase',data:{opened:Object.keys(openedWordsMap).length,wordsCount:words.length,currentPage},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 
                 validateProgress(words);
                 
@@ -1742,6 +1755,9 @@
 
         function markWordAsOpened(word) {
             openedWordsMap[word.id] = true;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre',hypothesisId:'H2',location:'phases.html:markWordAsOpened',message:'marked word opened',data:{wordId:word.id,totalOpened:Object.keys(openedWordsMap).length},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             saveToLocalStorage('openedWords', openedWordsMap);
             scheduleSyncToFirebase();
         }
