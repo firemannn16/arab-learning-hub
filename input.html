@@ -753,6 +753,19 @@ window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState===
 function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(modalTimer); modalTimer=null; } }
 
 /* ========== Избранное ========== */
+function focusPracticeInput() {
+  const inp = document.getElementById('practice-input');
+  if (inp) inp.focus({ preventScroll: true });
+}
+
+function handleFavPointerDown(evt) {
+  if (evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+  }
+  focusPracticeInput();
+}
+
 function updateFavStar() {
   const favStarBtn = document.getElementById('favStar');
   if (!currentRaw || !favStarBtn) return;
@@ -767,6 +780,7 @@ window.toggleCurrentFavorite = function(evt) {
   if (!currentRaw) return;
   if (typeof toggleFavorite === 'function') toggleFavorite(currentRaw);
   updateFavStar();
+  focusPracticeInput();
 }
 
 // Переопределяем функции показа слов для обновления звёздочки
@@ -794,7 +808,7 @@ showNextPractice = function() {
       <div class="stat">Фаза: <span id="stat-phase">—</span></div>
     </div>
     <div class="word-display">
-      <button class="fav-star" id="favStar" onclick="toggleCurrentFavorite()" title="В избранное">☆</button>
+      <button class="fav-star" id="favStar" type="button" onclick="toggleCurrentFavorite(event)" onpointerdown="handleFavPointerDown(event)" title="В избранное">☆</button>
       <div id="arabic">…</div>
     </div>
     <div id="learn-controls" class="controls">
