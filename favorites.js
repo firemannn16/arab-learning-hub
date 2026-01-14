@@ -9,6 +9,7 @@
 
   const FAVORITES_KEY = 'arabFavorites';
   const SYNC_KEY = 'arabFavoritesSyncTime';
+  let debugFavLogCount = 0;
 
   // Получить все избранные слова
   window.getFavorites = function() {
@@ -38,7 +39,15 @@
   window.isFavorite = function(word) {
     const favorites = getFavorites();
     const key = normalizeWord(word);
-    return favorites.some(f => normalizeWord(f) === key);
+    const result = favorites.some(f => normalizeWord(f) === key);
+    if (debugFavLogCount < 10) {
+      const sample = favorites.slice(0, 5).map(f => normalizeWord(f));
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre3',hypothesisId:'H6',location:'favorites.js:isFavorite',message:'isFavorite check',data:{key,result,count:favorites.length,sampleNormalized:sample},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      debugFavLogCount++;
+    }
+    return result;
   };
 
   // Проверить по арабскому тексту (для синхронизации)
@@ -94,9 +103,15 @@
   // Переключить избранное
   window.toggleFavorite = function(word) {
     if (isFavorite(word)) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre3',hypothesisId:'H6',location:'favorites.js:toggleFavorite',message:'remove favorite',data:{word},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       removeFromFavorites(word);
       return false;
     } else {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre3',hypothesisId:'H6',location:'favorites.js:toggleFavorite',message:'add favorite',data:{word},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       addToFavorites(word);
       return true;
     }
@@ -164,9 +179,14 @@
       if (!response.ok) return { synced: false, error: 'Не удалось загрузить words.txt' };
       
       const text = await response.text();
+      const rawLines = text.split('\n');
       const wordsLines = text.split('\n')
         .map(l => l.trim())
         .filter(l => l && !l.startsWith('#'));
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre3',hypothesisId:'H6',location:'favorites.js:syncFavoritesWithWords',message:'words parsed',data:{rawCount:rawLines.length,cleanCount:wordsLines.length,sample:wordsLines.slice(0,3)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       
       // Создаём карту слов по арабскому тексту (без огласовок)
       const wordsByArabic = new Map();
