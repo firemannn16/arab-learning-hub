@@ -174,8 +174,8 @@ function showSyncStatus(message, type = 'syncing') {
 }
 
 /* ========== ✅ Save / Load / Clear (ПОДКОЛЛЕКЦИЯ) ========== */
-async function saveState(){
-  const st = {
+function buildStateSnapshot(){
+  return {
     trainerId: TRAINER_ID,
     code: USER_CODE,
     allRaw: allWords.map(w=>w.rawLine),
@@ -189,28 +189,54 @@ async function saveState(){
     resetVersion,
     timestamp: Date.now()
   };
+}
+
+function persistLocalState(st){
   safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
-  
-  // ✅ Сохраняем в Firebase (подколлекция) + backup в localStorage
-  if(window.firebaseEnabled && window.firestore && window.firebaseModules){
-    await safeFirebaseSave(
-      async () => {
-        const docRef = window.firebaseModules.doc(
-          window.firestore, 
-          'users', USER_CODE, 
-          'trainers', TRAINER_ID
-        );
-        return await window.firebaseModules.setDoc(docRef, st, { merge: true });
-      },
-      PREFIX + 'state',
-      st
-    );
-    console.log('✓ Сохранено в Firestore (input)');
-    showSyncStatus('✓ Синхронизировано', 'synced');
-  } else {
-    // Fallback: только localStorage
-    safeLocalStorageSet(PREFIX + 'state', st);
+  safeLocalStorageSet(PREFIX + 'state', st);
+}
+
+function canSyncFirebase(){
+  return window.firebaseEnabled && window.firestore && window.firebaseModules && navigator.onLine;
+}
+
+async function saveState(options = {}){
+  const { localOnly = false, fireAndForget = false } = options;
+  const st = buildStateSnapshot();
+  try{
+    persistLocalState(st); // Сохраняем мгновенно (важно для beforeunload/offline)
+  }catch(e){
+    console.warn('Local save failed:', e);
   }
+  
+  if(localOnly || !canSyncFirebase()) return;
+  
+  const syncPromise = safeFirebaseSave(
+    async () => {
+      const docRef = window.firebaseModules.doc(
+        window.firestore, 
+        'users', USER_CODE, 
+        'trainers', TRAINER_ID
+      );
+      return await window.firebaseModules.setDoc(docRef, st, { merge: true });
+    },
+    PREFIX + 'state',
+    st
+  ).then(saved => {
+    if(saved){
+      console.log('✓ Сохранено в Firestore (input)');
+      showSyncStatus('✓ Синхронизировано', 'synced');
+    } else {
+      console.warn('Firebase save skipped (validation/backup failed)');
+    }
+    return saved;
+  }).catch(e => {
+    console.warn('Save failed:', e);
+    return false;
+  });
+  
+  if(fireAndForget) return;
+  await syncPromise;
 }
 
 async function loadState(){
@@ -748,8 +774,19 @@ btnReset.addEventListener('click', showResetModal);
   }catch(e){ console.error(e); }
 })();
 
-window.addEventListener('beforeunload', saveState);
-window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') saveState(); });
+const saveStateLocalOnly = () => {
+  try{
+    saveState({ localOnly: true });
+  }catch(e){
+    console.warn('Quick save failed:', e);
+  }
+};
+
+window.addEventListener('beforeunload', saveStateLocalOnly);
+window.addEventListener('pagehide', saveStateLocalOnly);
+window.addEventListener('visibilitychange', ()=>{ 
+  if(document.visibilityState==='hidden') saveStateLocalOnly(); 
+});
 function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(modalTimer); modalTimer=null; } }
 
 /* ========== Избранное ========== */
