@@ -8,6 +8,23 @@
     <link rel="apple-touch-icon" href="icon-192.png">
     <title>Арабские Тренажеры</title>
     <script src="theme.js"></script>
+    <script>
+      // Если открыто через ярлык/PWA, отправляем на последнюю страницу (если есть),
+      // но даём возможность остаться на главной через параметр ?home=1
+      (function() {
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+          || window.navigator.standalone
+          || document.referrer.includes('android-app://');
+        const urlParams = new URLSearchParams(location.search);
+        const stayOnHome = urlParams.has('home');
+        if (isStandalone && !stayOnHome) {
+          const lastPage = localStorage.getItem('arabLastPage');
+          if (lastPage && lastPage !== 'index.html') {
+            window.location.replace(lastPage);
+          }
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="theme.css">
     <script src="service-worker-register.js"></script>
     <script src="dua.js"></script>
