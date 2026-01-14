@@ -243,6 +243,52 @@
       margin-top: 12px;
     }
 
+    /* Индикатор статуса в меню */
+    .sidebar-status-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 16px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .sidebar-status-indicator.online {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #4caf50;
+    }
+
+    .sidebar-status-indicator.offline {
+      background: #ffebee;
+      color: #c62828;
+      border: 1px solid #f44336;
+    }
+
+    .sidebar-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      animation: sidebarPulse 2s infinite;
+    }
+
+    .sidebar-status-dot.online {
+      background: #4caf50;
+    }
+
+    .sidebar-status-dot.offline {
+      background: #f44336;
+    }
+
+    @keyframes sidebarPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
     /* Адаптация отступа для контента страницы */
     body.sidebar-enabled {
       padding-top: 70px !important;
@@ -339,6 +385,10 @@
         </div>
         
         <div class="sidebar-footer">
+          <div class="sidebar-status-indicator" id="sidebarStatusIndicator">
+            <span class="sidebar-status-dot" id="sidebarStatusDot"></span>
+            <span id="sidebarStatusText">Онлайн</span>
+          </div>
           <div class="theme-toggle">
             <span class="theme-toggle-label">
               <span class="icon">🌙</span>
@@ -485,6 +535,30 @@
     
     // Слушаем изменения темы (от других переключателей)
     window.addEventListener('themeChanged', updateSidebarThemeSwitch);
+
+    // Индикатор онлайн/оффлайн статуса
+    function updateSidebarOnlineStatus() {
+      const indicator = document.getElementById('sidebarStatusIndicator');
+      const dot = document.getElementById('sidebarStatusDot');
+      const text = document.getElementById('sidebarStatusText');
+      
+      if (!indicator || !dot || !text) return;
+      
+      if (navigator.onLine) {
+        indicator.className = 'sidebar-status-indicator online';
+        dot.className = 'sidebar-status-dot online';
+        text.textContent = 'Онлайн';
+      } else {
+        indicator.className = 'sidebar-status-indicator offline';
+        dot.className = 'sidebar-status-dot offline';
+        text.textContent = 'Офлайн';
+      }
+    }
+
+    // Инициализируем и слушаем изменения
+    updateSidebarOnlineStatus();
+    window.addEventListener('online', updateSidebarOnlineStatus);
+    window.addEventListener('offline', updateSidebarOnlineStatus);
   }
 
   // Запуск после загрузки DOM
