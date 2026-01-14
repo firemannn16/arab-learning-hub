@@ -35,6 +35,11 @@ function safeLocalStorageGet(key, maxAge = 0) {
             localStorage.setItem(backupKey, item);
             console.log(`💾 Битые данные сохранены в "${backupKey}"`);
             
+            // Сообщаем UI о доступном backup
+            if (typeof window !== 'undefined' && typeof window.__notifyStorageBackup === 'function') {
+                window.__notifyStorageBackup(key, backupKey, 'corrupted');
+            }
+
             return null;
         }
 
@@ -53,6 +58,11 @@ function safeLocalStorageGet(key, maxAge = 0) {
                     localStorage.setItem(backupKey, item);
                     console.log(`💾 Устаревшие данные сохранены в "${backupKey}"`);
                     
+                    // Сообщаем UI о доступном backup
+                    if (typeof window !== 'undefined' && typeof window.__notifyStorageBackup === 'function') {
+                        window.__notifyStorageBackup(key, backupKey, 'stale');
+                    }
+
                     return null;
                 }
             }
@@ -486,6 +496,134 @@ if (typeof window !== 'undefined') {
     window.addEventListener('load', () => {
         cleanOldBackups(7);
     });
+
+    // Очередь уведомлений о backup-ах
+    const backupQueue = [];
+    let modalShown = false;
+
+    // Публичный уведомитель, чтобы вызывать из safeLocalStorageGet
+    window.__notifyStorageBackup = function(originalKey, backupKey, reason) {
+        backupQueue.push({ originalKey, backupKey, reason, ts: Date.now() });
+        maybeShowBackupModal();
+    };
+
+    function maybeShowBackupModal() {
+        if (modalShown) return;
+        if (!backupQueue.length) return;
+        const { originalKey, backupKey, reason } = backupQueue[0];
+        modalShown = true;
+        showBackupModal(originalKey, backupKey, reason);
+    }
+
+    function showBackupModal(originalKey, backupKey, reason) {
+        const existing = document.getElementById('storage-backup-modal');
+        if (existing) {
+            existing.remove();
+        }
+
+        const modal = document.createElement('div');
+        modal.id = 'storage-backup-modal';
+        modal.innerHTML = `
+            <style>
+                #storage-backup-modal {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(0,0,0,0.4);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 999999;
+                    padding: 20px;
+                }
+                #storage-backup-modal .card {
+                    background: #fff;
+                    color: #1f2937;
+                    max-width: 420px;
+                    width: 100%;
+                    border-radius: 14px;
+                    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+                    padding: 20px 22px;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                }
+                #storage-backup-modal h3 { margin: 0 0 10px; font-size: 1.1rem; color: #111827; }
+                #storage-backup-modal p { margin: 0 0 14px; font-size: 0.95rem; line-height: 1.45; }
+                #storage-backup-modal .pill {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    padding: 6px 10px;
+                    border-radius: 999px;
+                    font-size: 0.85rem;
+                    background: #eef2ff;
+                    color: #4338ca;
+                    margin-bottom: 10px;
+                }
+                #storage-backup-modal .actions {
+                    display: flex;
+                    gap: 10px;
+                    margin-top: 12px;
+                }
+                #storage-backup-modal button {
+                    flex: 1;
+                    border: none;
+                    border-radius: 10px;
+                    padding: 12px;
+                    font-size: 0.95rem;
+                    cursor: pointer;
+                    font-weight: 600;
+                    transition: transform 0.1s ease, box-shadow 0.1s ease;
+                }
+                #storage-backup-modal button:hover { transform: translateY(-1px); }
+                #storage-backup-modal .primary {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: #fff;
+                    box-shadow: 0 8px 18px rgba(102, 126, 234, 0.25);
+                }
+                #storage-backup-modal .ghost {
+                    background: #f3f4f6;
+                    color: #374151;
+                }
+            </style>
+            <div class="card">
+                <div class="pill">Восстановление данных</div>
+                <h3>Нашли резервную копию</h3>
+                <p>Данные по ключу <code>${originalKey}</code> выглядят повреждёнными${reason === 'stale' ? ' или устаревшими' : ''}. Восстановить из резервной копии?</p>
+                <div class="actions">
+                    <button class="ghost" id="storage-backup-skip">Позже</button>
+                    <button class="primary" id="storage-backup-restore">Восстановить</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const closeModal = () => {
+            modal.remove();
+            backupQueue.shift();
+            modalShown = false;
+            // Показать следующий, если есть
+            maybeShowBackupModal();
+        };
+
+        modal.querySelector('#storage-backup-skip').addEventListener('click', closeModal);
+
+        modal.querySelector('#storage-backup-restore').addEventListener('click', () => {
+            try {
+                const raw = localStorage.getItem(backupKey);
+                if (!raw) throw new Error('Backup пустой');
+                // Пишем как есть — предполагаем валидный JSON внутри строки
+                localStorage.setItem(originalKey, raw);
+                console.log(`✓ Восстановлено из backup ${backupKey} → ${originalKey}`);
+                closeModal();
+                // Обновляем страницу, чтобы данные перечитались
+                window.location.reload();
+            } catch (e) {
+                console.error('❌ Не удалось восстановить из backup:', e);
+                alert('Не удалось восстановить данные из резервной копии');
+                closeModal();
+            }
+        });
+    }
 }
 
 console.log('✓ storage-protection.js загружен');
