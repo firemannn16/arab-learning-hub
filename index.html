@@ -10,21 +10,6 @@
     <link rel="apple-touch-icon" href="icon-192.png">
     <title>Арабские Тренажеры</title>
     <script src="theme.js"></script>
-    <script>
-      // Редирект на последнюю страницу при открытии PWA
-      (function() {
-        const isStandalone = window.matchMedia('(display-mode: standalone)').matches 
-          || window.navigator.standalone 
-          || document.referrer.includes('android-app://');
-        
-        if (isStandalone) {
-          const lastPage = localStorage.getItem('arabLastPage');
-          if (lastPage && lastPage !== 'index.html') {
-            window.location.replace(lastPage);
-          }
-        }
-      })();
-    </script>
     <link rel="stylesheet" href="theme.css">
     <script src="service-worker-register.js"></script>
     <script src="dua.js"></script>
@@ -542,16 +527,47 @@
         // Флаги для предотвращения раннего закрытия
         let modalJustOpened = false;
 
+        // === Хранение кода: localStorage + куки как резерв ===
+        function setCookie(name, value, days = 365) {
+            const expires = new Date(Date.now() + days * 864e5).toUTCString();
+            document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
+        }
+
+        function getCookie(name) {
+            return document.cookie.split('; ').reduce((acc, cur) => {
+                const [k, v] = cur.split('=');
+                return k === name ? decodeURIComponent(v) : acc;
+            }, '');
+        }
+
+        function saveUserCode(code) {
+            if (!code) return;
+            localStorage.setItem('userProgressCode', code);
+            setCookie('userProgressCode', code);
+        }
+
+        function getUserCode() {
+            let code = localStorage.getItem('userProgressCode');
+            if (!code) {
+                code = getCookie('userProgressCode');
+                if (code) {
+                    console.log('✅ Код восстановлен из cookie');
+                    localStorage.setItem('userProgressCode', code);
+                }
+            }
+            return code;
+        }
+
         // Проверка нового пользователя
         function checkNewUser() {
             console.log('🔍 checkNewUser() вызвана');
-            let userCode = localStorage.getItem('userProgressCode');
+            let userCode = getUserCode();
             console.log(`🔍 Текущий код: "${userCode}"`);
             
             if (!userCode) {
                 // Новый пользователь - генерируем код
                 userCode = generateCode();
-                localStorage.setItem('userProgressCode', userCode);
+                saveUserCode(userCode);
                 console.log('🎉 Новый пользователь! Сгенерирован код:', userCode);
                 
                 // Показываем welcome modal сразу (без задержки, т.к. дуа уже закрыто)
@@ -624,7 +640,7 @@
         // Подтвердить применение кода
         function confirmApplyCode() {
             if (window.pendingCode) {
-                localStorage.setItem('userProgressCode', window.pendingCode);
+                saveUserCode(window.pendingCode);
                 document.getElementById('confirmModal').classList.remove('show');
                 alert('✅ Код успешно применён! Перезагрузите страницу для загрузки прогресса.');
                 window.pendingCode = null;
