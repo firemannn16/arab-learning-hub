@@ -1,877 +1,803 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Тренажер Заучка + Практика - Арабские слова</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#667eea">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <title>Арабские Тренажеры</title>
     <script src="theme.js"></script>
-    <link rel="stylesheet" href="theme.css">
-    <script src="dua.js"></script>
-    <script src="service-worker-register.js"></script>
-    <script src="storage-protection.js"></script>
-    <script src="sidebar-menu.js"></script>
-    <script src="favorites.js"></script>
-    <script src="streak.js"></script>
-<script type="module">
-/* ========== ✅ ИДЕНТИФИКАТОР ТРЕНАЖЕРА ========== */
-const TRAINER_ID = 'input';
-
-/* ========== ✅ ПРЕФИКС ДЛЯ ЭТОГО ТРЕНАЖЕРА ========== */
-const PREFIX = 'input_';
-
-/* ========== ✅ ОБЩИЙ КОД ДЛЯ ВСЕХ ТРЕНАЖЕРОВ ========== */
-const SHARED_CODE_KEY = 'userProgressCode';
-
-/* ---------- Firebase инициализация ---------- */
-const firebaseConfig = {
-    apiKey: "AIzaSyC2yC_BlLuP3dEzWUlWe57hhI4CezNZCy0",
-    authDomain: "arab-learning-hub.firebaseapp.com",
-    projectId: "arab-learning-hub",
-    storageBucket: "arab-learning-hub.firebasestorage.app",
-    messagingSenderId: "377334822830",
-    appId: "1:377334822830:web:7cb045a81824741f427a3f",
-    measurementId: "G-XBW1F1KGW3"
-};
-try {
-  const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
-  const { initializeFirestore } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-  window.firebaseApp = initializeApp(firebaseConfig);
-  // 🔧 Для сетей с блокировками: форсируем long-polling и отключаем stream
-  window.firestore = initializeFirestore(window.firebaseApp, {
-    experimentalForceLongPolling: true,
-    useFetchStreams: false
-  });
-  window.firebaseEnabled = true;
-  window.firebaseModules = { doc: null, setDoc: null, getDoc: null, deleteDoc: null };
-  const firestoreModule = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-  window.firebaseModules.doc = firestoreModule.doc;
-  window.firebaseModules.setDoc = firestoreModule.setDoc;
-  window.firebaseModules.getDoc = firestoreModule.getDoc;
-  window.firebaseModules.deleteDoc = firestoreModule.deleteDoc;
-  console.log('Firebase инициализирован');
-} catch(e) {
-  console.warn('Firebase не инициализирован:', e);
-  window.firebaseEnabled = false;
-}
-
-/* ========== ✅ Генерация и получение кода ========== */
-function generateCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
-
-function getUserCode() {
-  // ✅ Читаем напрямую (код хранится как простая строка в index.html)
-  let code = null;
-  try {
-    code = localStorage.getItem(SHARED_CODE_KEY);
-  } catch(e) {
-    console.warn('Ошибка чтения кода:', e);
-  }
-  
-  if (!code) {
-    code = generateCode();
-    try {
-      localStorage.setItem(SHARED_CODE_KEY, code);
-    } catch(e) {
-      console.warn('Ошибка сохранения кода:', e);
-    }
-    console.log('🆕 Создан новый код:', code);
-  }
-  return code;
-}
-
-const USER_CODE = getUserCode();
-
-/* ---------- Настройки ---------- */
-const BATCH_SIZE = 33;
-const SHOW_ANSWER_MS = 15000;
-
-/* ---------- Состояние ---------- */
-let allWords = [];
-let orderQueue = [];
-let masteredFinal = [];
-let practiceHistory = [];
-let roundMastered = [];
-let practiceAccum = [];
-let practiceOrder = [];
-let phase = 'learn';
-let currentRaw = null;
-let modalTimer = null;
-let resetVersion = safeLocalStorageGet(PREFIX + 'resetVersion', 0) || 0;
-
-/* ---------- DOM ---------- */
-const screenMain = document.getElementById('screen-main');
-const statTotal = document.getElementById('stat-total');
-const statMastered = document.getElementById('stat-mastered');
-const statRemaining = document.getElementById('stat-remaining');
-const statPhase = document.getElementById('stat-phase');
-const arabicDiv = document.getElementById('arabic');
-const learnControls = document.getElementById('learn-controls');
-const btnKnow = document.getElementById('btn-know');
-const btnDont = document.getElementById('btn-dont');
-const btnAdd = document.getElementById('btn-add');
-const btnReset = document.getElementById('btn-reset');
-const messageDiv = document.getElementById('message');
-const practiceArea = document.getElementById('practice-area');
-const practiceInput = document.getElementById('practice-input');
-const practiceSubmit = document.getElementById('practice-submit');
-const practiceSkip = document.getElementById('practice-skip');
-const oralAnswerBtn = document.getElementById('oral-answer');
-const modalRoot = document.getElementById('modal-root');
-// syncStatus появится после вставки элемента ниже по разметке
-let syncStatusEl = null;
-syncStatusEl = document.getElementById('sync-status');
-
-/* ---------- Утилиты ---------- */
-function normalizeRu(s){
-  if(!s && s!=='') return '';
-  return String(s).trim().toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ');
-}
-function normalizeLine(l){ if(!l) return ''; return l.replace(/^\uFEFF/,'').replace(/[\u2010\u2011\u2012\u2013\u2014\u2015–—−]/g,'-').replace(/\s+/g,' ').trim(); }
-function parseLine(raw){
-  raw = normalizeLine(raw);
-  const parts = raw.split(/[-–—]/).map(p=>p.trim()).filter(Boolean);
-  const left = parts.length ? parts[0] : '';
-  const right = parts.slice(1);
-  const rus = left ? left.split(',').map(s=>s.trim()).filter(Boolean) : [];
-  const arabParts = right.length ? right.join(' - ').split(/\s*-\s*/).map(s=>s.trim()).filter(Boolean) : [];
-  return { rawLine: raw, rus, arabParts, arabFull: right.join(' - ') || '' };
-}
-function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
-function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]); }
-
-/* ---------- last-letter mistake detector ---------- */
-function isLastCharMistake(userRaw, correctRaw){
-  const u = normalizeRu(userRaw||'');
-  const c = normalizeRu(correctRaw||'');
-  if(!u || !c) return false;
-  if(u === c) return false;
-  if(u.length === c.length){
-    if(u.slice(0, -1) === c.slice(0, -1) && u[u.length-1] !== c[c.length-1]) return true;
-  }
-  if(u.length === c.length - 1){
-    if(u === c.slice(0, -1)) return true;
-  }
-  if(u.length === c.length + 1){
-    if(u.slice(0, -1) === c) return true;
-  }
-  return false;
-}
-
-function showSyncStatus(message, type = 'syncing') {
-  if (!syncStatusEl) {
-    syncStatusEl = document.getElementById('sync-status');
-    if (!syncStatusEl) return;
-  }
-  syncStatusEl.textContent = message;
-  syncStatusEl.className = `sync-status show ${type}`;
-  setTimeout(() => syncStatusEl.classList.remove('show'), 2000);
-}
-
-/* ========== ✅ Save / Load / Clear (ПОДКОЛЛЕКЦИЯ) ========== */
-async function saveState(){
-  const st = {
-    trainerId: TRAINER_ID,
-    code: USER_CODE,
-    allRaw: allWords.map(w=>w.rawLine),
-    orderQueue: orderQueue.slice(),
-    masteredFinal: masteredFinal.slice(),
-    practiceHistory: practiceHistory.slice(),
-    roundMastered: roundMastered.slice(),
-    practiceAccum: practiceAccum.slice(),
-    practiceOrder: practiceOrder.slice(),
-    phase, currentRaw,
-    resetVersion,
-    timestamp: Date.now()
-  };
-  safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
-  
-  // ✅ Сохраняем в Firebase (подколлекция) + backup в localStorage
-  if(window.firebaseEnabled && window.firestore && window.firebaseModules){
-    await safeFirebaseSave(
-      async () => {
-        const docRef = window.firebaseModules.doc(
-          window.firestore, 
-          'users', USER_CODE, 
-          'trainers', TRAINER_ID
-        );
-        return await window.firebaseModules.setDoc(docRef, st, { merge: true });
-      },
-      PREFIX + 'state',
-      st
-    );
-    console.log('✓ Сохранено в Firestore (input)');
-    showSyncStatus('✓ Синхронизировано', 'synced');
-  } else {
-    // Fallback: только localStorage
-    safeLocalStorageSet(PREFIX + 'state', st);
-  }
-}
-
-async function loadState(){
-  // ✅ Загружаем с использованием safeFirebaseLoad (Firebase + fallback localStorage)
-  if(window.firebaseEnabled && window.firestore && window.firebaseModules){
-    showSyncStatus('⏳ Загрузка из облака...', 'syncing');
-    const firebaseData = await safeFirebaseLoad(
-      async () => {
-        const docRef = window.firebaseModules.doc(
-          window.firestore, 
-          'users', USER_CODE, 
-          'trainers', TRAINER_ID
-        );
-        const docSnap = await window.firebaseModules.getDoc(docRef);
-        if(docSnap.exists()){
-          console.log('✓ Загружено из Firestore (input)');
-          showSyncStatus('✓ Загружено из облака', 'synced');
-          return docSnap.data();
-        }
-        return null;
-      },
-      PREFIX + 'state'
-    );
-    
-    const localData = safeLocalStorageGet(PREFIX + 'state', 0);
-    const localReset = safeLocalStorageGet(PREFIX + 'resetVersion', 0) || 0;
-    const firebaseReset = firebaseData?.resetVersion || 0;
-    if (localReset > firebaseReset) {
-      resetVersion = localReset;
-      safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
-      await saveState();
-      return localData || firebaseData;
-    } else if (firebaseReset > localReset) {
-      resetVersion = firebaseReset;
-      safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
-    }
-    
-    // ✅ Сравниваем timestamp: локальные VS Firebase
-    if (firebaseData && localData) {
-      const firebaseTime = firebaseData.timestamp || 0;
-      const localTime = localData.timestamp || 0;
-      
-      // Используем более свежие данные
-      if (localTime > firebaseTime) {
-        console.log('📱 Локальные данные новее (input), синхронизируем в Firebase...');
-        await saveState();
-        return localData;
-      } else {
-        console.log('☁️ Firebase данные новее (input)');
-        return firebaseData;
-      }
-    }
-    
-    // Если есть только Firebase данные
-    if (firebaseData) {
-      return firebaseData;
-    }
-    
-    // Если есть только локальные данные
-    if (localData) {
-      return localData;
-    }
-  }
-  
-  // Fallback: только localStorage
-  return safeLocalStorageGet(PREFIX + 'state', 0);
-}
-
-async function clearState(){
-  // ✅ Удаляем из localStorage
-  try{
-    localStorage.removeItem(PREFIX + 'state');
-    localStorage.removeItem(PREFIX + 'state_backup');
-    // Очистка старых backup'ов
-    cleanOldBackups(0);
-  }catch(e){}
-  
-  // ✅ Удаляем из Firebase (подколлекция) с retry
-  if(window.firebaseEnabled && window.firestore && window.firebaseModules){
-    await safeFirebaseOperation(
-      async () => {
-        const docRef = window.firebaseModules.doc(
-          window.firestore, 
-          'users', USER_CODE, 
-          'trainers', TRAINER_ID
-        );
-        await window.firebaseModules.deleteDoc(docRef);
-        console.log('✓ Удалено из Firestore (input)');
-      },
-      'Удаление прогресса (input)',
-      2
-    );
-  }
-}
-
-/* ---------- robust fetch ---------- */
-async function robustFetchWords(){
-  // ✅ Используем безопасную загрузку с retry
-  return await safeLoadWordsFile('words.txt', 3);
-}
-
-/* ---------- Инициализация словаря ---------- */
-async function initDictionary(){
-  const st = await loadState();
-  let serverWords = [];
-  let serverWordsByRaw = new Map();
-  let serverRawSet = new Set();
-  try{
-    const txt = await robustFetchWords();
-    const lines = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    serverWords = lines.map(parseLine);
-    serverWords.forEach(w => {
-      serverWordsByRaw.set(w.rawLine, w);
-      serverRawSet.add(w.rawLine);
-    });
-  }catch(e){ console.warn('Не удалось загрузить words.txt:', e); }
-  if(st && Array.isArray(st.allRaw) && st.allRaw.length){
-    allWords = st.allRaw.map(raw => {
-      const parsed = parseLine(raw);
-      return { rawLine: raw, ...parsed };
-    });
-    if(serverWords.length > 0 && serverRawSet.size > 0){
-      allWords = allWords.filter(w => serverRawSet.has(w.rawLine));
-      orderQueue = (Array.isArray(st.orderQueue) ? st.orderQueue.filter(r => serverRawSet.has(r)) : []);
-      masteredFinal = (Array.isArray(st.masteredFinal) ? st.masteredFinal.filter(r => serverRawSet.has(r)) : []);
-      practiceHistory = (Array.isArray(st.practiceHistory) ? st.practiceHistory.filter(r => serverRawSet.has(r)) : []);
-      roundMastered = (Array.isArray(st.roundMastered) ? st.roundMastered.filter(r => serverRawSet.has(r)) : []);
-      practiceAccum = (Array.isArray(st.practiceAccum) ? st.practiceAccum.filter(r => serverRawSet.has(r)) : []);
-      practiceOrder = (Array.isArray(st.practiceOrder) ? st.practiceOrder.filter(r => serverRawSet.has(r)) : []);
-      const changedWords = [];
-      allWords.forEach((existingWord, index) => {
-        if(serverRawSet.has(existingWord.rawLine)){
-          const serverWord = serverWordsByRaw.get(existingWord.rawLine);
-          if(JSON.stringify(existingWord.rus) !== JSON.stringify(serverWord.rus) || JSON.stringify(existingWord.arabParts) !== JSON.stringify(serverWord.arabParts)){
-            allWords[index] = serverWord;
-            changedWords.push(serverWord.rawLine);
+    <script>
+      // Всегда отправляем на последнюю страницу, если есть (кроме случая ?home=1)
+      (function() {
+        const urlParams = new URLSearchParams(location.search);
+        const stayOnHome = urlParams.has('home');
+        if (!stayOnHome) {
+          const lastPage = localStorage.getItem('arabLastPage');
+          if (lastPage && lastPage !== 'index.html') {
+            window.location.replace(lastPage);
           }
         }
-      });
-      changedWords.forEach(rawLine => {
-        masteredFinal = masteredFinal.filter(r => r !== rawLine);
-        practiceHistory = practiceHistory.filter(r => r !== rawLine);
-        roundMastered = roundMastered.filter(r => r !== rawLine);
-        practiceAccum = practiceAccum.filter(r => r !== rawLine);
-        practiceOrder = practiceOrder.filter(r => r !== rawLine);
-        if(!orderQueue.includes(rawLine)) orderQueue.push(rawLine);
-      });
-    } else {
-      orderQueue = st.orderQueue || [];
-      masteredFinal = st.masteredFinal || [];
-      practiceHistory = st.practiceHistory || [];
-      roundMastered = st.roundMastered || [];
-      practiceAccum = st.practiceAccum || [];
-      practiceOrder = st.practiceOrder || [];
-    }
-    phase = st.phase || 'learn';
-    currentRaw = (st.currentRaw && serverRawSet.has(st.currentRaw)) ? st.currentRaw : null;
-  } else {
-    if(serverWords.length > 0){
-      allWords = serverWords.slice();
-      masteredFinal = []; practiceHistory = []; roundMastered = []; practiceAccum = []; practiceOrder = [];
-      phase = 'learn'; currentRaw = null;
-      orderQueue = allWords.map(w=>w.rawLine);
-      shuffle(orderQueue);
-    }
-  }
-  updateStats();
-  saveState().catch(e => console.warn('Save failed:', e));
-}
-
-/* ---------- UI helpers ---------- */
-function updateStats(){
-  statTotal.textContent = allWords.length;
-  statMastered.textContent = masteredFinal.length;
-  statRemaining.textContent = orderQueue.length;
-  statPhase.textContent = phase === 'learn' ? 'Заучивание' : (phase === 'practice' ? 'Практика' : '—');
-}
-function showMessage(t){ messageDiv.textContent = t || ''; }
-
-/* ---------- Заучивание ---------- */
-function showNextLearn(){
-  phase = 'learn';
-  learnControls.classList.remove('hidden');
-  practiceArea.classList.add('hidden');
-  updateStats();
-  if(orderQueue.length === 0){
-    if(practiceAccum.length >= BATCH_SIZE){
-      startPractice();
-      return;
-    }
-    arabicDiv.textContent = 'Очередь пуста.';
-    showMessage('Добавьте слова или сбросьте прогресс.');
-    return;
-  }
-  currentRaw = orderQueue[0];
-  const obj = allWords.find(w=>w.rawLine===currentRaw) || {rus:[], arabParts:[]};
-  arabicDiv.textContent = obj.arabFull || (obj.arabParts||[]).join(' - ') || '[нет арабского]';
-  showMessage('Нажмите «Знаю» или «Не знаю».');
-  saveState();
-}
-
-/* ---------- Кнопки заучивания ---------- */
-btnKnow.addEventListener('click', () => {
-  if(!currentRaw) return;
-  orderQueue.shift();
-  if(!roundMastered.includes(currentRaw)) roundMastered.push(currentRaw);
-  if(!practiceAccum.includes(currentRaw)) practiceAccum.push(currentRaw);
-  if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
-  currentRaw = null;
-  if (practiceAccum.length >= BATCH_SIZE) {
-    startPractice();
-  } else {
-    showNextLearn();
-  }
-});
-
-btnDont.addEventListener('click', () => {
-  if(!currentRaw) return;
-  orderQueue.shift();
-  if(!practiceAccum.includes(currentRaw)) practiceAccum.push(currentRaw);
-  const obj = allWords.find(w=>w.rawLine===currentRaw) || parseLine(currentRaw);
-  showDontKnowModal(obj);
-  currentRaw = null;
-});
-
-/* ---------- Modal: "Не знаю" ---------- */
-function showDontKnowModal(obj){
-  closeModal();
-  const overlay = document.createElement('div'); overlay.className='overlay';
-  const modal = document.createElement('div'); modal.className='modal';
-  let html = '';
-  const ar = obj.arabParts && obj.arabParts.length ? obj.arabParts : (obj.arabFull?obj.arabFull.split(/\s*-\s*/).map(s=>s.trim()):[]);
-  if(obj.rus.length && ar.length && obj.rus.length === ar.length){
-    for(let i=0;i<obj.rus.length;i++) html += `<div class="pair">${escapeHtml(obj.rus[i])} — <span style="direction:rtl">${escapeHtml(ar[i])}</span></div>`;
-  } else {
-    const arabAll = ar.join(' - ');
-    for(const r of obj.rus.length?obj.rus:['']) html += `<div class="pair">${escapeHtml(r)} — <span style="direction:rtl">${escapeHtml(arabAll)}</span></div>`;
-  }
-  modal.innerHTML = `<div><strong>Перевод (показывается 15 с)</strong></div><div style="margin-top:8px">${html}</div>`;
-  overlay.appendChild(modal);
-  modalRoot.appendChild(overlay);
-  modalTimer = setTimeout(()=>{
-    closeModal();
-    if(practiceAccum.length >= BATCH_SIZE){
-      startPractice();
-    } else {
-      showNextLearn();
-    }
-  }, SHOW_ANSWER_MS);
-}
-
-/* ---------- Modal: практика — при ошибке и мелкой ошибке ---------- */
-function showPracticeAnswerModal(obj, title = 'Правильный ответ', autoClose = true, onClose = null){
-  closeModal();
-  const overlay = document.createElement('div'); overlay.className='overlay';
-  const modal = document.createElement('div'); modal.className='modal';
-  let html = '';
-  const ar = obj.arabParts && obj.arabParts.length ? obj.arabParts : (obj.arabFull?obj.arabFull.split(/\s*-\s*/).map(s=>s.trim()):[]);
-  if(obj.rus.length && ar.length && obj.rus.length === ar.length){
-    for(let i=0;i<obj.rus.length;i++) html += `<div class="pair">${escapeHtml(obj.rus[i])} — <span style="direction:rtl">${escapeHtml(ar[i])}</span></div>`;
-  } else {
-    const arabAll = ar.join(' - ');
-    for(const r of obj.rus.length?obj.rus:['']) html += `<div class="pair">${escapeHtml(r)} — <span style="direction:rtl">${escapeHtml(arabAll)}</span></div>`;
-  }
-  modal.innerHTML = `<div><strong>${escapeHtml(title)}</strong></div><div style="margin-top:8px">${html}</div><div style="text-align:right;margin-top:12px"><button id="modal-close" class="button">Закрыть (Esc)</button></div>`;
-  overlay.appendChild(modal);
-  modalRoot.appendChild(overlay);
-  function cleanup(){ if(modalTimer){ clearTimeout(modalTimer); modalTimer=null; } document.removeEventListener('keydown', onKey); overlay.removeEventListener('click', onOverlay); const b=document.getElementById('modal-close'); if(b) b.removeEventListener('click', onBtn); if(overlay.parentNode) overlay.parentNode.removeChild(overlay); practiceInput.focus(); }
-  function onKey(e){ if(e.key==='Escape') onBtn(); }
-  function onOverlay(e){ if(e.target===overlay) onBtn(); }
-  function onBtn(){ cleanup(); if(onClose) onClose(); else showNextPractice(); }
-  document.addEventListener('keydown', onKey);
-  overlay.addEventListener('click', onOverlay);
-  const btn = document.getElementById('modal-close'); if(btn) btn.addEventListener('click', onBtn);
-  if(autoClose) modalTimer = setTimeout(()=>{ onBtn(); }, SHOW_ANSWER_MS);
-}
-
-/* ---------- Практика: старт ---------- */
-function startPractice(){
-  phase = 'practice';
-  learnControls.classList.add('hidden');
-  practiceArea.classList.remove('hidden');
-  let newWords = practiceAccum.slice(0, BATCH_SIZE);
-  let practiceWords = masteredFinal.filter(word => !roundMastered.includes(word));
-  practiceOrder = newWords.concat(practiceWords);
-  if(practiceWords.length > 1) {
-    const shuffled = practiceWords.slice();
-    shuffle(shuffled);
-    practiceOrder = newWords.concat(shuffled);
-  }
-  practiceAccum = [];
-  roundMastered = [];
-  updateStats();
-  showNextPractice();
-  saveState();
-}
-
-/* ---------- showNextPractice ---------- */
-function showNextPractice(){
-  if(practiceOrder.length === 0){
-    roundMastered = [];
-    phase = 'learn';
-    learnControls.classList.remove('hidden');
-    practiceArea.classList.add('hidden');
-    updateStats();
-    showNextLearn();
-    saveState();
-    return;
-  }
-  currentRaw = practiceOrder.shift();
-  const obj = allWords.find(w=>w.rawLine===currentRaw) || parseLine(currentRaw);
-  arabicDiv.textContent = obj.arabFull || (obj.arabParts||[]).join(' - ') || '[нет арабского]';
-  practiceInput.value = '';
-  practiceInput.focus();
-  const isOld = masteredFinal.includes(currentRaw);
-  if(isOld){
-    oralAnswerBtn.classList.remove('hidden');
-  } else {
-    oralAnswerBtn.classList.add('hidden');
-  }
-  updateStats();
-}
-
-/* ---------- Устный ответ (только для старых слов) ---------- */
-oralAnswerBtn.addEventListener('click', () => {
-  if(!currentRaw || !masteredFinal.includes(currentRaw)) return;
-  if(!roundMastered.includes(currentRaw)) roundMastered.push(currentRaw);
-  if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
-  showMessage('Засчитано как верный (устно)');
-  currentRaw = null;
-  showNextPractice();
-  saveState();
-});
-
-/* ---------- Практика: проверка ---------- */
-function enablePracticeControls(){ practiceSubmit.disabled=false; practiceSkip.disabled=false; practiceInput.disabled=false; practiceInput.focus(); }
-function disablePracticeControls(){ practiceSubmit.disabled=true; practiceSkip.disabled=true; practiceInput.disabled=true; }
-
-practiceSubmit.addEventListener('click', () => {
-  if(!currentRaw) return;
-  disablePracticeControls();
-  try{
-    const val = (practiceInput.value||'').trim();
-    if(!val){ enablePracticeControls(); return; }
-    const obj = allWords.find(w=>w.rawLine===currentRaw) || parseLine(currentRaw);
-    const userNorm = normalizeRu(val);
-    const exact = (obj.rus||[]).some(r => normalizeRu(r) === userNorm);
-    const almost = !exact && (obj.rus||[]).some(r => isLastCharMistake(userNorm, normalizeRu(r)));
-    const isOld = masteredFinal.includes(currentRaw);
-    const markAsCorrect = () => {
-      if(!roundMastered.includes(currentRaw)) roundMastered.push(currentRaw);
-      if(!masteredFinal.includes(currentRaw)) masteredFinal.push(currentRaw);
-      if(!practiceHistory.includes(currentRaw)) practiceHistory.push(currentRaw);
-      if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
-      updateStats();
-      saveState();
-    };
-    if(exact){
-      markAsCorrect();
-      showMessage('Верно — отмечено как окончательно выученное.');
-      currentRaw = null;
-      enablePracticeControls();
-      showNextPractice();
-    } else if(almost){
-      markAsCorrect();
-      showPracticeAnswerModal(obj, 'Мелкая ошибка — засчитано', true, () => {
-        currentRaw = null;
-        enablePracticeControls();
-        showNextPractice();
-      });
-    } else {
-      if(isOld){
-        practiceOrder.unshift(currentRaw);
-      } else {
-        orderQueue.unshift(currentRaw);
-        if(masteredFinal.includes(currentRaw)){
-          masteredFinal = masteredFinal.filter(r=>r!==currentRaw);
-          practiceHistory = practiceHistory.filter(r=>r!==currentRaw);
+      })();
+    </script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="service-worker-register.js"></script>
+    <script src="dua.js"></script>
+    <script src="streak.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-      }
-      showPracticeAnswerModal(obj, 'Неправильно', true);
-      currentRaw = null;
-      enablePracticeControls();
-    }
-  }catch(e){ console.error(e); enablePracticeControls(); }
-});
-
-practiceInput.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); practiceSubmit.click(); }});
-
-practiceSkip.addEventListener('click', () => {
-  if(!currentRaw) return;
-  const isOld = masteredFinal.includes(currentRaw);
-  if(isOld){
-    practiceOrder.unshift(currentRaw);
-  } else {
-    orderQueue.unshift(currentRaw);
-    if(masteredFinal.includes(currentRaw)){
-      masteredFinal = masteredFinal.filter(r => r !== currentRaw);
-      practiceHistory = practiceHistory.filter(r => r !== currentRaw);
-    }
-  }
-  currentRaw = null;
-  showNextPractice();
-  saveState();
-});
-
-/* ---------- Добавить новые слова ---------- */
-btnAdd.addEventListener('click', async () => {
-  try{
-    const txt = await robustFetchWords();
-    const lines = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    const serverWords = lines.map(parseLine);
-    const existing = new Set(allWords.map(w => w.rawLine));
-    let added = 0;
-    for(const w of serverWords){
-      if(!existing.has(w.rawLine)){
-        allWords.push(w);
-        orderQueue.push(w.rawLine);
-        existing.add(w.rawLine);
-        added++;
-      }
-    }
-    if(added){
-      shuffle(orderQueue);
-      updateStats();
-      alert('Добавлено новых слов: ' + added);
-      saveState();
-    } else {
-      alert('Новых слов не найдено');
-    }
-  }catch(e){ alert('Ошибка: '+e.message); }
-});
-
-/* ---------- Сброс прогресса ---------- */
-function showResetModal() {
-  closeModal();
-  const overlay = document.createElement('div'); overlay.className = 'overlay';
-  const modal = document.createElement('div'); modal.className = 'modal';
-  modal.innerHTML = `
-    <div><strong>Подтверждение сброса</strong></div>
-    <div style="margin-top:12px">Вы уверены? Всё будет потеряно.</div>
-    <div style="text-align:right;margin-top:16px">
-      <button id="modal-cancel" style="margin-right:8px">Отмена</button>
-      <button id="modal-confirm" class="btn-danger">Да, сбросить</button>
-    </div>
-  `;
-  overlay.appendChild(modal);
-  modalRoot.appendChild(overlay);
-  const cleanup = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
-  const onKey = e => { if(e.key==='Escape') cleanup(); };
-  const onCancel = () => cleanup();
-  const onConfirm = async () => {
-    cleanup();
-    
-    // ✅ Очищаем localStorage СРАЗУ (синхронно)
-    try{
-      localStorage.removeItem(PREFIX + 'state');
-      localStorage.removeItem(PREFIX + 'state_backup');
-      cleanOldBackups(0);
-    }catch(e){ console.warn('Ошибка очистки localStorage:', e); }
-    
-    // ✅ СРАЗУ сбрасываем все данные
-    orderQueue = allWords.map(w=>w.rawLine);
-    shuffle(orderQueue);
-    masteredFinal = [];
-    practiceHistory = [];
-    roundMastered = [];
-    practiceAccum = [];
-    practiceOrder = [];
-    phase = 'learn';
-    currentRaw = null;
-    resetVersion = Date.now();
-    safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
-    
-    // ✅ СРАЗУ очищаем UI
-    arabicDiv.textContent = '';
-    practiceInput.value = '';
-    
-    console.log('✅ Прогресс сброшен (input), всего слов:', allWords.length);
-    
-    // ✅ СРАЗУ обновляем статистику
-    updateStats();
-    showMessage('Прогресс сброшен.');
-    
-    console.log('✅ Показываем первое слово для заучивания...');
-    
-    // ✅ СРАЗУ показываем следующее слово
-    showNextLearn();
-    
-    // ✅ Сохраняем состояние в localStorage (синхронно)
-    saveState();
-    
-    // ✅ Удаляем из Firebase В ФОНЕ (не блокируем UI)
-    if(window.firebaseEnabled && window.firestore && window.firebaseModules){
-      safeFirebaseOperation(
-        async () => {
-          const docRef = window.firebaseModules.doc(
-            window.firestore, 
-            'users', USER_CODE, 
-            'trainers', TRAINER_ID
-          );
-          await window.firebaseModules.deleteDoc(docRef);
-          console.log('✓ Удалено из Firestore (input)');
-        },
-        'Удаление прогресса (input)',
-        2
-      ).catch(e => console.warn('Ошибка удаления из Firebase:', e));
-    }
-    
-    // ✅ Отправляем событие для показа дуа с кодом (с задержкой)
-    setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('progressReset'));
-    }, 500);
-  };
-  document.addEventListener('keydown', onKey);
-  document.getElementById('modal-cancel').addEventListener('click', onCancel);
-  document.getElementById('modal-confirm').addEventListener('click', onConfirm);
-}
-btnReset.addEventListener('click', showResetModal);
-
-/* ---------- bootstrap ---------- */
-(async function bootstrap(){
-  try{ 
-    await initDictionary();
-    screenMain.classList.remove('hidden');
-    if(phase === 'practice'){
-      learnControls.classList.add('hidden');
-      practiceArea.classList.remove('hidden');
-      showNextPractice();
-    } else {
-      practiceArea.classList.add('hidden');
-      learnControls.classList.remove('hidden');
-      showNextLearn();
-    }
-  }catch(e){ console.error(e); }
-})();
-
-window.addEventListener('beforeunload', saveState);
-window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') saveState(); });
-function closeModal(){ modalRoot.innerHTML=''; if(modalTimer){ clearTimeout(modalTimer); modalTimer=null; } }
-
-/* ========== Избранное ========== */
-function focusPracticeInput() {
-  const inp = document.getElementById('practice-input');
-  if (inp) inp.focus({ preventScroll: true });
-}
-
-function handleFavPointerDown(evt) {
-  if (evt) {
-    evt.preventDefault();
-    evt.stopPropagation();
-  }
-  focusPracticeInput();
-}
-
-function updateFavStar() {
-  const favStarBtn = document.getElementById('favStar');
-  if (!currentRaw || !favStarBtn) return;
-  const isFav = typeof isFavorite === 'function' && isFavorite(currentRaw);
-  favStarBtn.classList.toggle('active', isFav);
-  favStarBtn.innerHTML = isFav ? '⭐' : '☆';
-  favStarBtn.title = isFav ? 'Убрать из избранного' : 'В избранное';
-}
-
-window.toggleCurrentFavorite = function(evt) {
-  if (evt) { evt.stopPropagation(); evt.preventDefault(); }
-  if (!currentRaw) return;
-  if (typeof toggleFavorite === 'function') toggleFavorite(currentRaw);
-  updateFavStar();
-  focusPracticeInput();
-}
-
-// Переопределяем функции показа слов для обновления звёздочки
-const origShowNextLearn = showNextLearn;
-showNextLearn = function() {
-  origShowNextLearn();
-  updateFavStar();
-};
-
-const origShowNextPractice = showNextPractice;
-showNextPractice = function() {
-  origShowNextPractice();
-  updateFavStar();
-};
-
-</script>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 1200px;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            color: white;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .code-buttons {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        .code-btn {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .code-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+        .status-indicator {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s;
+        }
+        .status-online {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 2px solid #4caf50;
+        }
+        .status-offline {
+            background: #ffebee;
+            color: #c62828;
+            border: 2px solid #f44336;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        .status-dot.online {
+            background: #4caf50;
+        }
+        .status-dot.offline {
+            background: #f44336;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .modal-overlay.show {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        .modal-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .modal-text {
+            font-size: 1em;
+            color: #666;
+            margin-bottom: 20px;
+            text-align: center;
+            line-height: 1.6;
+        }
+        .code-display-box {
+            background: #f5f5f5;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .code-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #667eea;
+            letter-spacing: 3px;
+            margin-bottom: 10px;
+        }
+        .code-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1.1em;
+            text-align: center;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+        }
+        .code-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .modal-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .modal-btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .modal-btn-primary:hover {
+            opacity: 0.9;
+        }
+        .modal-btn-secondary {
+            background: #f5f5f5;
+            color: #666;
+        }
+        .modal-btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        .copy-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s;
+        }
+        .copy-btn:hover {
+            background: #45a049;
+        }
+        .trainers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-top: 20px;
+        }
+        .trainer-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            text-decoration: none;
+            color: #333;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        .trainer-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+        }
+        .trainer-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+        .trainer-card h3 {
+            color: #667eea;
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+        .trainer-card p {
+            color: #666;
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
+        .card-phases { border-top: 4px solid #667eea; }
+        .card-choice { border-top: 4px solid #f093fb; }
+        .card-input { border-top: 4px solid #4facfe; }
+        .card-simple { border-top: 4px solid #43e97b; }
+        .card-dictionary { border-top: 4px solid #fa709a; }
+        .card-wordslist { border-top: 4px solid #64748b; }
+        
+        /* Блок цели */
+        .streak-card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .streak-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .streak-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .streak-count {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+        }
+        .streak-goal {
+            font-size: 14px;
+            color: #666;
+            background: #f3f4f6;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+        .streak-days {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .streak-day {
+            width: 40px;
+            height: 50px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: #f5f5f5;
+            font-size: 12px;
+        }
+        .streak-day.completed {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .streak-day.today {
+            border: 2px solid #667eea;
+        }
+        .streak-day .day-num {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .streak-day .day-icon {
+            font-size: 16px;
+        }
+        .streak-progress {
+            margin-top: 12px;
+            text-align: center;
+            font-size: 13px;
+            color: #666;
+        }
+        .streak-progress-bar {
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .streak-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+        
+        @media (max-width: 768px) {
+            h1 { font-size: 1.8em; }
+            .trainers-grid { grid-template-columns: 1fr; }
+            .streak-day { width: 36px; height: 44px; }
+        }
+    </style>
 </head>
-<body>
-  <h1>Тренажёр Заучка + Практика</h1>
-  <div id="screen-main">
-    <div class="stats">
-      <div class="stat">Всего: <span id="stat-total">0</span></div>
-      <div class="stat">Оконч. выучено: <span id="stat-mastered">0</span></div>
-      <div class="stat">В очереди: <span id="stat-remaining">0</span></div>
-      <div class="stat">Фаза: <span id="stat-phase">—</span></div>
+<body class="main-page">
+    <div class="container">
+        <h1>🌙 Арабские Тренажеры</h1>
+        
+        <!-- Блок цели/серии -->
+        <div class="streak-card" id="streakCard">
+            <div class="streak-header">
+                <div class="streak-title">
+                    🎯 Цель: <span id="streakGoalText">7 дней подряд</span>
+                </div>
+                <div class="streak-count">🔥 <span id="streakCount">0</span> дней</div>
+            </div>
+            <div class="streak-days" id="streakDays">
+                <!-- Заполняется через JS -->
+            </div>
+            <div class="streak-progress">
+                <span id="streakProgressText">Сегодня: 0/5 слов</span>
+                <div class="streak-progress-bar">
+                    <div class="streak-progress-fill" id="streakProgressFill" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Кнопки управления кодом -->
+        <div class="code-buttons">
+            <button class="code-btn" onclick="showMyCode()">Мой код</button>
+            <button class="code-btn" onclick="showEnterCode()">Ввести код</button>
+            <div class="status-indicator status-online" id="statusIndicator">
+                <span class="status-dot online" id="statusDot"></span>
+                <span id="statusText">Онлайн</span>
+            </div>
+            <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Переключить тему">🌙</button>
+        </div>
+
+        <div class="trainers-grid">
+            <a href="phases.html" class="trainer-card card-phases">
+                <div class="trainer-icon">📊</div>
+                <h3>Тренажер Тетрадь</h3>
+                <p>Повторяйте слова поэтапно</p>
+            </a>
+
+            <a href="dictionary.html" class="trainer-card card-dictionary">
+                <div class="trainer-icon">📚</div>
+                <h3>Словарь</h3>
+                <p>Просматривайте  слова и переводы</p>
+            </a>
+
+            <a href="simple.html" class="trainer-card card-simple">
+                <div class="trainer-icon">📝</div>
+                <h3>Пустой Тренажер</h3>
+                <p>Добавляйте свои слова и практикуйтесь</p>
+            </a>
+
+            <a href="input.html" class="trainer-card card-input">
+                <div class="trainer-icon">✍️</div>
+                <h3>Тренажер Заучка + Практика</h3>
+                <p>Заучивайте слова и повторяйте заученное </p>
+            </a>
+
+            <a href="choice.html" class="trainer-card card-choice">
+                <div class="trainer-icon">✅</div>
+                <h3>Тренажер Выборка</h3>
+                <p>Выбирайте правильный перевод из вариантов</p>
+            </a>
+
+            <a href="words-list.html" class="trainer-card card-wordslist">
+                <div class="trainer-icon">📋</div>
+                <h3>Список слов</h3>
+                <p>Просматривайте и копируйте все слова</p>
+            </a>
+        </div>
     </div>
-    <div class="word-display">
-      <button class="fav-star" id="favStar" type="button" onclick="toggleCurrentFavorite(event)" onpointerdown="handleFavPointerDown(event)" title="В избранное">☆</button>
-      <div id="arabic">…</div>
+
+    <!-- Модальное окно для нового пользователя -->
+    <div class="modal-overlay" id="welcomeModal">
+        <div class="modal-content">
+            <div class="modal-title">🎉 Добро пожаловать!</div>
+            <div class="modal-text">
+                Ваш код для сохранения прогресса:
+            </div>
+            <div class="code-display-box">
+                <div class="code-value" id="welcomeCode"></div>
+                <button class="copy-btn" onclick="copyWelcomeCode()">📋 Копировать</button>
+            </div>
+            <div class="modal-text" style="font-size: 0.9em; color: #999;">
+                Сохраните этот код чтобы не потерять прогресс при переходе на другое устройство!
+            </div>
+            <button class="modal-btn modal-btn-primary" onclick="closeWelcomeModal()">Понятно</button>
+        </div>
     </div>
-    <div id="learn-controls" class="controls">
-      <button id="btn-know" class="btn-primary">Знаю</button>
-      <button id="btn-dont">Не знаю</button>
+
+    <!-- Модальное окно "Мой код" -->
+    <div class="modal-overlay" id="myCodeModal">
+        <div class="modal-content">
+            <div class="modal-title">Ваш код</div>
+            <div class="code-display-box">
+                <div class="code-value" id="myCodeValue"></div>
+                <button class="copy-btn" onclick="copyMyCode()">📋 Копировать</button>
+            </div>
+            <div class="modal-text" style="font-size: 0.9em; color: #999;">
+                Используйте этот код для синхронизации прогресса на других устройствах
+            </div>
+            <button class="modal-btn modal-btn-primary" onclick="closeMyCodeModal()">Закрыть</button>
+        </div>
     </div>
-    <div class="controls-vertical">
-      <div class="controls">
-        <button id="btn-reset" class="btn-danger">Сбросить прогресс</button>
-        <button id="btn-add">Добавить новые слова</button>
-      </div>
+
+    <!-- Модальное окно "Ввести код" -->
+    <div class="modal-overlay" id="enterCodeModal">
+        <div class="modal-content">
+            <div class="modal-title">Ввести код</div>
+            <div class="modal-text">
+                Введите код для загрузки вашего прогресса:
+            </div>
+            <input type="text" class="code-input" id="codeInput" placeholder="ABCDEF" maxlength="6">
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-secondary" onclick="closeEnterCodeModal()">Отмена</button>
+                <button class="modal-btn modal-btn-primary" onclick="applyCode()">Применить</button>
+            </div>
+        </div>
     </div>
-    <div id="practice-area" class="hidden" style="margin-top:12px">
-      <div style="margin-bottom:8px"><strong>Практика — введите перевод на русском:</strong></div>
-      <input id="practice-input" type="text" autocomplete="off" placeholder="Введите перевод" />
-      <div class="controls" style="margin-top:8px">
-        <button id="practice-submit">Проверить</button>
-        <button id="practice-skip">Пропустить</button>
-        <button id="oral-answer" class="btn-primary hidden">Ответил устно</button>
-      </div>
+
+    <!-- Модальное окно подтверждения -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-title">⚠️ Подтверждение</div>
+            <div class="modal-text">
+                Текущий прогресс будет заменён прогрессом из введённого кода.<br><br>
+                Продолжить?
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-secondary" onclick="closeConfirmModal()">Отмена</button>
+                <button class="modal-btn modal-btn-primary" onclick="confirmApplyCode()">Да, применить</button>
+            </div>
+        </div>
     </div>
-    <div id="message" class="small" style="margin-top:12px"></div>
-  </div>
-  <div id="modal-root"></div>
-<style>
-  body{font-family:Arial,Helvetica,sans-serif;margin:18px;color:#111;background:#fff;max-width:980px}
-  .word-display{position:relative}
-  #arabic{direction:rtl;font-size:2.6rem;text-align:center;min-height:3.6em;padding:14px;border-radius:8px;border:1px solid #eee}
-  .fav-star{position:absolute;top:8px;right:8px;background:none;border:none;font-size:24px;cursor:pointer;opacity:0.4;transition:all 0.2s;z-index:10}
-  .fav-star:hover{opacity:1;transform:scale(1.2)}
-  .fav-star.active{opacity:1}
-  .controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:12px}
-  .controls-vertical{display:block;text-align:center;margin-top:10px}
-  .controls-vertical .controls{justify-content:center}
-  button{padding:10px 12px;border-radius:8px;border:1px solid #ccc;background:#f6f6f6;cursor:pointer}
-  .btn-primary{background:#e6fff0;border-color:#b6f0c7}
-  .btn-danger{background:#fff0f0;border-color:#f0b6b6}
-  .small{font-size:0.95rem;color:#666;margin-top:8px;text-align:center}
-  .hidden{display:none}
-  input[type="text"]{width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;box-sizing:border-box}
-  .stats{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-bottom:8px}
-  .stat{background:#fafafa;padding:8px 12px;border-radius:8px;border:1px solid #f0f0f0}
-  .overlay{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:9999}
-  .modal{background:#fff;padding:16px;border-radius:8px;max-width:720px;width:92%;box-shadow:0 8px 30px rgba(0,0,0,0.2)}
-  .modal .pair{margin-top:8px}
-  .sync-status{
-    position:fixed;
-    bottom:20px;
-    right:20px;
-    background:#fff;
-    padding:10px 15px;
-    border-radius:20px;
-    box-shadow:0 2px 10px rgba(0,0,0,0.2);
-    font-size:12px;
-    color:#666;
-    display:none;
-    z-index:10000;
-  }
-  .sync-status.show{display:block;}
-  .sync-status.syncing{color:#2196F3;}
-  .sync-status.synced{color:#4CAF50;}
-  .sync-status.error{color:#f44336;}
-</style>
-  <div class="sync-status" id="sync-status">⏳ Синхронизация...</div>
+
+    <script>
+        // Генерация кода
+        function generateCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        // Инициализация
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('📢 DOMContentLoaded сработал в index.html');
+            // Не показываем модалку с кодом сразу - ждём закрытия дуа
+            updateOnlineStatus();
+            
+            // Предотвращаем закрытие модалки при клике на её содержимое
+            document.querySelectorAll('.modal-content').forEach(content => {
+                content.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+            });
+        });
+        
+        // Слушаем событие закрытия дуа для показа модалки с кодом
+        window.addEventListener('duaClosed', () => {
+            console.log('📨 Получено событие duaClosed');
+            checkNewUser();
+        });
+
+        // Флаги для предотвращения раннего закрытия
+        let modalJustOpened = false;
+
+        // === Хранение кода: localStorage + куки как резерв ===
+        function setCookie(name, value, days = 365) {
+            const expires = new Date(Date.now() + days * 864e5).toUTCString();
+            document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
+        }
+
+        function getCookie(name) {
+            return document.cookie.split('; ').reduce((acc, cur) => {
+                const [k, v] = cur.split('=');
+                return k === name ? decodeURIComponent(v) : acc;
+            }, '');
+        }
+
+        function saveUserCode(code) {
+            if (!code) return;
+            localStorage.setItem('userProgressCode', code);
+            setCookie('userProgressCode', code);
+        }
+
+        function getUserCode() {
+            let code = localStorage.getItem('userProgressCode');
+            if (!code) {
+                code = getCookie('userProgressCode');
+                if (code) {
+                    console.log('✅ Код восстановлен из cookie');
+                    localStorage.setItem('userProgressCode', code);
+                }
+            }
+            return code;
+        }
+
+        // Проверка нового пользователя
+        function checkNewUser() {
+            console.log('🔍 checkNewUser() вызвана');
+            let userCode = getUserCode();
+            console.log(`🔍 Текущий код: "${userCode}"`);
+            
+            if (!userCode) {
+                // Новый пользователь - генерируем код
+                userCode = generateCode();
+                saveUserCode(userCode);
+                console.log('🎉 Новый пользователь! Сгенерирован код:', userCode);
+                
+                // Показываем welcome modal сразу (без задержки, т.к. дуа уже закрыто)
+                modalJustOpened = true;
+                document.getElementById('welcomeCode').textContent = userCode;
+                document.getElementById('welcomeModal').classList.add('show');
+                console.log('✅ Welcome modal открыт с кодом');
+                
+                // Разрешаем закрытие через 1000ms
+                setTimeout(() => {
+                    modalJustOpened = false;
+                    console.log('✅ Модалка с кодом разблокирована для закрытия');
+                }, 1000);
+            } else {
+                console.log('👋 Пользователь вернулся, код уже есть:', userCode);
+            }
+        }
+
+        // Показать "Мой код"
+        function showMyCode() {
+            const userCode = localStorage.getItem('userProgressCode');
+            if (userCode) {
+                modalJustOpened = true;
+                document.getElementById('myCodeValue').textContent = userCode;
+                document.getElementById('myCodeModal').classList.add('show');
+                console.log('✅ "Мой код" modal открыт');
+                setTimeout(() => { 
+                    modalJustOpened = false;
+                    console.log('✅ Модалка разблокирована для закрытия');
+                }, 1000);
+            } else {
+                alert('⚠️ Код не найден');
+            }
+        }
+
+        // Показать "Ввести код"
+        function showEnterCode() {
+            modalJustOpened = true;
+            document.getElementById('codeInput').value = '';
+            document.getElementById('enterCodeModal').classList.add('show');
+            console.log('✅ "Ввести код" modal открыт');
+            setTimeout(() => { 
+                modalJustOpened = false;
+                console.log('✅ Модалка разблокирована для закрытия');
+            }, 1000);
+        }
+
+        // Применить код
+        function applyCode() {
+            const code = document.getElementById('codeInput').value.trim().toUpperCase();
+            
+            if (!code) {
+                alert('⚠️ Введите код');
+                return;
+            }
+            
+            if (code.length !== 6) {
+                alert('⚠️ Код должен содержать 6 символов');
+                return;
+            }
+            
+            // Сохраняем код для подтверждения
+            window.pendingCode = code;
+            
+            // Закрываем модалку ввода и показываем подтверждение
+            document.getElementById('enterCodeModal').classList.remove('show');
+            document.getElementById('confirmModal').classList.add('show');
+        }
+
+        // Подтвердить применение кода
+        function confirmApplyCode() {
+            if (window.pendingCode) {
+                saveUserCode(window.pendingCode);
+                document.getElementById('confirmModal').classList.remove('show');
+                alert('✅ Код успешно применён! Перезагрузите страницу для загрузки прогресса.');
+                window.pendingCode = null;
+            }
+        }
+
+        // Копировать код (welcome)
+        function copyWelcomeCode() {
+            const code = document.getElementById('welcomeCode').textContent;
+            copyToClipboard(code);
+        }
+
+        // Копировать код (мой код)
+        function copyMyCode() {
+            const code = document.getElementById('myCodeValue').textContent;
+            copyToClipboard(code);
+        }
+
+        // Копировать в буфер обмена
+        function copyToClipboard(text) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('✅ Код скопирован в буфер обмена!');
+                }).catch(() => {
+                    alert('❌ Не удалось скопировать код');
+                });
+            } else {
+                // Fallback для старых браузеров
+                const input = document.createElement('input');
+                input.value = text;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                alert('✅ Код скопирован!');
+            }
+        }
+
+        // Закрыть модалки
+        function closeWelcomeModal() {
+            document.getElementById('welcomeModal').classList.remove('show');
+        }
+
+        function closeMyCodeModal() {
+            document.getElementById('myCodeModal').classList.remove('show');
+        }
+
+        function closeEnterCodeModal() {
+            document.getElementById('enterCodeModal').classList.remove('show');
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').classList.remove('show');
+            window.pendingCode = null;
+        }
+
+        // Закрытие по клику на overlay (только прямой клик на серую область)
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (modalJustOpened) {
+                    console.log('⏸️ Клик игнорируется - модалка только открылась');
+                    return;
+                }
+                
+                // Закрываем только если кликнули на сам overlay, а не на содержимое
+                if (e.target === overlay) {
+                    console.log('✅ Закрываем модалку по клику на overlay');
+                    overlay.classList.remove('show');
+                }
+            });
+        });
+
+        // Закрытие по ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal-overlay').forEach(modal => {
+                    modal.classList.remove('show');
+                });
+            }
+        });
+
+        // Обновление статуса онлайн/офлайн
+        function updateOnlineStatus() {
+            const indicator = document.getElementById('statusIndicator');
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            
+            if (!indicator || !dot || !text) return;
+            
+            if (navigator.onLine) {
+                // Онлайн
+                indicator.className = 'status-indicator status-online';
+                dot.className = 'status-dot online';
+                text.textContent = 'Онлайн';
+            } else {
+                // Офлайн
+                indicator.className = 'status-indicator status-offline';
+                dot.className = 'status-dot offline';
+                text.textContent = 'Офлайн';
+            }
+        }
+
+        // Слушаем изменения статуса
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+
+        // Обновление блока цели/серии
+        function updateStreakUI() {
+            if (typeof getStreakInfo !== 'function') return;
+            
+            const info = getStreakInfo();
+            
+            // Обновляем счётчик
+            document.getElementById('streakCount').textContent = info.currentStreak;
+            
+            // Обновляем текст цели
+            let goalText = info.currentGoal === 7 ? '7 дней подряд' : 
+                          info.currentGoal === 30 ? '1 месяц' : 
+                          `${Math.floor(info.currentGoal / 30)} мес.`;
+            document.getElementById('streakGoalText').textContent = goalText;
+            
+            // Обновляем прогресс за сегодня
+            const progressText = info.todayComplete ? 
+                '✅ Сегодня выполнено!' : 
+                `Сегодня: ${info.todayWords}/${info.wordsNeeded} слов`;
+            document.getElementById('streakProgressText').textContent = progressText;
+            
+            const progressPercent = Math.min(100, (info.todayWords / info.wordsNeeded) * 100);
+            document.getElementById('streakProgressFill').style.width = progressPercent + '%';
+            
+            // Обновляем дни
+            if (typeof getStreakDays === 'function') {
+                const days = getStreakDays(7);
+                const daysContainer = document.getElementById('streakDays');
+                daysContainer.innerHTML = days.map(day => `
+                    <div class="streak-day ${day.completed ? 'completed' : ''} ${day.isToday ? 'today' : ''}">
+                        <span class="day-num">${day.day}</span>
+                        <span class="day-icon">${day.completed ? '✅' : (day.isToday ? '📍' : '☐')}</span>
+                    </div>
+                `).join('');
+            }
+        }
+        
+        // Обновляем при загрузке и при изменении
+        window.addEventListener('DOMContentLoaded', updateStreakUI);
+        window.addEventListener('streakUpdated', updateStreakUI);
+    </script>
 </body>
 </html>
