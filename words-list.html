@@ -58,6 +58,27 @@
       flex-wrap: wrap;
     }
 
+    .clear-fav-btn {
+      padding: 8px 10px;
+      background: #fff5f5;
+      color: #d14343;
+      border: 1px solid #f8caca;
+      border-radius: 50%;
+      width: 38px;
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .clear-fav-btn:hover {
+      background: #ffecec;
+      box-shadow: 0 2px 8px rgba(209, 67, 67, 0.25);
+    }
+
     .word-count {
       font-size: 14px;
       color: #6b7280;
@@ -315,6 +336,7 @@
           <button class="copy-all-btn" id="copyAllBtn" disabled>
             <span>📋</span> Копировать всё
           </button>
+          <button class="clear-fav-btn" id="clearFavBtn" title="Очистить избранное">🗑️</button>
         </div>
       </div>
       <div class="tabs">
@@ -517,6 +539,17 @@
         await copyText(textToCopy);
         showToast(currentTab === 'all' ? 'Весь список скопирован!' : 'Избранное скопировано!');
       }
+    });
+
+    // Очистить избранное
+    document.getElementById('clearFavBtn').addEventListener('click', () => {
+      localStorage.removeItem('arabFavorites');
+      window.dispatchEvent(new CustomEvent('favoritesChanged', { detail: { action: 'clear' } }));
+      showToast('Избранное очищено');
+      if (currentTab === 'favorites') {
+        renderWords();
+      }
+      updateCounts();
     });
 
     // Слушаем изменения избранного
