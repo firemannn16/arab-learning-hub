@@ -35,8 +35,6 @@ function safeLocalStorageGet(key, maxAge = 0) {
             localStorage.setItem(backupKey, item);
             console.log(`💾 Битые данные сохранены в "${backupKey}"`);
             
-            // Удалить битый ключ
-            localStorage.removeItem(key);
             return null;
         }
 
@@ -55,8 +53,6 @@ function safeLocalStorageGet(key, maxAge = 0) {
                     localStorage.setItem(backupKey, item);
                     console.log(`💾 Устаревшие данные сохранены в "${backupKey}"`);
                     
-                    // Удалить устаревший ключ
-                    localStorage.removeItem(key);
                     return null;
                 }
             }
