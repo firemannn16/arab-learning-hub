@@ -1027,7 +1027,13 @@
                     }
                     
                     if (useFirebaseData) {
-                        openedWordsMap = data.openedWords || {};
+                        const firebaseOpened = data.openedWords || {};
+                        // 🛡️ Не теряем локальный прогресс, если timestamps равны/близки
+                        const localOpened = getFromLocalStorage('openedWords', {});
+                        const mergedOpened = { ...firebaseOpened, ...localOpened };
+                        const mergedAdded = Object.keys(mergedOpened).length > Object.keys(firebaseOpened).length;
+                        
+                        openedWordsMap = mergedOpened;
                         errorWords = data.errors || [];
                         pageWordCounts = data.pageWordCounts || {};
                         nextWordId = data.nextWordId || 0;
@@ -1055,6 +1061,11 @@
                         saveToLocalStorage('nextWordId', nextWordId);
                         saveToLocalStorage('lastSync', data.lastSync || new Date().toISOString());
                         saveToLocalStorage('resetVersion', resetVersion);
+                        
+                        if (mergedAdded) {
+                            console.log('📈 Объединены локальные открытые слова с Firebase, инициируем синхронизацию');
+                            scheduleSyncToFirebase();
+                        }
                         
                         showSyncStatus('✓ Загружено из облака', 'synced');
                         
@@ -1826,7 +1837,10 @@
                 
                 // Формируем rawLine для избранного
                 const rawLine = `${word.ru} - ${word.ar}`;
-                const isFav = typeof isFavorite === 'function' && isFavorite(rawLine);
+                const isFav = typeof isFavorite === 'function' && (
+                    isFavorite(rawLine) ||
+                    (typeof isFavoriteByArabic === 'function' && isFavoriteByArabic(word.ar))
+                );
                 
                 // #region agent log
                 if (renderLogCount < 5) {
