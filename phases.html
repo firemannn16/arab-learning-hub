@@ -939,6 +939,7 @@
         }
 
         function scheduleSyncToFirebase() {
+            // Более частый фоновой sync, без блокировки UI
             if (syncTimeout) {
                 clearTimeout(syncTimeout);
             }
@@ -950,7 +951,7 @@
                     syncToFirebase();
                     pendingSync = false;
                 }
-            }, 3000);
+            }, 800); // было 3000 мс, ускорили до ~0.8с
         }
 
         // ✅ ЗАГРУЗКА ИЗ FIREBASE (ПОДКОЛЛЕКЦИЯ)
