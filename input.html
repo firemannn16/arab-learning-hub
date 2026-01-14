@@ -240,69 +240,74 @@ async function saveState(options = {}){
 }
 
 async function loadState(){
+  const localData = safeLocalStorageGet(PREFIX + 'state', 0);
+  const localReset = safeLocalStorageGet(PREFIX + 'resetVersion', 0) || 0;
+
+  // Быстрый путь: офлайн или нет Firebase — сразу берем локальные данные
+  if(!canSyncFirebase()){
+    if(localReset) resetVersion = localReset;
+    return localData;
+  }
+
   // ✅ Загружаем с использованием safeFirebaseLoad (Firebase + fallback localStorage)
-  if(window.firebaseEnabled && window.firestore && window.firebaseModules){
-    showSyncStatus('⏳ Загрузка из облака...', 'syncing');
-    const firebaseData = await safeFirebaseLoad(
-      async () => {
-        const docRef = window.firebaseModules.doc(
-          window.firestore, 
-          'users', USER_CODE, 
-          'trainers', TRAINER_ID
-        );
-        const docSnap = await window.firebaseModules.getDoc(docRef);
-        if(docSnap.exists()){
-          console.log('✓ Загружено из Firestore (input)');
-          showSyncStatus('✓ Загружено из облака', 'synced');
-          return docSnap.data();
-        }
-        return null;
-      },
-      PREFIX + 'state'
-    );
-    
-    const localData = safeLocalStorageGet(PREFIX + 'state', 0);
-    const localReset = safeLocalStorageGet(PREFIX + 'resetVersion', 0) || 0;
-    const firebaseReset = firebaseData?.resetVersion || 0;
-    if (localReset > firebaseReset) {
-      resetVersion = localReset;
-      safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
-      await saveState();
-      return localData || firebaseData;
-    } else if (firebaseReset > localReset) {
-      resetVersion = firebaseReset;
-      safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
-    }
-    
-    // ✅ Сравниваем timestamp: локальные VS Firebase
-    if (firebaseData && localData) {
-      const firebaseTime = firebaseData.timestamp || 0;
-      const localTime = localData.timestamp || 0;
-      
-      // Используем более свежие данные
-      if (localTime > firebaseTime) {
-        console.log('📱 Локальные данные новее (input), синхронизируем в Firebase...');
-        await saveState();
-        return localData;
-      } else {
-        console.log('☁️ Firebase данные новее (input)');
-        return firebaseData;
+  showSyncStatus('⏳ Загрузка из облака...', 'syncing');
+  const firebaseData = await safeFirebaseLoad(
+    async () => {
+      const docRef = window.firebaseModules.doc(
+        window.firestore, 
+        'users', USER_CODE, 
+        'trainers', TRAINER_ID
+      );
+      const docSnap = await window.firebaseModules.getDoc(docRef);
+      if(docSnap.exists()){
+        console.log('✓ Загружено из Firestore (input)');
+        showSyncStatus('✓ Загружено из облака', 'synced');
+        return docSnap.data();
       }
-    }
+      return null;
+    },
+    PREFIX + 'state'
+  );
+  
+  const firebaseReset = firebaseData?.resetVersion || 0;
+  if (localReset > firebaseReset) {
+    resetVersion = localReset;
+    safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
+    await saveState({ fireAndForget: true });
+    return localData || firebaseData;
+  } else if (firebaseReset > localReset) {
+    resetVersion = firebaseReset;
+    safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
+  }
+  
+  // ✅ Сравниваем timestamp: локальные VS Firebase
+  if (firebaseData && localData) {
+    const firebaseTime = firebaseData.timestamp || 0;
+    const localTime = localData.timestamp || 0;
     
-    // Если есть только Firebase данные
-    if (firebaseData) {
-      return firebaseData;
-    }
-    
-    // Если есть только локальные данные
-    if (localData) {
+    // Используем более свежие данные
+    if (localTime > firebaseTime) {
+      console.log('📱 Локальные данные новее (input), синхронизируем в Firebase...');
+      await saveState({ fireAndForget: true });
       return localData;
+    } else {
+      console.log('☁️ Firebase данные новее (input)');
+      return firebaseData;
     }
   }
   
-  // Fallback: только localStorage
-  return safeLocalStorageGet(PREFIX + 'state', 0);
+  // Если есть только Firebase данные
+  if (firebaseData) {
+    return firebaseData;
+  }
+  
+  // Если есть только локальные данные
+  if (localData) {
+    return localData;
+  }
+  
+  // Fallback: только localStorage (на случай пустоты)
+  return localData;
 }
 
 async function clearState(){
