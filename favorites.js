@@ -60,6 +60,8 @@
       return parts && stripHarakat(parts.ar).toLowerCase() === arabicNorm;
     });
   }
+  // Экспортируем для тренажеров, чтобы проверять любимое слово даже при минимальных расхождениях в RU части
+  window.isFavoriteByArabic = isFavoriteByArabic;
 
   // Добавить слово в избранное
   window.addToFavorites = function(word) {
