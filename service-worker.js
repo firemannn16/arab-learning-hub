@@ -17,6 +17,8 @@ const STATIC_CACHE = [
     './dua.js',
     './sidebar-menu.js',
     './favorites.js',
+    './service-worker-register.js',
+    './storage-protection.js',
     './streak.js',
     './theme.js',
     './theme.css',
@@ -42,16 +44,14 @@ self.addEventListener('install', event => {
             .then(cache => {
                 console.log('[SW] Кэширование файлов...');
                 
-                // Кэшируем статичные файлы
-                const staticPromise = cache.addAll(STATIC_CACHE)
-                    .catch(err => {
-                        console.warn('[SW] Ошибка кэширования статичных файлов:', err);
-                    });
+                // Кэшируем статичные файлы (если что-то не закэшировалось — установка провалится)
+                const staticPromise = cache.addAll(STATIC_CACHE);
                 
                 // Кэшируем внешние ресурсы (по одному, чтобы одна ошибка не сломала все)
                 const externalPromises = EXTERNAL_CACHE.map(url => 
                     cache.add(url).catch(err => {
                         console.warn(`[SW] Не удалось кэшировать ${url}:`, err);
+                        return null;
                     })
                 );
                 
