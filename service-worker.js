@@ -94,13 +94,24 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
     
-    // ✅ ИСПРАВЛЕНО: Полностью игнорируем Firebase и Google API запросы
-    // Они должны идти напрямую в сеть без участия Service Worker
+    // Для Firebase JS модулей — пробуем отдавать из кэша, иначе сеть
+    if (url.hostname.includes('gstatic.com') && url.pathname.endsWith('.js')) {
+        event.respondWith(
+            caches.match(event.request)
+                .then(cachedResponse => {
+                    if (cachedResponse) {
+                        return cachedResponse;
+                    }
+                    return fetch(event.request);
+                })
+        );
+        return;
+    }
+    
+    // Остальные запросы к Firebase/Google API игнорируем — пусть идут в сеть
     if (url.hostname.includes('firestore.googleapis.com') || 
         url.hostname.includes('googleapis.com') ||
-        url.hostname.includes('firebase') ||
-        url.hostname.includes('gstatic.com')) {
-        // Не вызываем respondWith — браузер обработает запрос сам
+        url.hostname.includes('firebase')) {
         return;
     }
     
