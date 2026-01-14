@@ -31,6 +31,10 @@
   li.item:hover { box-shadow:0 6px 18px rgba(2,6,23,0.06); transform:translateY(-1px) }
   .ru { font-weight:600; font-size:15px }
   .ar { margin-top:6px; font-size:22px; direction:rtl; text-align:right; font-weight:500; line-height:1.4 }
+  .word-actions { display:flex; align-items:center; gap:10px; flex-shrink:0 }
+  .star-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:4px; opacity:0.4; transition:all 0.2s }
+  .star-btn:hover { opacity:1; transform:scale(1.1) }
+  .star-btn.active { opacity:1 }
   
   /* Highlight matched text */
   .highlight { background:#fef08a; padding:1px 2px; border-radius:2px; font-weight:600 }
@@ -252,6 +256,8 @@ function renderListPartial(list, limit = renderLimit, query = "") {
     
     // Join all arabic variants with em dash
     const allArabic = r.arabicVariants.join(" — ");
+    const rawLine = `${r.ru}${r.gloss ? ' (' + r.gloss + ')' : ''} - ${allArabic}`;
+    const isFav = typeof isFavorite === "function" && isFavorite(rawLine);
     
     // Highlight russian text if query matches
     let ruDisplay = r.ru;
@@ -265,7 +271,10 @@ function renderListPartial(list, limit = renderLimit, query = "") {
                       <div class="ru">${ruDisplay}${r.gloss ? ' <small>(' + escapeHtml(r.gloss) + ')</small>' : ''}</div>
                       <div class="ar">${escapeHtml(allArabic)}</div>
                     </div>
-                    <div style="font-size:13px;color:#64748b;margin-left:12px">→</div>`;
+                    <div class="word-actions">
+                      <button class="star-btn ${isFav ? 'active' : ''}" data-raw="${escapeHtml(rawLine).replace(/"/g,'&quot;')}" title="${isFav ? 'Убрать из избранного' : 'В избранное'}" onclick="onDictStarClick(event, this)">${isFav ? '⭐' : '☆'}</button>
+                      <div style="font-size:13px;color:#64748b;margin-left:2px">→</div>
+                    </div>`;
     li.addEventListener("click", () => openModal(r));
     frag.appendChild(li);
   }
@@ -290,6 +299,8 @@ function appendMore(list, add = renderLimit, query = "") {
     li.tabIndex = 0;
     
     const allArabic = r.arabicVariants.join(" — ");
+    const rawLine = `${r.ru}${r.gloss ? ' (' + r.gloss + ')' : ''} - ${allArabic}`;
+    const isFav = typeof isFavorite === "function" && isFavorite(rawLine);
     
     let ruDisplay = r.ru;
     if (query && isCyrillic(query)) {
@@ -302,7 +313,10 @@ function appendMore(list, add = renderLimit, query = "") {
                       <div class="ru">${ruDisplay}${r.gloss ? ' <small>(' + escapeHtml(r.gloss) + ')</small>' : ''}</div>
                       <div class="ar">${escapeHtml(allArabic)}</div>
                     </div>
-                    <div style="font-size:13px;color:#64748b;margin-left:12px">→</div>`;
+                    <div class="word-actions">
+                      <button class="star-btn ${isFav ? 'active' : ''}" data-raw="${escapeHtml(rawLine).replace(/"/g,'&quot;')}" title="${isFav ? 'Убрать из избранного' : 'В избранное'}" onclick="onDictStarClick(event, this)">${isFav ? '⭐' : '☆'}</button>
+                      <div style="font-size:13px;color:#64748b;margin-left:2px">→</div>
+                    </div>`;
     li.addEventListener("click", () => openModal(r));
     frag.appendChild(li);
   }
@@ -310,6 +324,16 @@ function appendMore(list, add = renderLimit, query = "") {
   currentRenderCount = end;
   if (currentRenderCount >= list.length) showMoreWrap.style.display = "none";
 }
+
+// Переключение избранного в списке
+window.onDictStarClick = function(e, btn) {
+  e.stopPropagation();
+  const raw = btn.getAttribute('data-raw') || '';
+  const nowFav = typeof toggleFavorite === 'function' && toggleFavorite(raw);
+  btn.classList.toggle('active', nowFav);
+  btn.innerHTML = nowFav ? '⭐' : '☆';
+  btn.title = nowFav ? 'Убрать из избранного' : 'В избранное';
+};
 
 /* ===== search logic with prioritization & fuzzy ===== */
 function performSearch(q) {
@@ -430,6 +454,8 @@ function showAutocomplete(suggestions) {
 function openModal(item) {
   modalEl.style.display = "block";
   const allArabic = item.arabicVariants.join(" — ");
+  const rawLine = `${item.ru}${item.gloss ? ' (' + item.gloss + ')' : ''} - ${allArabic}`;
+  const favState = typeof isFavorite === "function" && isFavorite(rawLine);
   
   modalEl.innerHTML = `<div class="modal" id="modalWrap">
     <div class="card" role="dialog" aria-modal="true">
@@ -442,6 +468,7 @@ function openModal(item) {
       ${item.note ? '<div class="note">Примечание: ' + escapeHtml(item.note) + '</div>' : ''}
       <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
         <button id="copyBtn" class="btn">Копировать всё</button>
+        <button id="modalFav" class="btn" title="${favState ? 'Убрать из избранного' : 'В избранное'}">${favState ? '⭐' : '☆'}</button>
       </div>
     </div>
   </div>`;
@@ -456,6 +483,15 @@ function openModal(item) {
       showTemporaryNotify("Не удалось скопировать"); 
     }
   });
+  const modalFavBtn = document.getElementById("modalFav");
+  if (modalFavBtn) {
+    modalFavBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const nowFav = typeof toggleFavorite === 'function' && toggleFavorite(rawLine);
+      modalFavBtn.textContent = nowFav ? '⭐' : '☆';
+      modalFavBtn.title = nowFav ? 'Убрать из избранного' : 'В избранное';
+    });
+  }
   modalEl.addEventListener("click", (ev) => { 
     if (ev.target.id === "modalWrap") closeModal(); 
   });
