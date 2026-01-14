@@ -1805,6 +1805,7 @@
 
             const table = document.createElement('table');
             table.className = 'words-table';
+            let renderLogCount = 0;
             
             currentWords.forEach((item) => {
                 const word = item.word;
@@ -1826,6 +1827,14 @@
                 // Формируем rawLine для избранного
                 const rawLine = `${word.ru} - ${word.ar}`;
                 const isFav = typeof isFavorite === 'function' && isFavorite(rawLine);
+                
+                // #region agent log
+                if (renderLogCount < 5) {
+                    const favCount = typeof getFavoritesCount === 'function' ? getFavoritesCount() : null;
+                    fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre2',hypothesisId:'H5',location:'phases.html:renderWords',message:'row fav state',data:{rawLine,isFav,favCount,page:currentPage,index:item.originalIndex},timestamp:Date.now()})}).catch(()=>{});
+                    renderLogCount++;
+                }
+                // #endregion
                 const starCell = `<td class="fav-cell"><button class="fav-star-btn ${isFav ? 'active' : ''}" onclick="toggleWordFavorite(event, ${item.originalIndex})" title="${isFav ? 'Убрать из избранного' : 'В избранное'}">${isFav ? '⭐' : '☆'}</button></td>`;
                 
                 if (mode === 'ar-ru') {
