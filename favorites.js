@@ -93,13 +93,22 @@
 
   // Нормализовать слово для сравнения
   function normalizeWord(word) {
+    let s = '';
     if (typeof word === 'string') {
-      return word.trim().toLowerCase().replace(/\s+/g, ' ');
+      s = word;
+    } else if (word && word.ru && word.ar) {
+      s = `${word.ru} - ${word.ar}`;
+    } else {
+      return '';
     }
-    if (word && word.ru && word.ar) {
-      return `${word.ru} - ${word.ar}`.trim().toLowerCase().replace(/\s+/g, ' ');
-    }
-    return '';
+    // Приводим тире к единому виду и нормализуем пробелы
+    s = s.replace(/^\uFEFF/, '')
+         .replace(/[\u2010-\u2015–—−]/g, '-')
+         .replace(/\s*-\s*/g, ' - ')
+         .trim()
+         .toLowerCase()
+         .replace(/\s+/g, ' ');
+    return s;
   }
 
   // Убрать огласовки из арабского текста
