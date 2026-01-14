@@ -10,6 +10,7 @@
   const FAVORITES_KEY = 'arabFavorites';
   const SYNC_KEY = 'arabFavoritesSyncTime';
   let debugFavLogCount = 0;
+  let debugFavLogCountIsFavorite = 0;
 
   // Получить все избранные слова
   window.getFavorites = function() {
@@ -39,13 +40,13 @@
   window.isFavorite = function(word) {
     const favorites = getFavorites();
     const key = normalizeWord(word);
-    const result = favorites.some(f => normalizeWord(f) === key);
-    if (debugFavLogCount < 10) {
-      const sample = favorites.slice(0, 5).map(f => normalizeWord(f));
+    const normalized = favorites.map(f => normalizeWord(f));
+    const result = normalized.includes(key);
+    if (debugFavLogCountIsFavorite < 20) {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre3',hypothesisId:'H6',location:'favorites.js:isFavorite',message:'isFavorite check',data:{key,result,count:favorites.length,sampleNormalized:sample},timestamp:Date.now()})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre3',hypothesisId:'H6',location:'favorites.js:isFavorite',message:'isFavorite check',data:{key,result,count:favorites.length,sampleNormalized:normalized.slice(0,5)},timestamp:Date.now()})}).catch(()=>{});
       // #endregion
-      debugFavLogCount++;
+      debugFavLogCountIsFavorite++;
     }
     return result;
   };
@@ -175,14 +176,34 @@
       fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre2',hypothesisId:'H4',location:'favorites.js:syncFavoritesWithWords',message:'sync start',data:{beforeCount:beforeList.length},timestamp:Date.now()})}).catch(()=>{});
       // #endregion
       
+      // Если локально пусто — не трогаем и не очищаем (защита от раннего старта)
+      if (beforeList.length === 0) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre2',hypothesisId:'H4',location:'favorites.js:syncFavoritesWithWords',message:'skip sync empty local',data:{beforeCount:0},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        return { synced: true, skipped: true };
+      }
+      
       const response = await fetch('words.txt');
-      if (!response.ok) return { synced: false, error: 'Не удалось загрузить words.txt' };
+      if (!response.ok) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre2',hypothesisId:'H4',location:'favorites.js:syncFavoritesWithWords',message:'skip sync fetch fail',data:{status:response.status},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        return { synced: false, error: 'Не удалось загрузить words.txt' };
+      }
       
       const text = await response.text();
       const rawLines = text.split('\n');
       const wordsLines = text.split('\n')
         .map(l => l.trim())
         .filter(l => l && !l.startsWith('#'));
+      
+      if (wordsLines.length === 0) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre2',hypothesisId:'H4',location:'favorites.js:syncFavoritesWithWords',message:'skip sync no words',data:{rawCount:rawLines.length},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        return { synced: false, error: 'Пустой words.txt' };
+      }
       
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre3',hypothesisId:'H6',location:'favorites.js:syncFavoritesWithWords',message:'words parsed',data:{rawCount:rawLines.length,cleanCount:wordsLines.length,sample:wordsLines.slice(0,3)},timestamp:Date.now()})}).catch(()=>{});
