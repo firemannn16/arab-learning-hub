@@ -200,6 +200,10 @@
         console.log(`⭐ Синхронизация избранного: удалено ${removed}, обновлено ${updated}`);
       }
       
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre',hypothesisId:'H3',location:'favorites.js:syncFavoritesWithWords',message:'syncFavorites summary',data:{removed,updated,finalCount:newFavorites.length},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      
       return { synced: true, removed, updated };
     } catch (e) {
       console.warn('Ошибка синхронизации избранного:', e);
