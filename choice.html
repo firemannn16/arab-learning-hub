@@ -739,7 +739,7 @@ optButtons.forEach(btn=>{
         currentRaw=null; 
         if(orderRaw.length===0) finishSession(); 
         else nextWord(); 
-      }, 450);
+      }, 225); // было 450мс, уменьшили на 50% для быстреего перехода
     } else {
       chosen.classList.add('wrong');
       if(!mistakes.includes(obj.rawLine)) mistakes.push(obj.rawLine);
