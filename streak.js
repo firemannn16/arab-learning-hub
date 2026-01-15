@@ -193,8 +193,9 @@
     
     try {
       const firebaseData = await loadStreakFromFirebase();
+      const localData = getStreakData();
+
       if (firebaseData) {
-        const localData = getStreakData();
         const mergedData = mergeStreakData(localData, firebaseData);
         
         // Сохраняем объединённые данные локально
@@ -210,6 +211,12 @@
         
         // Обновляем UI
         window.dispatchEvent(new CustomEvent('streakUpdated', { detail: mergedData }));
+      } else {
+        // В Firebase пусто — создаём документ из локальных данных
+        await syncStreakToFirebase(localData);
+        firebaseLoaded = true;
+        console.log('🔥 Streak создан в Firebase из локальных данных');
+        window.dispatchEvent(new CustomEvent('streakUpdated', { detail: localData }));
       }
     } catch (e) {
       console.warn('Ошибка инициализации streak с Firebase:', e);
@@ -395,4 +402,4 @@
   }, 2000);
 
   console.log('🔥 Система серии дней загружена (с поддержкой Firebase)');
-})()
+})();
