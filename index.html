@@ -809,10 +809,39 @@
             document.getElementById('streakCount').textContent = info.currentStreak;
             
             // Обновляем текст цели
-            let goalText = info.currentGoal === 7 ? '7 дней подряд' : 
-                          info.currentGoal === 30 ? '1 месяц' : 
-                          `${Math.floor(info.currentGoal / 30)} мес.`;
+            let goalText = formatGoalText(info.currentGoal);
             document.getElementById('streakGoalText').textContent = goalText;
+        }
+        
+        // Форматирование текста цели
+        function formatGoalText(days) {
+            if (days === 7) return '7 дней подряд';
+            if (days === 30) return '1 месяц';
+            
+            const years = Math.floor(days / 360);
+            const months = Math.floor((days % 360) / 30);
+            
+            if (years === 0) {
+                // Только месяцы
+                return formatMonths(months);
+            } else if (months === 0) {
+                // Только года
+                return formatYears(years);
+            } else {
+                // Года и месяцы
+                return `${formatYears(years)} ${formatMonths(months)}`;
+            }
+        }
+        
+        function formatYears(n) {
+            if (n === 1) return '1 год';
+            if (n >= 2 && n <= 4) return `${n} года`;
+            return `${n} лет`;
+        }
+        
+        function formatMonths(n) {
+            if (n === 1) return '1 мес.';
+            return `${n} мес.`;
             
             // Обновляем прогресс за сегодня
             const progressText = info.todayComplete ? 
