@@ -811,6 +811,27 @@
             // Обновляем текст цели
             let goalText = formatGoalText(info.currentGoal);
             document.getElementById('streakGoalText').textContent = goalText;
+
+            // Обновляем прогресс за сегодня
+            const progressText = info.todayComplete ? 
+                '✅ Сегодня выполнено!' : 
+                `Сегодня: ${info.todayWords}/${info.wordsNeeded} слов`;
+            document.getElementById('streakProgressText').textContent = progressText;
+            
+            const progressPercent = Math.min(100, (info.todayWords / info.wordsNeeded) * 100);
+            document.getElementById('streakProgressFill').style.width = progressPercent + '%';
+            
+            // Обновляем дни
+            if (typeof getStreakDays === 'function') {
+                const days = getStreakDays(7);
+                const daysContainer = document.getElementById('streakDays');
+                daysContainer.innerHTML = days.map(day => `
+                    <div class="streak-day ${day.completed ? 'completed' : ''} ${day.isToday ? 'today' : ''}">
+                        <span class="day-num">${day.day}</span>
+                        <span class="day-icon">${day.completed ? '✅' : (day.isToday ? '📍' : '☐')}</span>
+                    </div>
+                `).join('');
+            }
         }
         
         // Форматирование текста цели
@@ -842,27 +863,6 @@
         function formatMonths(n) {
             if (n === 1) return '1 мес.';
             return `${n} мес.`;
-            
-            // Обновляем прогресс за сегодня
-            const progressText = info.todayComplete ? 
-                '✅ Сегодня выполнено!' : 
-                `Сегодня: ${info.todayWords}/${info.wordsNeeded} слов`;
-            document.getElementById('streakProgressText').textContent = progressText;
-            
-            const progressPercent = Math.min(100, (info.todayWords / info.wordsNeeded) * 100);
-            document.getElementById('streakProgressFill').style.width = progressPercent + '%';
-            
-            // Обновляем дни
-            if (typeof getStreakDays === 'function') {
-                const days = getStreakDays(7);
-                const daysContainer = document.getElementById('streakDays');
-                daysContainer.innerHTML = days.map(day => `
-                    <div class="streak-day ${day.completed ? 'completed' : ''} ${day.isToday ? 'today' : ''}">
-                        <span class="day-num">${day.day}</span>
-                        <span class="day-icon">${day.completed ? '✅' : (day.isToday ? '📍' : '☐')}</span>
-                    </div>
-                `).join('');
-            }
         }
         
         // Обновляем при загрузке и при изменении
