@@ -720,6 +720,13 @@
             experimentalForceLongPolling: true,
             useFetchStreams: false
         });
+        
+        // ✅ Делаем Firebase доступным глобально для streak.js
+        window.firestore = db;
+        window.firebaseEnabled = true;
+        
+        // ✅ Уведомляем о готовности Firebase
+        window.dispatchEvent(new CustomEvent('firebaseReady'));
 
         let words = [];
         let originalWords = [];
