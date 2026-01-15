@@ -530,6 +530,39 @@
   background: #2a4a7f !important;
 }
 
+/* Кнопка "Вернуть слова" (оранжевая) */
+.dark-theme .restore-btn {
+  background: #4a3a1a !important;
+  border: 2px solid #f59e0b !important;
+  color: #fcd34d !important;
+}
+
+.dark-theme .restore-btn:hover {
+  background: #5a4a2a !important;
+}
+
+/* Кнопка "Копировать ошибки" (зелёная) */
+.dark-theme .copy-btn {
+  background: #1e4731 !important;
+  border: 2px solid #22c55e !important;
+  color: #86efac !important;
+}
+
+.dark-theme .copy-btn:hover {
+  background: #256b3e !important;
+}
+
+/* Кнопка "Копировать ошибки" в choice.html */
+.dark-theme #copy-mistakes-btn {
+  background: #1e4731 !important;
+  border: 2px solid #22c55e !important;
+  color: #86efac !important;
+}
+
+.dark-theme #copy-mistakes-btn:hover {
+  background: #256b3e !important;
+}
+
 /* Кнопка "Не знаю" */
 .dark-theme #btn-dont {
   background: #4a3a1a !important;
