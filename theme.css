@@ -502,7 +502,9 @@
 
 .dark-theme .btn-danger,
 .dark-theme .reset-btn,
-.dark-theme #btn-reset {
+.dark-theme .action-btn.reset-btn,
+.dark-theme #btn-reset,
+.dark-theme #reset-progress-btn {
   background: #4a1a1a !important;
   border: 2px solid #ef4444 !important;
   color: #fca5a5 !important;
@@ -510,7 +512,9 @@
 
 .dark-theme .btn-danger:hover,
 .dark-theme .reset-btn:hover,
-.dark-theme #btn-reset:hover {
+.dark-theme .action-btn.reset-btn:hover,
+.dark-theme #btn-reset:hover,
+.dark-theme #reset-progress-btn:hover {
   background: #6b2a2a !important;
 }
 
