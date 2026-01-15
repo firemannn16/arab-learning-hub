@@ -9,18 +9,12 @@
 
   const FAVORITES_KEY = 'arabFavorites';
   const SYNC_KEY = 'arabFavoritesSyncTime';
-  let debugFavLogCount = 0;
-  let debugFavLogCountIsFavorite = 0;
 
   // Получить все избранные слова
   window.getFavorites = function() {
     try {
       const data = localStorage.getItem(FAVORITES_KEY);
-      const list = data ? JSON.parse(data) : [];
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre2',hypothesisId:'H4',location:'favorites.js:getFavorites',message:'read favorites',data:{count:list.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      return list;
+      return data ? JSON.parse(data) : [];
     } catch (e) {
       console.warn('Ошибка чтения избранного:', e);
       return [];
@@ -41,14 +35,7 @@
     const favorites = getFavorites();
     const key = normalizeWord(word);
     const normalized = favorites.map(f => normalizeWord(f));
-    const result = normalized.includes(key);
-    if (debugFavLogCountIsFavorite < 20) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre3',hypothesisId:'H6',location:'favorites.js:isFavorite',message:'isFavorite check',data:{key,result,count:favorites.length,sampleNormalized:normalized.slice(0,5)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      debugFavLogCountIsFavorite++;
-    }
-    return result;
+    return normalized.includes(key);
   };
 
   // Проверить по арабскому тексту (для синхронизации)
@@ -76,10 +63,6 @@
     favorites.push(wordStr);
     saveFavorites(favorites);
     
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre2',hypothesisId:'H4',location:'favorites.js:addToFavorites',message:'added favorite',data:{word:wordStr,count:favorites.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    
     window.dispatchEvent(new CustomEvent('favoritesChanged', { detail: { action: 'add', word: wordStr } }));
     return true;
   };
@@ -96,9 +79,6 @@
     }
     
     saveFavorites(newFavorites);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre2',hypothesisId:'H4',location:'favorites.js:removeFromFavorites',message:'removed favorite',data:{word,prevCount:favorites.length,newCount:newFavorites.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     window.dispatchEvent(new CustomEvent('favoritesChanged', { detail: { action: 'remove', word } }));
     return true;
   };
@@ -106,15 +86,9 @@
   // Переключить избранное
   window.toggleFavorite = function(word) {
     if (isFavorite(word)) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre3',hypothesisId:'H6',location:'favorites.js:toggleFavorite',message:'remove favorite',data:{word},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       removeFromFavorites(word);
       return false;
     } else {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre3',hypothesisId:'H6',location:'favorites.js:toggleFavorite',message:'add favorite',data:{word},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       addToFavorites(word);
       return true;
     }
@@ -174,42 +148,25 @@
   window.syncFavoritesWithWords = async function() {
     try {
       const beforeList = getFavorites();
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre2',hypothesisId:'H4',location:'favorites.js:syncFavoritesWithWords',message:'sync start',data:{beforeCount:beforeList.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       
       // Если локально пусто — не трогаем и не очищаем (защита от раннего старта)
       if (beforeList.length === 0) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre2',hypothesisId:'H4',location:'favorites.js:syncFavoritesWithWords',message:'skip sync empty local',data:{beforeCount:0},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         return { synced: true, skipped: true };
       }
       
       const response = await fetch('words.txt');
       if (!response.ok) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre2',hypothesisId:'H4',location:'favorites.js:syncFavoritesWithWords',message:'skip sync fetch fail',data:{status:response.status},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         return { synced: false, error: 'Не удалось загрузить words.txt' };
       }
       
       const text = await response.text();
-      const rawLines = text.split('\n');
       const wordsLines = text.split('\n')
         .map(l => l.trim())
         .filter(l => l && !l.startsWith('#'));
       
       if (wordsLines.length === 0) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre2',hypothesisId:'H4',location:'favorites.js:syncFavoritesWithWords',message:'skip sync no words',data:{rawCount:rawLines.length},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         return { synced: false, error: 'Пустой words.txt' };
       }
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre3',hypothesisId:'H6',location:'favorites.js:syncFavoritesWithWords',message:'words parsed',data:{rawCount:rawLines.length,cleanCount:wordsLines.length,sample:wordsLines.slice(0,3)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       
       // Создаём карту слов по арабскому тексту (без огласовок)
       const wordsByArabic = new Map();
@@ -258,10 +215,6 @@
         window.dispatchEvent(new CustomEvent('favoritesChanged', { detail: { action: 'sync', removed, updated } }));
         console.log(`⭐ Синхронизация избранного: удалено ${removed}, обновлено ${updated}`);
       }
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e7518b9b-0bc4-47f9-8853-bc30adaf2cee',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre2',hypothesisId:'H3',location:'favorites.js:syncFavoritesWithWords',message:'syncFavorites summary',data:{removed,updated,finalCount:newFavorites.length,beforeCount:beforeList.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       
       return { synced: true, removed, updated };
     } catch (e) {
