@@ -40,6 +40,9 @@ try {
   window.firebaseModules.getDoc = firestoreModule.getDoc;
   window.firebaseModules.deleteDoc = firestoreModule.deleteDoc;
   console.log('Firebase инициализирован');
+  
+  // ✅ Уведомляем о готовности Firebase (для streak.js)
+  window.dispatchEvent(new CustomEvent('firebaseReady'));
 } catch(e) {
   console.warn('Firebase не инициализирован:', e);
   window.firebaseEnabled = false;
