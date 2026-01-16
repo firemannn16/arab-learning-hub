@@ -1400,6 +1400,12 @@
 
     // Запустить таймер
     function startTimer() {
+      // Считываем актуальное значение из picker
+      const pickerSelected = document.querySelector('.picker-item.selected');
+      if (pickerSelected) {
+        selectedTime = parseInt(pickerSelected.dataset.value);
+      }
+      
       timeLeft = selectedTime;
       updateTimerDisplay();
       
@@ -1419,7 +1425,11 @@
             if (learnMode === 'learn') {
               nextWord();
             } else {
-              // В режиме проверки — не автопереход, ждём кнопку
+              // В режиме проверки — останавливаем на 0, ждём кнопку
+              timeLeft = 0;
+              updateTimerDisplay();
+              clearInterval(timerInterval);
+              timerInterval = null;
             }
           }
         }
@@ -1447,8 +1457,22 @@
         finishLearning();
       } else {
         showCurrentWord();
+        // Перезапускаем таймер (без повторного считывания из picker)
+        if (timerInterval) clearInterval(timerInterval);
         timeLeft = selectedTime;
         updateTimerDisplay();
+        
+        if (selectedTime > 0) {
+          timerInterval = setInterval(() => {
+            if (!isPaused) {
+              timeLeft--;
+              updateTimerDisplay();
+              if (timeLeft <= 0) {
+                nextWord();
+              }
+            }
+          }, 1000);
+        }
       }
     }
 
@@ -1545,8 +1569,8 @@
         finishTest();
       } else {
         showTestWord();
-        timeLeft = selectedTime;
-        updateTimerDisplay();
+        // Перезапускаем таймер
+        startTimer();
       }
     }
 
