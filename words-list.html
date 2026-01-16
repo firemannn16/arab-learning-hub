@@ -1026,6 +1026,7 @@
     let forgottenWords = [];       // Забытые слова
     let knownCount = 0;            // Счётчик "знаю"
     let forgotCount = 0;           // Счётчик "забыл"
+    const TIMER_STORAGE_KEY = 'arabTimerSeconds';
 
     // Показать уведомление
     function showToast(message) {
@@ -1060,6 +1061,36 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    // Сохранить/загрузить выбранный таймер
+    function saveTimerPreference(seconds) {
+      try {
+        localStorage.setItem(TIMER_STORAGE_KEY, String(seconds));
+      } catch (e) {
+        console.warn('Не удалось сохранить таймер', e);
+      }
+    }
+
+    function loadTimerPreference() {
+      try {
+        const saved = localStorage.getItem(TIMER_STORAGE_KEY);
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed)) {
+          return Math.max(0, Math.min(60, parsed));
+        }
+      } catch (e) {
+        console.warn('Не удалось загрузить таймер', e);
+      }
+      return 15;
+    }
+
+    function highlightPickerValue(value) {
+      const picker = document.getElementById('pickerScroll');
+      if (!picker) return;
+      picker.querySelectorAll('.picker-item').forEach(el => {
+        el.classList.toggle('selected', parseInt(el.dataset.value, 10) === value);
+      });
     }
 
     // Переключение табов
@@ -1293,6 +1324,8 @@
     function initPicker() {
       const picker = document.getElementById('pickerScroll');
       picker.innerHTML = '';
+      const savedTime = loadTimerPreference();
+      selectedTime = savedTime;
       
       // Создаём элементы 0-60
       for (let i = 0; i <= 60; i++) {
@@ -1300,6 +1333,9 @@
         item.className = 'picker-item';
         item.dataset.value = i;
         item.textContent = i;
+        item.addEventListener('click', () => {
+          setTime(i);
+        });
         picker.appendChild(item);
       }
       
@@ -1314,6 +1350,7 @@
               picker.querySelectorAll('.picker-item').forEach(item => {
                 item.classList.toggle('selected', parseInt(item.dataset.value) === value);
               });
+              saveTimerPreference(selectedTime);
             }
           }
         });
@@ -1330,7 +1367,7 @@
       
       // Прокрутить к начальному значению (15)
       setTimeout(() => {
-        setTime(15);
+        setTime(savedTime);
       }, 50);
     }
 
@@ -1338,6 +1375,7 @@
     function setTime(seconds) {
       seconds = Math.max(0, Math.min(60, seconds));
       selectedTime = seconds;
+      saveTimerPreference(seconds);
       
       const picker = document.getElementById('pickerScroll');
       const item = picker.querySelector(`[data-value="${seconds}"]`);
@@ -1349,6 +1387,30 @@
           el.classList.toggle('selected', parseInt(el.dataset.value) === seconds);
         });
       }
+    }
+
+    // Определить текущее выбранное значение по центру пикера
+    function getPickerSelectedValue() {
+      const picker = document.getElementById('pickerScroll');
+      if (!picker) return selectedTime;
+      
+      const rect = picker.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const element = document.elementFromPoint(centerX, centerY);
+      
+      if (element && element.classList.contains('picker-item')) {
+        const value = parseInt(element.dataset.value, 10);
+        if (!isNaN(value)) return value;
+      }
+      
+      const selectedEl = picker.querySelector('.picker-item.selected');
+      if (selectedEl) {
+        const value = parseInt(selectedEl.dataset.value, 10);
+        if (!isNaN(value)) return value;
+      }
+      
+      return selectedTime;
     }
 
     // Начать заучивание
@@ -1400,11 +1462,13 @@
 
     // Запустить таймер
     function startTimer() {
-      // Считываем актуальное значение из picker
-      const pickerSelected = document.querySelector('.picker-item.selected');
-      if (pickerSelected) {
-        selectedTime = parseInt(pickerSelected.dataset.value);
-      }
+      // Берём актуальное значение прямо из центра пикера (моментально)
+      let currentValue = getPickerSelectedValue();
+      if (isNaN(currentValue)) currentValue = selectedTime;
+      currentValue = Math.max(0, Math.min(60, currentValue));
+      selectedTime = currentValue;
+      saveTimerPreference(selectedTime);
+      highlightPickerValue(selectedTime);
       
       timeLeft = selectedTime;
       updateTimerDisplay();
@@ -1425,11 +1489,7 @@
             if (learnMode === 'learn') {
               nextWord();
             } else {
-              // В режиме проверки — останавливаем на 0, ждём кнопку
-              timeLeft = 0;
-              updateTimerDisplay();
-              clearInterval(timerInterval);
-              timerInterval = null;
+              nextTestWord();
             }
           }
         }
@@ -1445,7 +1505,8 @@
       
       // Обновить круговой прогресс
       const circumference = 2 * Math.PI * 45; // r=45
-      const offset = circumference * (1 - timeLeft / selectedTime);
+      const ratio = selectedTime > 0 ? (1 - timeLeft / selectedTime) : 0;
+      const offset = circumference * Math.min(Math.max(ratio, 0), 1);
       document.getElementById(progressId).style.strokeDashoffset = offset;
     }
 
@@ -1457,22 +1518,8 @@
         finishLearning();
       } else {
         showCurrentWord();
-        // Перезапускаем таймер (без повторного считывания из picker)
-        if (timerInterval) clearInterval(timerInterval);
-        timeLeft = selectedTime;
-        updateTimerDisplay();
-        
-        if (selectedTime > 0) {
-          timerInterval = setInterval(() => {
-            if (!isPaused) {
-              timeLeft--;
-              updateTimerDisplay();
-              if (timeLeft <= 0) {
-                nextWord();
-              }
-            }
-          }, 1000);
-        }
+        // Перезапускаем таймер с учётом актуального выбранного значения
+        startTimer();
       }
     }
 
