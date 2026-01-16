@@ -387,7 +387,7 @@
       background: #e5e7eb;
     }
 
-    /* Таймер input */
+    /* Таймер scroll-picker */
     .timer-section {
       margin: 25px 0;
       display: flex;
@@ -401,48 +401,70 @@
       margin-bottom: 15px;
     }
 
-    .timer-input-wrapper {
+    .picker-wrapper {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
 
-    .timer-input {
-      width: 100px;
-      padding: 14px 16px;
-      border: 2px solid #e5e7eb;
+    .picker-container {
+      position: relative;
+      width: 90px;
+      height: 150px;
+    }
+
+    .picker-highlight {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80px;
+      height: 50px;
+      background: linear-gradient(135deg, rgba(102,126,234,0.1), rgba(118,75,162,0.1));
+      border: 2px solid #667eea;
       border-radius: 12px;
-      font-size: 28px;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .picker-scroll {
+      height: 100%;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      -webkit-overflow-scrolling: touch;
+      padding: 50px 0;
+      mask-image: linear-gradient(transparent 0%, black 35%, black 65%, transparent 100%);
+      -webkit-mask-image: linear-gradient(transparent 0%, black 35%, black 65%, transparent 100%);
+    }
+
+    .picker-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .picker-item {
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      scroll-snap-align: center;
+      font-size: 22px;
+      color: #9ca3af;
+      user-select: none;
+      transition: color 0.15s, font-size 0.15s, font-weight 0.15s;
+    }
+
+    .picker-item.selected {
+      font-size: 32px;
       font-weight: bold;
-      text-align: center;
       color: #667eea;
-      background: linear-gradient(135deg, rgba(102,126,234,0.05), rgba(118,75,162,0.05));
-      transition: all 0.2s;
-      -moz-appearance: textfield;
     }
 
-    .timer-input::-webkit-outer-spin-button,
-    .timer-input::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-
-    .timer-input:focus {
-      outline: none;
-      border-color: #667eea;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
-    }
-
-    .timer-input-unit {
+    .picker-unit {
       font-size: 18px;
       color: #6b7280;
       font-weight: 500;
-    }
-
-    .timer-hint {
-      font-size: 12px;
-      color: #9ca3af;
-      margin-top: 8px;
     }
 
     /* Режим заучивания/проверки */
@@ -876,18 +898,15 @@
         
         <div class="timer-section">
           <span class="timer-label">⏱️ Интервал между словами</span>
-          <div class="timer-input-wrapper">
-            <input type="number" 
-                   id="timerInput" 
-                   class="timer-input" 
-                   value="15" 
-                   min="5" 
-                   max="60" 
-                   step="1"
-                   onchange="validateAndSetTime(this.value)">
-            <span class="timer-input-unit">сек</span>
+          <div class="picker-wrapper">
+            <div class="picker-container">
+              <div class="picker-highlight"></div>
+              <div class="picker-scroll" id="pickerScroll">
+                <!-- Элементы 0-60 генерируются JavaScript -->
+              </div>
+            </div>
+            <span class="picker-unit">сек</span>
           </div>
-          <p class="timer-hint">От 5 до 60 секунд</p>
         </div>
         
         <div class="learn-actions">
@@ -1270,24 +1289,66 @@
       }
     }
 
-    // Валидация и установка времени
-    function validateAndSetTime(value) {
-      let seconds = parseInt(value);
+    // Инициализация scroll-picker
+    function initPicker() {
+      const picker = document.getElementById('pickerScroll');
+      picker.innerHTML = '';
       
-      // Ограничение от 5 до 60
-      if (isNaN(seconds) || seconds < 5) {
-        seconds = 5;
-      } else if (seconds > 60) {
-        seconds = 60;
+      // Создаём элементы 0-60
+      for (let i = 0; i <= 60; i++) {
+        const item = document.createElement('div');
+        item.className = 'picker-item';
+        item.dataset.value = i;
+        item.textContent = i;
+        picker.appendChild(item);
       }
       
-      selectedTime = seconds;
-      document.getElementById('timerInput').value = seconds;
+      // IntersectionObserver для определения центрального элемента
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+            const value = parseInt(entry.target.dataset.value);
+            if (value !== selectedTime) {
+              selectedTime = value;
+              // Обновить стили
+              picker.querySelectorAll('.picker-item').forEach(item => {
+                item.classList.toggle('selected', parseInt(item.dataset.value) === value);
+              });
+            }
+          }
+        });
+      }, {
+        root: picker,
+        rootMargin: '-50px 0px -50px 0px',
+        threshold: 0.5
+      });
+      
+      // Наблюдаем за всеми элементами
+      picker.querySelectorAll('.picker-item').forEach(item => {
+        observer.observe(item);
+      });
+      
+      // Прокрутить к начальному значению (15)
+      setTimeout(() => {
+        setTime(15);
+      }, 50);
     }
 
-    // Установить время (для совместимости)
+    // Установить время и прокрутить к нему
     function setTime(seconds) {
-      validateAndSetTime(seconds);
+      seconds = Math.max(0, Math.min(60, seconds));
+      selectedTime = seconds;
+      
+      const picker = document.getElementById('pickerScroll');
+      const item = picker.querySelector(`[data-value="${seconds}"]`);
+      if (item) {
+        item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Обновить стили
+        picker.querySelectorAll('.picker-item').forEach(el => {
+          el.classList.toggle('selected', parseInt(el.dataset.value) === seconds);
+        });
+      }
     }
 
     // Начать заучивание
@@ -1343,6 +1404,11 @@
       updateTimerDisplay();
       
       if (timerInterval) clearInterval(timerInterval);
+      
+      // Если 0 секунд — без автопереключения, только вручную
+      if (selectedTime === 0) {
+        return;
+      }
       
       timerInterval = setInterval(() => {
         if (!isPaused) {
@@ -1649,8 +1715,8 @@
       if (testPauseBtn) testPauseBtn.innerHTML = '⏸️ Пауза';
     }
 
-    // Инициализация времени при загрузке
-    selectedTime = 15;
+    // Инициализация picker при загрузке
+    initPicker();
   </script>
 </body>
 </html>
