@@ -387,7 +387,7 @@
       background: #e5e7eb;
     }
 
-    /* Таймер пикер */
+    /* Таймер input */
     .timer-section {
       margin: 25px 0;
       display: flex;
@@ -401,121 +401,48 @@
       margin-bottom: 15px;
     }
 
-    .picker-wrapper {
-      position: relative;
+    .timer-input-wrapper {
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 15px;
+      gap: 10px;
     }
 
-    .picker-arrow {
-      width: 40px;
-      height: 40px;
-      border: none;
-      background: #f3f4f6;
-      border-radius: 50%;
-      font-size: 18px;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .picker-arrow:hover {
-      background: #e5e7eb;
-    }
-
-    .picker-display {
-      position: relative;
+    .timer-input {
       width: 100px;
-      height: 120px;
-      overflow: hidden;
-    }
-
-    .picker-highlight {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 90px;
-      height: 44px;
-      background: linear-gradient(135deg, rgba(102,126,234,0.1), rgba(118,75,162,0.1));
-      border: 2px solid #667eea;
+      padding: 14px 16px;
+      border: 2px solid #e5e7eb;
       border-radius: 12px;
-      pointer-events: none;
-      z-index: 1;
-    }
-
-    .picker-scroll {
-      height: 100%;
-      overflow-y: scroll;
-      scroll-snap-type: y mandatory;
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-      padding: 38px 0;
-      mask-image: linear-gradient(transparent 0%, black 30%, black 70%, transparent 100%);
-      -webkit-mask-image: linear-gradient(transparent 0%, black 30%, black 70%, transparent 100%);
-    }
-
-    .picker-scroll::-webkit-scrollbar {
-      display: none;
-    }
-
-    .picker-item {
-      height: 44px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      scroll-snap-align: center;
-      font-size: 24px;
-      color: #9ca3af;
-      cursor: pointer;
-      transition: all 0.15s;
-      user-select: none;
-    }
-
-    .picker-item.selected {
-      font-size: 32px;
+      font-size: 28px;
       font-weight: bold;
+      text-align: center;
       color: #667eea;
-    }
-
-    .picker-unit {
-      font-size: 16px;
-      color: #6b7280;
-      margin-left: 5px;
-    }
-
-    .quick-times {
-      display: flex;
-      gap: 8px;
-      margin-top: 15px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    .quick-time-btn {
-      padding: 6px 14px;
-      border: 1px solid #e5e7eb;
-      background: white;
-      border-radius: 20px;
-      font-size: 13px;
-      color: #6b7280;
-      cursor: pointer;
+      background: linear-gradient(135deg, rgba(102,126,234,0.05), rgba(118,75,162,0.05));
       transition: all 0.2s;
+      -moz-appearance: textfield;
     }
 
-    .quick-time-btn:hover {
-      border-color: #667eea;
-      color: #667eea;
+    .timer-input::-webkit-outer-spin-button,
+    .timer-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
     }
 
-    .quick-time-btn.active {
-      background: #667eea;
+    .timer-input:focus {
+      outline: none;
       border-color: #667eea;
-      color: white;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    }
+
+    .timer-input-unit {
+      font-size: 18px;
+      color: #6b7280;
+      font-weight: 500;
+    }
+
+    .timer-hint {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 8px;
     }
 
     /* Режим заучивания/проверки */
@@ -949,31 +876,18 @@
         
         <div class="timer-section">
           <span class="timer-label">⏱️ Интервал между словами</span>
-          <div class="picker-wrapper">
-            <button class="picker-arrow" onclick="changeTime(-5)">◀</button>
-            <div class="picker-display">
-              <div class="picker-highlight"></div>
-              <div class="picker-scroll" id="pickerScroll">
-                <div class="picker-item" data-value="5">5</div>
-                <div class="picker-item" data-value="10">10</div>
-                <div class="picker-item selected" data-value="15">15</div>
-                <div class="picker-item" data-value="20">20</div>
-                <div class="picker-item" data-value="25">25</div>
-                <div class="picker-item" data-value="30">30</div>
-                <div class="picker-item" data-value="45">45</div>
-                <div class="picker-item" data-value="60">60</div>
-              </div>
-            </div>
-            <button class="picker-arrow" onclick="changeTime(5)">▶</button>
-            <span class="picker-unit">сек</span>
+          <div class="timer-input-wrapper">
+            <input type="number" 
+                   id="timerInput" 
+                   class="timer-input" 
+                   value="15" 
+                   min="5" 
+                   max="60" 
+                   step="1"
+                   onchange="validateAndSetTime(this.value)">
+            <span class="timer-input-unit">сек</span>
           </div>
-          <div class="quick-times">
-            <button class="quick-time-btn" onclick="setTime(5)">5с</button>
-            <button class="quick-time-btn" onclick="setTime(10)">10с</button>
-            <button class="quick-time-btn active" onclick="setTime(15)">15с</button>
-            <button class="quick-time-btn" onclick="setTime(30)">30с</button>
-            <button class="quick-time-btn" onclick="setTime(60)">1м</button>
-          </div>
+          <p class="timer-hint">От 5 до 60 секунд</p>
         </div>
         
         <div class="learn-actions">
@@ -1033,14 +947,14 @@
         <div class="circle-timer" id="testCircleTimer">
           <svg viewBox="0 0 100 100">
             <defs>
-              <linearGradient id="testTimerGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <linearGradient id="timerGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" style="stop-color:#667eea"/>
                 <stop offset="100%" style="stop-color:#764ba2"/>
               </linearGradient>
             </defs>
             <circle class="circle-timer-bg" cx="50" cy="50" r="45"/>
             <circle class="circle-timer-progress" id="testTimerProgress" cx="50" cy="50" r="45" 
-              stroke-dasharray="283" stroke-dashoffset="0"/>
+              stroke-dasharray="283" stroke-dashoffset="0" style="stroke: url(#timerGradient2)"/>
           </svg>
           <div class="circle-timer-text" id="testTimerText">15</div>
         </div>
@@ -1356,55 +1270,25 @@
       }
     }
 
-    // Изменить время (стрелками)
-    function changeTime(delta) {
-      const times = [5, 10, 15, 20, 25, 30, 45, 60];
-      const currentIndex = times.indexOf(selectedTime);
-      let newIndex = currentIndex + (delta > 0 ? 1 : -1);
-      newIndex = Math.max(0, Math.min(times.length - 1, newIndex));
-      setTime(times[newIndex]);
-    }
-
-    // Установить время
-    function setTime(seconds) {
-      selectedTime = seconds;
+    // Валидация и установка времени
+    function validateAndSetTime(value) {
+      let seconds = parseInt(value);
       
-      // Обновить пикер
-      document.querySelectorAll('.picker-item').forEach(item => {
-        item.classList.toggle('selected', parseInt(item.dataset.value) === seconds);
-      });
-      
-      // Обновить быстрые кнопки
-      document.querySelectorAll('.quick-time-btn').forEach(btn => {
-        const btnTime = btn.textContent === '1м' ? 60 : parseInt(btn.textContent);
-        btn.classList.toggle('active', btnTime === seconds);
-      });
-      
-      // Прокрутить к выбранному
-      const picker = document.getElementById('pickerScroll');
-      const selectedItem = picker.querySelector(`[data-value="${seconds}"]`);
-      if (selectedItem) {
-        selectedItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Ограничение от 5 до 60
+      if (isNaN(seconds) || seconds < 5) {
+        seconds = 5;
+      } else if (seconds > 60) {
+        seconds = 60;
       }
+      
+      selectedTime = seconds;
+      document.getElementById('timerInput').value = seconds;
     }
 
-    // Скролл пикера
-    document.getElementById('pickerScroll').addEventListener('scroll', function() {
-      const items = this.querySelectorAll('.picker-item');
-      const center = this.scrollTop + this.clientHeight / 2;
-      
-      items.forEach(item => {
-        const itemCenter = item.offsetTop + item.clientHeight / 2;
-        const distance = Math.abs(center - itemCenter);
-        
-        if (distance < 25) {
-          const value = parseInt(item.dataset.value);
-          if (value !== selectedTime) {
-            setTime(value);
-          }
-        }
-      });
-    });
+    // Установить время (для совместимости)
+    function setTime(seconds) {
+      validateAndSetTime(seconds);
+    }
 
     // Начать заучивание
     function startLearning() {
@@ -1765,10 +1649,8 @@
       if (testPauseBtn) testPauseBtn.innerHTML = '⏸️ Пауза';
     }
 
-    // Инициализация пикера при загрузке
-    setTimeout(() => {
-      setTime(15);
-    }, 100);
+    // Инициализация времени при загрузке
+    selectedTime = 15;
   </script>
 </body>
 </html>
