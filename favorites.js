@@ -24,14 +24,48 @@
     return !!(window.firebaseEnabled && window.firestore && getUserCode());
   }
 
-  function getFavoritesDocRef() {
+  // Универсальный доступ к Firestore (compat или modular)
+  function getFirebaseContext() {
     if (!canUseFirebase()) return null;
     const code = getUserCode();
-    return window.firestore
-      .collection('users')
-      .doc(code)
-      .collection('favorites')
-      .doc('data');
+    const firestore = window.firestore;
+    const fm = window.firebaseModules || {};
+
+    // Compat API (firebase.firestore.*)
+    if (firestore && typeof firestore.collection === 'function') {
+      return {
+        mode: 'compat',
+        ref: firestore
+          .collection('users')
+          .doc(code)
+          .collection('favorites')
+          .doc('data'),
+        serverTimestamp: (firebase && firebase.firestore && firebase.firestore.FieldValue
+          && firebase.firestore.FieldValue.serverTimestamp)
+          ? firebase.firestore.FieldValue.serverTimestamp()
+          : new Date() // Fallback, в редком случае без FieldValue
+      };
+    }
+
+    // Modular API (initializeFirestore + doc/getDoc/setDoc)
+    if (fm.doc && fm.getDoc && fm.setDoc) {
+      // Подготовим serverTimestamp: берём готовый, либо Timestamp.now как fallback, либо число
+      const serverTimestampFn = fm.serverTimestamp
+        ? fm.serverTimestamp
+        : (fm.Timestamp && typeof fm.Timestamp.now === 'function')
+          ? fm.Timestamp.now
+          : (() => Date.now());
+
+      return {
+        mode: 'modular',
+        ref: fm.doc(firestore, 'users', code, 'favorites', 'data'),
+        getDoc: fm.getDoc,
+        setDoc: fm.setDoc,
+        serverTimestamp: serverTimestampFn
+      };
+    }
+
+    return null;
   }
 
   // Кешируем localStorage, чтобы не парсить его на каждый элемент списка
@@ -200,24 +234,43 @@
   }
 
   async function loadFavoritesFromFirebase() {
-    const ref = getFavoritesDocRef();
-    if (!ref) return null;
-    const snap = await ref.get();
-    if (!snap.exists) return null;
-    const data = snap.data() || {};
+    const ctx = getFirebaseContext();
+    if (!ctx) return null;
+
+    let data = null;
+    if (ctx.mode === 'compat') {
+      const snap = await ctx.ref.get();
+      if (!snap.exists) return null;
+      data = snap.data() || {};
+    } else {
+      const snap = await ctx.getDoc(ctx.ref);
+      if (!snap.exists()) return null;
+      data = snap.data() || {};
+    }
+
     const items = Array.isArray(data.items) ? data.items : [];
-    const updatedAt = data.updatedAt && typeof data.updatedAt.toMillis === 'function'
-      ? data.updatedAt.toMillis()
-      : 0;
+    const rawTs = data.updatedAt;
+    const updatedAt = rawTs && typeof rawTs.toMillis === 'function'
+      ? rawTs.toMillis()
+      : (Number.isFinite(rawTs) ? rawTs : 0);
     return { items, updatedAt };
   }
 
   async function writeFavoritesToFirebase(items) {
-    const ref = getFavoritesDocRef();
-    if (!ref) return;
-    await ref.set({
+    const ctx = getFirebaseContext();
+    if (!ctx) return;
+
+    if (ctx.mode === 'compat') {
+      await ctx.ref.set({
+        items,
+        updatedAt: ctx.serverTimestamp
+      }, { merge: true });
+      return;
+    }
+
+    await ctx.setDoc(ctx.ref, {
       items,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      updatedAt: ctx.serverTimestamp()
     }, { merge: true });
   }
 
