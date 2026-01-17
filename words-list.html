@@ -1423,11 +1423,18 @@
         return;
       }
       
+      // ВАЖНО: Получаем значение таймера ДО скрытия picker!
+      let currentValue = getPickerSelectedValue();
+      if (isNaN(currentValue)) currentValue = selectedTime;
+      currentValue = Math.max(0, Math.min(60, currentValue));
+      selectedTime = currentValue;
+      saveTimerPreference(selectedTime);
+      
       currentWordIndex = 0;
       learnMode = 'learn';
       isPaused = false;
       
-      // Показать режим заучивания
+      // Показать режим заучивания (после получения значения таймера)
       document.getElementById('learnInputSection').style.display = 'none';
       document.getElementById('learnModeSection').style.display = 'block';
       document.getElementById('testModeSection').style.display = 'none';
@@ -1462,14 +1469,7 @@
 
     // Запустить таймер
     function startTimer() {
-      // Берём актуальное значение прямо из центра пикера (моментально)
-      let currentValue = getPickerSelectedValue();
-      if (isNaN(currentValue)) currentValue = selectedTime;
-      currentValue = Math.max(0, Math.min(60, currentValue));
-      selectedTime = currentValue;
-      saveTimerPreference(selectedTime);
-      highlightPickerValue(selectedTime);
-      
+      // Используем уже установленный selectedTime (он должен быть задан до вызова этой функции)
       timeLeft = selectedTime;
       updateTimerDisplay();
       
