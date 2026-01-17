@@ -8,6 +8,45 @@
 <script src="theme.js"></script>
 <link rel="stylesheet" href="theme.css">
 <script src="service-worker-register.js"></script>
+
+<!-- Firebase для синхронизации (избранное и др.) -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script>
+  (function initFirebaseForDictionary() {
+    // Уже инициализировано где-то? выходим.
+    if (window.firebaseEnabled && window.firestore) {
+      window.dispatchEvent(new CustomEvent('firebaseReady'));
+      return;
+    }
+    try {
+      const firebaseConfig = {
+        apiKey: "AIzaSyC2yC_BlLuP3dEzWUlWe57hhI4CezNZCy0",
+        authDomain: "arab-learning-hub.firebaseapp.com",
+        projectId: "arab-learning-hub",
+        storageBucket: "arab-learning-hub.firebasestorage.app",
+        messagingSenderId: "377334822830",
+        appId: "1:377334822830:web:7cb045a81824741f427a3f"
+      };
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+      const db = firebase.firestore();
+      db.settings({
+        experimentalForceLongPolling: true,
+        useFetchStreams: false
+      });
+      window.firestore = db;
+      window.firebaseEnabled = true;
+      window.dispatchEvent(new CustomEvent('firebaseReady'));
+      console.log('🔥 Firebase инициализирован на dictionary.html');
+    } catch(e) {
+      console.warn('Firebase не инициализирован на dictionary:', e);
+      window.firebaseEnabled = false;
+    }
+  })();
+</script>
+
 <script src="sidebar-menu.js"></script>
 <script src="favorites.js"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="978e563f-ae7b-421e-ade1-b5773da3feb8"></script>
@@ -110,10 +149,12 @@ function escapeHtml(s) {
 }
 function debounce(fn, ms) {
   let t;
-  return function(...args) {
+  function wrapped(...args) {
     clearTimeout(t);
     t = setTimeout(() => fn.apply(this, args), ms);
-  };
+  }
+  wrapped.cancel = () => clearTimeout(t);
+  return wrapped;
 }
 
 /* ===== Fuzzy search - Levenshtein distance ===== */
@@ -551,10 +592,6 @@ const doSearchDebounced = debounce(() => {
     autocompleteEl.style.display = "none";
   }
 }, 200);
-
-doSearchDebounced.cancel = function() {
-  // Add cancel method for debounce
-};
 
 qEl.addEventListener("input", (ev) => {
   doSearchDebounced();
