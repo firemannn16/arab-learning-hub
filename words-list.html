@@ -1047,10 +1047,32 @@
       return audioContext;
     }
 
+    // Активировать AudioContext (нужно вызвать при взаимодействии пользователя)
+    function unlockAudio() {
+      const ctx = getAudioContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      // Воспроизвести тихий звук для разблокировки на iOS
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      gainNode.gain.value = 0.001; // Почти беззвучно
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.01);
+    }
+
     // Звук окончания таймера (Успех - восходящая мелодия)
     function playTimerSound() {
       try {
         const ctx = getAudioContext();
+        
+        // Убедиться что контекст активен
+        if (ctx.state === 'suspended') {
+          ctx.resume();
+        }
+        
         const notes = [392, 494, 587, 784]; // G4, B4, D5, G5
         
         notes.forEach((freq, i) => {
@@ -1124,7 +1146,7 @@
         const saved = localStorage.getItem(TIMER_STORAGE_KEY);
         const parsed = parseInt(saved, 10);
         if (!isNaN(parsed)) {
-          return Math.max(0, Math.min(60, parsed));
+          return Math.max(1, Math.min(60, parsed));
         }
       } catch (e) {
         console.warn('Не удалось загрузить таймер', e);
@@ -1374,8 +1396,8 @@
       const savedTime = loadTimerPreference();
       selectedTime = savedTime;
       
-      // Создаём элементы 0-60
-      for (let i = 0; i <= 60; i++) {
+      // Создаём элементы 1-60
+      for (let i = 1; i <= 60; i++) {
         const item = document.createElement('div');
         item.className = 'picker-item';
         item.dataset.value = i;
@@ -1420,7 +1442,7 @@
 
     // Установить время и прокрутить к нему
     function setTime(seconds) {
-      seconds = Math.max(0, Math.min(60, seconds));
+      seconds = Math.max(1, Math.min(60, seconds));
       selectedTime = seconds;
       saveTimerPreference(seconds);
       
@@ -1470,10 +1492,13 @@
         return;
       }
       
+      // Активировать звук при нажатии кнопки (важно для iOS/Android)
+      unlockAudio();
+      
       // ВАЖНО: Получаем значение таймера ДО скрытия picker!
       let currentValue = getPickerSelectedValue();
       if (isNaN(currentValue)) currentValue = selectedTime;
-      currentValue = Math.max(0, Math.min(60, currentValue));
+      currentValue = Math.max(1, Math.min(60, currentValue));
       selectedTime = currentValue;
       saveTimerPreference(selectedTime);
       
@@ -1521,11 +1546,6 @@
       updateTimerDisplay();
       
       if (timerInterval) clearInterval(timerInterval);
-      
-      // Если 0 секунд — без автопереключения, только вручную
-      if (selectedTime === 0) {
-        return;
-      }
       
       timerInterval = setInterval(() => {
         if (!isPaused) {
@@ -1595,6 +1615,9 @@
       if (words) {
         learnWords = words;
       }
+      
+      // Активировать звук (важно для iOS/Android)
+      unlockAudio();
       
       currentWordIndex = 0;
       learnMode = 'test';
@@ -1767,6 +1790,7 @@
 
     function repeatWithSameTimer() {
       closeModal();
+      unlockAudio();
       currentWordIndex = 0;
       learnMode = 'learn';
       document.getElementById('learnModeSection').style.display = 'block';
@@ -1796,6 +1820,7 @@
 
     function learnForgottenWords() {
       closeModal();
+      unlockAudio();
       learnWords = [...forgottenWords];
       forgottenWords = [];
       currentWordIndex = 0;
