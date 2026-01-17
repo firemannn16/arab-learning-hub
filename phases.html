@@ -4,14 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Тренажер Тетрадь - Арабские слова</title>
-    <script src="theme.js"></script>
-    <link rel="stylesheet" href="theme.css">
     <script src="dua.js"></script>
     <script src="service-worker-register.js"></script>
-    <script src="storage-protection.js"></script>
-    <script src="sidebar-menu.js"></script>
-    <script src="favorites.js"></script>
-    <script src="streak.js"></script>
     <style>
         * {
             margin: 0;
@@ -33,6 +27,22 @@
             padding: 30px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .home-btn {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: opacity .3s;
+        }
+
+        .home-btn:hover {
+            opacity: .9;
         }
 
         h1 {
@@ -126,31 +136,6 @@
             transition: background-color 0.3s ease;
             position: relative;
             background: white;
-        }
-        
-        .fav-cell {
-            width: 40px;
-            text-align: center;
-            vertical-align: middle;
-        }
-        
-        .fav-star-btn {
-            background: none;
-            border: none;
-            font-size: 20px;
-            cursor: pointer;
-            opacity: 0.3;
-            transition: all 0.2s;
-            padding: 5px;
-        }
-        
-        .fav-star-btn:hover {
-            opacity: 1;
-            transform: scale(1.2);
-        }
-        
-        .fav-star-btn.active {
-            opacity: 1;
         }
 
         .word-row:hover {
@@ -622,6 +607,8 @@
 </head>
 <body>
     <div class="container">
+        <a href="index.html" class="home-btn">← Вернуться на главную</a>
+        
         <h1>🌙 Тренажер Тетрадь</h1>
         
         <div class="mode-toggle">
@@ -704,29 +691,17 @@
         const SHARED_CODE_KEY = 'userProgressCode';
 
         const firebaseConfig = {
-            apiKey: "AIzaSyC2yC_BlLuP3dEzWUlWe57hhI4CezNZCy0",
-            authDomain: "arab-learning-hub.firebaseapp.com",
-            projectId: "arab-learning-hub",
-            storageBucket: "arab-learning-hub.firebasestorage.app",
-            messagingSenderId: "377334822830",
-            appId: "1:377334822830:web:7cb045a81824741f427a3f",
-            measurementId: "G-XBW1F1KGW3"
+            apiKey: "AIzaSyCYm7d5ihMS9u0z_hq-1JG7TKrZvXzQZYk",
+            authDomain: "арабский-e3be6.firebaseapp.com",
+            databaseURL: "https://арабский-e3be6-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "арабский-e3be6",
+            storageBucket: "арабский-e3be6.firebasestorage.app",
+            messagingSenderId: "531088407371",
+            appId: "1:531088407371:web:e1fd3e7e2cf33ee4f29c4a"
         };
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-        // 🔧 Для сетей с прокси/блокировками: форсируем long-polling и отключаем stream
-        db.settings({
-            experimentalForceLongPolling: true,
-            useFetchStreams: false
-        });
-        
-        // ✅ Делаем Firebase доступным глобально для streak.js
-        window.firestore = db;
-        window.firebaseEnabled = true;
-        
-        // ✅ Уведомляем о готовности Firebase
-        window.dispatchEvent(new CustomEvent('firebaseReady'));
 
         let words = [];
         let originalWords = [];
@@ -737,11 +712,9 @@
         const wordsPerPage = 100;
         let pageWordCounts = {};
         let userCode = '';
-        let firebaseDataLoaded = false; // ✅ Флаг: данные из Firebase загружены?
         let pendingSync = false;
         let syncTimeout = null;
         let nextWordId = 0;
-        let resetVersion = getFromLocalStorage('resetVersion', 0); // 🔄 Версия сброса для приоритета
 
         let formattedCache = new Map();
         
@@ -770,22 +743,11 @@
 
         // ✅ ФУНКЦИИ ДЛЯ РАБОТЫ С ОБЩИМ КОДОМ
         function getUserCode() {
-            // ✅ Читаем напрямую (код хранится как простая строка)
-            try {
-                return localStorage.getItem(SHARED_CODE_KEY) || '';
-            } catch(e) {
-                console.warn('Ошибка чтения кода:', e);
-                return '';
-            }
+            return localStorage.getItem(SHARED_CODE_KEY) || '';
         }
 
         function saveUserCode(code) {
-            // ✅ Сохраняем напрямую (как простая строка, совместимо с index.html)
-            try {
-                localStorage.setItem(SHARED_CODE_KEY, code);
-            } catch(e) {
-                console.warn('Ошибка сохранения кода:', e);
-            }
+            localStorage.setItem(SHARED_CODE_KEY, code);
         }
 
         function generateWordId() {
@@ -793,24 +755,21 @@
         }
 
         function saveToLocalStorage(key, value) {
-            // ✅ Используем безопасное сохранение с timestamp для данных прогресса
-            return safeLocalStorageSet(PREFIX + key, value, true);
+            try {
+                localStorage.setItem(PREFIX + key, JSON.stringify(value));
+            } catch (e) {
+                console.error('Ошибка сохранения в localStorage:', e);
+            }
         }
 
         function getFromLocalStorage(key, defaultValue = null) {
-            // ✅ Используем безопасное чтение
-            const result = safeLocalStorageGet(PREFIX + key);
-            
-            // ✅ Очищаем timestamp из данных (он нужен только для сравнения)
-            if (result && typeof result === 'object' && 'timestamp' in result && !Array.isArray(result)) {
-                const { timestamp, ...cleanData } = result;
-                // Если после удаления timestamp остались другие ключи, возвращаем их
-                if (Object.keys(cleanData).length > 0) {
-                    return cleanData;
-                }
+            try {
+                const item = localStorage.getItem(PREFIX + key);
+                return item ? JSON.parse(item) : defaultValue;
+            } catch (e) {
+                console.error('Ошибка чтения из localStorage:', e);
+                return defaultValue;
             }
-            
-            return result !== null ? result : defaultValue;
         }
 
         function removeFromLocalStorage(key) {
@@ -839,69 +798,7 @@
         async function syncToFirebase() {
             if (!userCode) return;
             
-            // ✅ ЗАЩИТА: Не синхронизировать пустые данные если Firebase ещё не загружен
-            // Это предотвращает перезапись существующих данных в Firebase пустыми
-            if (!firebaseDataLoaded && Object.keys(openedWordsMap).length === 0) {
-                console.log('⚠️ Синхронизация отменена: данные из Firebase не загружены и openedWords пуст');
-                console.log('   Это защита от перезаписи существующих данных пустыми');
-                return;
-            }
-            
             try {
-                // ✅ ЗАЩИТА: Если данные из Firebase НЕ загружены - отправляем только базовые поля
-                // Это предотвращает перезапись существующих данных в Firebase
-                // (merge: true НЕ делает глубокое слияние для вложенных объектов!)
-                
-                if (!firebaseDataLoaded) {
-                    console.log('⚠️ Firebase данные не были загружены - синхронизация ограничена');
-                    console.log('   Будут обновлены только: timestamp, lastSync, lastUpdated');
-                    
-                    // Минимальные данные - только метки времени
-                    // Это позволит следующей загрузке получить актуальные данные
-                    const minimalData = {
-                        code: userCode,
-                        trainerId: TRAINER_ID,
-                        timestamp: Date.now(),
-                        lastSync: new Date().toISOString(),
-                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
-                        resetVersion
-                    };
-                    
-                    // Если есть хоть какой-то прогресс - добавляем его через dot notation
-                    // Это ДОБАВИТ слова, а не перезапишет весь объект
-                    const updateData = { ...minimalData };
-                    
-                    if (Object.keys(openedWordsMap).length > 0) {
-                        // Используем dot notation для безопасного добавления
-                        Object.keys(openedWordsMap).forEach(wordId => {
-                            updateData[`openedWords.${wordId}`] = openedWordsMap[wordId];
-                        });
-                        console.log(`   + Добавлено ${Object.keys(openedWordsMap).length} слов через dot notation`);
-                    }
-                    
-                    const success = await safeFirebaseSave(
-                        async () => {
-                            return await db.collection('users')
-                                   .doc(userCode)
-                                   .collection('trainers')
-                                   .doc(TRAINER_ID)
-                                   .set(updateData, { merge: true });
-                        },
-                        PREFIX + 'firebase_backup',
-                        updateData
-                    );
-                    
-                    if (success) {
-                        saveToLocalStorage('lastSync', new Date().toISOString());
-                        console.log('✓ Ограниченная синхронизация выполнена');
-                        showSyncStatus('✓ Синхронизировано', 'synced');
-                    }
-                    return;
-                }
-                
-                // ✅ ПОЛНАЯ синхронизация - данные из Firebase были загружены
-                console.log('✓ Полная синхронизация (Firebase данные были загружены)');
-                
                 const data = {
                     code: userCode,
                     trainerId: TRAINER_ID,
@@ -912,33 +809,20 @@
                     currentPage: currentPage,
                     pageWordCounts: pageWordCounts,
                     nextWordId: nextWordId,
-                    resetVersion,
-                    timestamp: Date.now(),
-                    lastSync: new Date().toISOString(),
                     lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
                 };
 
-                // ✅ Используем безопасное сохранение в Firebase
-                const success = await safeFirebaseSave(
-                    async () => {
-                        // ✅ ПУТЬ: users/{code}/trainers/phases
-                        return await db.collection('users')
-                               .doc(userCode)
-                               .collection('trainers')
-                               .doc(TRAINER_ID)
-                               .set(data, { merge: true });
-                    },
-                    PREFIX + 'firebase_backup',
-                    data
-                );
+                // ✅ ПУТЬ: users/{code}/trainers/phases
+                await db.collection('users')
+                       .doc(userCode)
+                       .collection('trainers')
+                       .doc(TRAINER_ID)
+                       .set(data, { merge: true });
                 
-                if (success) {
-                    saveToLocalStorage('lastSync', new Date().toISOString());
-                    console.log('✓ Синхронизировано с Firebase (phases)');
-                    showSyncStatus('✓ Синхронизировано', 'synced');
-                } else {
-                    showSyncStatus('❌ Ошибка синхронизации', 'error');
-                }
+                saveToLocalStorage('lastSync', new Date().toISOString());
+                
+                console.log('✓ Синхронизировано с Firebase (phases)');
+                showSyncStatus('✓ Синхронизировано', 'synced');
             } catch (error) {
                 console.error('Ошибка синхронизации с Firebase:', error);
                 showSyncStatus('❌ Ошибка синхронизации', 'error');
@@ -946,7 +830,6 @@
         }
 
         function scheduleSyncToFirebase() {
-            // Более частый фоновой sync, без блокировки UI
             if (syncTimeout) {
                 clearTimeout(syncTimeout);
             }
@@ -958,7 +841,7 @@
                     syncToFirebase();
                     pendingSync = false;
                 }
-            }, 800); // было 3000 мс, ускорили до ~0.8с
+            }, 3000);
         }
 
         // ✅ ЗАГРУЗКА ИЗ FIREBASE (ПОДКОЛЛЕКЦИЯ)
@@ -966,143 +849,46 @@
             try {
                 showSyncStatus('⏳ Загрузка из облака...', 'syncing');
                 
-                // ✅ Используем безопасную загрузку из Firebase
-                const data = await safeFirebaseLoad(
-                    async () => {
-                        // ✅ ПУТЬ: users/{code}/trainers/phases
-                        const doc = await db.collection('users')
-                                           .doc(code)
-                                           .collection('trainers')
-                                           .doc(TRAINER_ID)
-                                           .get();
-                        
-                        if (doc.exists) {
-                            console.log('✓ Загружено из Firebase (phases)');
-                            return doc.data();
-                        }
-                        return null;
-                    },
-                    PREFIX + 'firebase_backup'
-                );
+                // ✅ ПУТЬ: users/{code}/trainers/phases
+                const doc = await db.collection('users')
+                                   .doc(code)
+                                   .collection('trainers')
+                                   .doc(TRAINER_ID)
+                                   .get();
                 
-                if (data) {
-                    const firebaseReset = data.resetVersion || 0;
-                    const localReset = getFromLocalStorage('resetVersion', 0);
-                    if (localReset > firebaseReset) {
-                        resetVersion = localReset;
-                        saveToLocalStorage('resetVersion', resetVersion);
-                        await syncToFirebase();
-                        showSyncStatus('✓ Синхронизировано (после сброса)', 'synced');
-                    } else if (firebaseReset > localReset) {
-                        resetVersion = firebaseReset;
-                        saveToLocalStorage('resetVersion', resetVersion);
-                    }
-                    // ✅ СРАВНИВАЕМ TIMESTAMP: локальные VS Firebase
-                    const firebaseTimestamp = data.timestamp || 0;
+                if (doc.exists) {
+                    const data = doc.data();
                     
-                    // Получаем timestamp из localStorage (используем прямое чтение чтобы получить обёртку с timestamp)
-                    let localTimestamp = 0;
-                    try {
-                        const rawData = localStorage.getItem(PREFIX + 'openedWords');
-                        if (rawData) {
-                            const parsed = JSON.parse(rawData);
-                            if (parsed && parsed.timestamp) {
-                                localTimestamp = parsed.timestamp;
-                            }
-                        }
-                    } catch(e) {
-                        console.warn('Не удалось прочитать локальный timestamp:', e);
+                    openedWordsMap = data.openedWords || {};
+                    errorWords = data.errors || [];
+                    pageWordCounts = data.pageWordCounts || {};
+                    nextWordId = data.nextWordId || 0;
+                    
+                    const savedWordCount = data.initialWordCount || 0;
+                    saveToLocalStorage('initialWordCount', savedWordCount);
+                    
+                    if (data.wordsOrder && data.wordsOrder.length > 0) {
+                        words = data.wordsOrder;
+                        saveToLocalStorage('wordsOrder', words);
                     }
                     
-                    let useFirebaseData = true;
-                    
-                    if (localTimestamp > 0 && firebaseTimestamp > 0) {
-                        // Если локальные данные НОВЕЕ - не перезаписываем
-                        if (localTimestamp > firebaseTimestamp) {
-                            console.log(`📱 Локальные данные новее (${new Date(localTimestamp).toLocaleString()} > ${new Date(firebaseTimestamp).toLocaleString()}), синхронизируем в Firebase...`);
-                            useFirebaseData = false;
-                            await syncToFirebase();
-                        } else {
-                            console.log(`☁️ Firebase данные новее (${new Date(firebaseTimestamp).toLocaleString()} >= ${new Date(localTimestamp).toLocaleString()}), загружаем...`);
-                        }
-                    } else if (firebaseTimestamp > 0) {
-                        console.log('☁️ Загружаем данные из Firebase (нет локальных данных)');
-                    } else if (localTimestamp > 0) {
-                        console.log('📱 Используем локальные данные (нет данных в Firebase)');
-                        useFirebaseData = false;
-                        await syncToFirebase();
+                    if (data.currentPage !== undefined) {
+                        saveToLocalStorage('currentPage', data.currentPage);
                     }
                     
-                    if (useFirebaseData) {
-                        const firebaseOpened = data.openedWords || {};
-                        // 🛡️ Не теряем локальный прогресс, если timestamps равны/близки
-                        const localOpened = getFromLocalStorage('openedWords', {});
-                        const mergedOpened = { ...firebaseOpened, ...localOpened };
-                        const mergedAdded = Object.keys(mergedOpened).length > Object.keys(firebaseOpened).length;
-                        
-                        openedWordsMap = mergedOpened;
-                        errorWords = data.errors || [];
-                        pageWordCounts = data.pageWordCounts || {};
-                        nextWordId = data.nextWordId || 0;
-                        
-                        // ✅ ВАЖНО: Сравниваем initialWordCount из Firebase с текущим количеством слов
-                        const firebaseWordCount = data.initialWordCount || 0;
-                        const currentLocalWordCount = getFromLocalStorage('initialWordCount', 0);
-                        
-                        // Используем МАКСИМАЛЬНОЕ значение (если в words.txt добавили слова)
-                        const actualWordCount = Math.max(firebaseWordCount, currentLocalWordCount, words.length);
-                        saveToLocalStorage('initialWordCount', actualWordCount);
-                        
-                        if (data.wordsOrder && data.wordsOrder.length > 0) {
-                            words = data.wordsOrder;
-                            saveToLocalStorage('wordsOrder', words);
-                        }
-                        
-                        if (data.currentPage !== undefined) {
-                            saveToLocalStorage('currentPage', data.currentPage);
-                        }
-                        
-                        saveToLocalStorage('openedWords', openedWordsMap);
-                        saveToLocalStorage('errors', errorWords);
-                        saveToLocalStorage('pageWordCounts', pageWordCounts);
-                        saveToLocalStorage('nextWordId', nextWordId);
-                        saveToLocalStorage('lastSync', data.lastSync || new Date().toISOString());
-                        saveToLocalStorage('resetVersion', resetVersion);
-                        
-                        if (mergedAdded) {
-                            console.log('📈 Объединены локальные открытые слова с Firebase, инициируем синхронизацию');
-                            scheduleSyncToFirebase();
-                        }
-                        
-                        showSyncStatus('✓ Загружено из облака', 'synced');
-                        
-                        console.log('✅ Данные из Firebase применены:', {
-                            openedWordsCount: Object.keys(openedWordsMap).length,
-                            errorsCount: errorWords.length,
-                            currentPage: data.currentPage
-                        });
-                        
-                        // ✅ НЕ синхронизируем обратно сразу после загрузки!
-                        // Это предотвращает перезапись данных пустыми значениями
-                        // Синхронизация произойдёт автоматически при изменении прогресса
-                        
-                        firebaseDataLoaded = true; // ✅ Данные загружены из Firebase
-                        console.log('✅ Firebase данные загружены, синхронизация разрешена');
-                        
-                        // ✅ Обновляем UI после загрузки данных
-                        updateStats();
-                        renderWords();
-                        renderErrors();
-                    }
+                    saveToLocalStorage('openedWords', openedWordsMap);
+                    saveToLocalStorage('errors', errorWords);
+                    saveToLocalStorage('pageWordCounts', pageWordCounts);
+                    saveToLocalStorage('nextWordId', nextWordId);
+                    saveToLocalStorage('lastSync', new Date().toISOString());
                     
+                    console.log('✓ Загружено из Firebase (phases)');
+                    showSyncStatus('✓ Загружено из облака', 'synced');
                     return true;
                 } else {
-                    // ⚠️ Данных нет в Firebase — это нормально для нового пользователя
-                    // ВАЖНО: Устанавливаем флаг чтобы разрешить ПОЛНУЮ синхронизацию!
-                    // Иначе wordsOrder, currentPage и т.д. никогда не сохранятся в Firebase
-                    firebaseDataLoaded = true;
-                    console.log('📭 Данные не загружены (новый пользователь) — полная синхронизация разрешена');
-                    return false;
+                    console.log('Документ не найден, создаем новый');
+                    await syncToFirebase();
+                    return true;
                 }
             } catch (error) {
                 console.error('Ошибка загрузки из Firebase:', error);
@@ -1143,16 +929,11 @@
             
             lines.forEach((line, index) => {
                 line = line.trim().replace(/\r/g, '');
-                // Нормализуем все варианты тире: любые → дефис, затем пробелы вокруг
-                line = line.replace(/[\u2010-\u2015–—−]+/g, '-');
-                line = line.replace(/\s*-\s*/g, ' - ');
                 
                 if (!line || line.length < 3) return;
                 
                 const separator = findSeparator(line);
-                if (!separator) {
-                    return;
-                }
+                if (!separator) return;
                 
                 const parts = line.split(separator);
                 if (parts.length < 2) return;
@@ -1297,12 +1078,13 @@
 
         async function loadWords() {
             try {
-                // ✅ Используем безопасную загрузку с retry
-                const text = await safeLoadWordsFile('words.txt', 3);
+                const response = await fetch('words.txt', { cache: 'no-store' });
                 
-                if (!text) {
+                if (!response.ok) {
                     throw new Error('Не удалось загрузить файл');
                 }
+                
+                const text = await response.text();
                 const allWordsFromFile = parseWordsFromText(text);
                 
                 const savedWordsOrder = getFromLocalStorage('wordsOrder', null);
@@ -1328,24 +1110,6 @@
                         return w;
                     });
                     pageWordCounts = getFromLocalStorage('pageWordCounts', {});
-                    
-                    // 🔄 Добавляем новые слова, которых не было в сохранённом порядке
-                    const existingKeys = new Set(words.map(w => `${w.ru}|||${w.ar}`));
-                    let addedNew = 0;
-                    allWordsFromFile.forEach(w => {
-                        const key = `${w.ru}|||${w.ar}`;
-                        if (!existingKeys.has(key)) {
-                            const newWord = { ...w, id: generateWordId() };
-                            words.push(newWord);
-                            existingKeys.add(key);
-                            addedNew++;
-                        }
-                    });
-                    if (addedNew > 0) {
-                        console.log(`➕ Добавлено новых слов: ${addedNew}`);
-                        saveToLocalStorage('wordsOrder', words);
-                        saveToLocalStorage('initialWordCount', allWordsFromFile.length);
-                    }
                 }
                 
                 validateProgress(words);
@@ -1366,15 +1130,46 @@
 
         async function checkAndApplyFileChanges() {
             try {
-                // ✅ Используем безопасную загрузку с retry
-                const text = await safeLoadWordsFile('words.txt', 3);
-                if (!text) return;
+                const response = await fetch('words.txt', { cache: 'no-store' });
+                if (!response.ok) return;
+                
+                const text = await response.text();
                 const allWordsFromFile = parseWordsFromText(text);
                 
-                const savedWordCount = getFromLocalStorage('initialWordCount', 0);
-                const knownWords = allWordsFromFile.slice(0, savedWordCount);
+                // 🔍 Составляем карту актуальных слов из файла (ключ: ru)
+                const fileWordsMap = new Map();
+                allWordsFromFile.forEach(w => fileWordsMap.set(w.ru, w.ar));
                 
-                const { changedWords, wordsToRemove } = detectChangesAndDeletes(knownWords, words);
+                const changedWords = [];
+                const wordsToRemove = [];
+                
+                // Удаляем все, чего больше нет в файле, и обновляем измененные переводы
+                words.forEach(word => {
+                    const fileAr = fileWordsMap.get(word.ru);
+                    
+                    if (fileAr === undefined) {
+                        wordsToRemove.push(word.id);
+                        return;
+                    }
+                    
+                    if (fileAr !== word.ar) {
+                        wordsToRemove.push(word.id);
+                        
+                        if (!changedWords.find(w => w.ru === word.ru)) {
+                            changedWords.push({
+                                ru: word.ru,
+                                ar: fileAr,
+                                id: generateWordId()
+                            });
+                        }
+                    }
+                });
+                
+                // Если файл стал короче — обновляем счетчик, чтобы корректно искать новые слова
+                const savedWordCount = getFromLocalStorage('initialWordCount', allWordsFromFile.length);
+                if (allWordsFromFile.length < savedWordCount) {
+                    saveToLocalStorage('initialWordCount', allWordsFromFile.length);
+                }
                 
                 const hasChanges = applyChangesToWords(changedWords, wordsToRemove);
                 
@@ -1383,7 +1178,7 @@
                     updateStats();
                     renderWords();
                     scheduleSyncToFirebase();
-                    console.log('✅ Изменения и удаления применены');
+                    console.log(`✅ Изменения применены: удалено ${wordsToRemove.length}, обновлено ${changedWords.length}`);
                 } else {
                     console.log('✓ Изменений и удалений не обнаружено');
                 }
@@ -1433,8 +1228,8 @@
                 renderErrors();
                 
                 await loadWords();
-                
                 await loadFromFirebase(userCode);
+                await checkAndApplyFileChanges();
                 
                 validateProgress(words);
                 
@@ -1455,9 +1250,10 @@
 
         document.getElementById('confirm-reset-btn').addEventListener('click', async function() {
             try {
-                // ✅ Используем безопасную загрузку с retry
-                const text = await safeLoadWordsFile('words.txt', 3);
-                if (!text) throw new Error('Не удалось загрузить файл');
+                const response = await fetch('words.txt', { cache: 'no-store' });
+                if (!response.ok) throw new Error('Не удалось загрузить файл');
+                
+                const text = await response.text();
                 const allWords = parseWordsFromText(text);
                 
                 originalWords = allWords;
@@ -1466,8 +1262,6 @@
                 saveToLocalStorage('wordsOrder', words);
                 saveToLocalStorage('currentPage', 0);
                 saveToLocalStorage('initialWordCount', allWords.length);
-                resetVersion = Date.now();
-                saveToLocalStorage('resetVersion', resetVersion);
                 
                 openedWordsMap = {};
                 errorWords = [];
@@ -1480,25 +1274,15 @@
                 saveToLocalStorage('pageWordCounts', pageWordCounts);
                 saveToLocalStorage('nextWordId', nextWordId);
                 
-                // ✅ СНАЧАЛА закрываем модалку
-                document.getElementById('reset-modal').classList.remove('show');
-                
-                // ✅ СРАЗУ обновляем UI
                 renderErrors();
                 updateStats();
                 renderWords();
                 
+                await syncToFirebase();
+                
+                document.getElementById('reset-modal').classList.remove('show');
+                
                 console.log('✓ Прогресс сброшен');
-                
-                // ✅ СРАЗУ отправляем событие для показа дуа с кодом
-                console.log('📤 Отправляем событие progressReset через 500мс...');
-                setTimeout(() => {
-                    console.log('📤 Отправляем событие progressReset сейчас!');
-                    window.dispatchEvent(new CustomEvent('progressReset'));
-                }, 500);
-                
-                // ✅ Firebase синхронизация В ФОНЕ (не блокируем UI)
-                syncToFirebase().catch(e => console.warn('Ошибка синхронизации Firebase:', e));
                 
             } catch (error) {
                 console.error('Ошибка при сбросе:', error);
@@ -1509,9 +1293,10 @@
 
         addNewWordsBtn.addEventListener('click', async function() {
             try {
-                // ✅ Используем безопасную загрузку с retry
-                const text = await safeLoadWordsFile('words.txt', 3);
-                if (!text) throw new Error('Не удалось загрузить файл');
+                const response = await fetch('words.txt', { cache: 'no-store' });
+                if (!response.ok) throw new Error('Не удалось загрузить файл');
+                
+                const text = await response.text();
                 const allWords = parseWordsFromText(text);
                 
                 const savedWordCount = getFromLocalStorage('initialWordCount', 0);
@@ -1826,24 +1611,13 @@
                 
                 row.dataset.wordIndex = item.originalIndex;
                 
-                // Формируем rawLine для избранного
-                const rawLine = `${word.ru} - ${word.ar}`;
-                const isFav = typeof isFavorite === 'function' && (
-                    isFavorite(rawLine) ||
-                    (typeof isFavoriteByArabic === 'function' && isFavoriteByArabic(word.ar))
-                );
-                
-                const starCell = `<td class="fav-cell"><button class="fav-star-btn ${isFav ? 'active' : ''}" onclick="toggleWordFavorite(event, ${item.originalIndex})" title="${isFav ? 'Убрать из избранного' : 'В избранное'}">${isFav ? '⭐' : '☆'}</button></td>`;
-                
                 if (mode === 'ar-ru') {
                     row.innerHTML = `
-                        ${starCell}
                         <td class="word-cell russian ${isOpened ? '' : 'hidden'}" data-ru="${word.ru}">${isOpened ? formattedRu : ''}</td>
                         <td class="word-cell arabic ${sizeClass} ${hasMultiline ? 'has-multiline' : ''}">${formattedAr}</td>
                     `;
                 } else {
                     row.innerHTML = `
-                        ${starCell}
                         <td class="word-cell russian">${formattedRu}</td>
                         <td class="word-cell arabic ${sizeClass} ${hasMultiline ? 'has-multiline' : ''} ${isOpened ? '' : 'hidden'}" data-ar="${word.ar}">${isOpened ? formattedAr : ''}</td>
                     `;
@@ -1928,7 +1702,6 @@
                 row.classList.add('revealed');
                 
                 markWordAsOpened(word);
-                if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
                 updateStats();
             }
         });
@@ -2039,22 +1812,6 @@
             
             renderWords();
         });
-
-        // Функция для переключения избранного
-        function toggleWordFavorite(event, wordIndex) {
-            event.stopPropagation();
-            const word = words[wordIndex];
-            if (!word) return;
-            
-            const rawLine = `${word.ru} - ${word.ar}`;
-            const isNowFav = typeof toggleFavorite === 'function' && toggleFavorite(rawLine);
-            
-            // Обновляем кнопку
-            const btn = event.target;
-            btn.classList.toggle('active', isNowFav);
-            btn.innerHTML = isNowFav ? '⭐' : '☆';
-            btn.title = isNowFav ? 'Убрать из избранного' : 'В избранное';
-        }
 
         initialize();
     </script>
