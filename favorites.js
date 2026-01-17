@@ -9,40 +9,85 @@
 
   const FAVORITES_KEY = 'arabFavorites';
   const SYNC_KEY = 'arabFavoritesSyncTime';
+  const FAVORITES_TS_KEY = 'arabFavoritesUpdatedAt';
+
+  // Firebase doc path: users/{code}/favorites/data
+  function getUserCode() {
+    try {
+      return localStorage.getItem('userProgressCode') || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function canUseFirebase() {
+    return !!(window.firebaseEnabled && window.firestore && getUserCode());
+  }
+
+  function getFavoritesDocRef() {
+    if (!canUseFirebase()) return null;
+    const code = getUserCode();
+    return window.firestore
+      .collection('users')
+      .doc(code)
+      .collection('favorites')
+      .doc('data');
+  }
+
+  // Кешируем localStorage, чтобы не парсить его на каждый элемент списка
+  let favoritesCache = null;
+  let favoritesNormalizedCache = null;
+  let bootstrapDone = false;
+  let syncTimer = null;
+  let syncInProgress = false;
+
+  function ensureCacheLoaded() {
+    if (favoritesCache !== null && favoritesNormalizedCache !== null) return;
+    try {
+      const data = localStorage.getItem(FAVORITES_KEY);
+      favoritesCache = data ? JSON.parse(data) : [];
+    } catch (e) {
+      console.warn('Ошибка чтения избранного:', e);
+      favoritesCache = [];
+    }
+    favoritesNormalizedCache = new Set(favoritesCache.map(normalizeWord));
+  }
+
+  function updateCaches(list) {
+    favoritesCache = Array.isArray(list) ? [...list] : [];
+    favoritesNormalizedCache = new Set(favoritesCache.map(normalizeWord));
+  }
 
   // Получить все избранные слова
   window.getFavorites = function() {
-    try {
-      const data = localStorage.getItem(FAVORITES_KEY);
-      return data ? JSON.parse(data) : [];
-    } catch (e) {
-      console.warn('Ошибка чтения избранного:', e);
-      return [];
-    }
+    ensureCacheLoaded();
+    return [...favoritesCache];
   };
 
   // Сохранить избранные
-  function saveFavorites(favorites) {
+  function saveFavorites(favorites, { skipSync = false } = {}) {
+    updateCaches(favorites);
     try {
-      localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+      localStorage.setItem(FAVORITES_KEY, JSON.stringify(favoritesCache));
+      localStorage.setItem(FAVORITES_TS_KEY, Date.now().toString());
     } catch (e) {
       console.warn('Ошибка сохранения избранного:', e);
     }
+    if (!skipSync) scheduleSyncToFirebase();
   }
 
   // Проверить, есть ли слово в избранном
   window.isFavorite = function(word) {
-    const favorites = getFavorites();
+    ensureCacheLoaded();
     const key = normalizeWord(word);
-    const normalized = favorites.map(f => normalizeWord(f));
-    return normalized.includes(key);
+    return key ? favoritesNormalizedCache.has(key) : false;
   };
 
   // Проверить по арабскому тексту (для синхронизации)
   function isFavoriteByArabic(arabicText) {
-    const favorites = getFavorites();
+    ensureCacheLoaded();
     const arabicNorm = stripHarakat(arabicText).toLowerCase();
-    return favorites.some(f => {
+    return favoritesCache.some(f => {
       const parts = parseWordLine(f);
       return parts && stripHarakat(parts.ar).toLowerCase() === arabicNorm;
     });
@@ -52,16 +97,16 @@
 
   // Добавить слово в избранное
   window.addToFavorites = function(word) {
-    const favorites = getFavorites();
+    ensureCacheLoaded();
     const key = normalizeWord(word);
     
-    if (favorites.some(f => normalizeWord(f) === key)) {
+    if (!key || favoritesNormalizedCache.has(key)) {
       return false;
     }
     
     const wordStr = typeof word === 'string' ? word : `${word.ru} - ${word.ar}`;
-    favorites.push(wordStr);
-    saveFavorites(favorites);
+    const updated = [...favoritesCache, wordStr];
+    saveFavorites(updated);
     
     window.dispatchEvent(new CustomEvent('favoritesChanged', { detail: { action: 'add', word: wordStr } }));
     return true;
@@ -69,12 +114,13 @@
 
   // Удалить слово из избранного
   window.removeFromFavorites = function(word) {
-    const favorites = getFavorites();
+    ensureCacheLoaded();
     const key = normalizeWord(word);
+    if (!key) return false;
     
-    const newFavorites = favorites.filter(f => normalizeWord(f) !== key);
+    const newFavorites = favoritesCache.filter(f => normalizeWord(f) !== key);
     
-    if (newFavorites.length === favorites.length) {
+    if (newFavorites.length === favoritesCache.length) {
       return false;
     }
     
@@ -139,6 +185,117 @@
   window.getFavoritesCount = function() {
     return getFavorites().length;
   };
+
+  // Сбрасываем кеш, если localStorage изменили в другой вкладке
+  window.addEventListener('storage', (ev) => {
+    if (ev.key === FAVORITES_KEY || ev.key === null) {
+      favoritesCache = null;
+      favoritesNormalizedCache = null;
+    }
+  });
+
+  function getLocalTimestamp() {
+    const ts = Number(localStorage.getItem(FAVORITES_TS_KEY) || '0');
+    return Number.isFinite(ts) ? ts : 0;
+  }
+
+  async function loadFavoritesFromFirebase() {
+    const ref = getFavoritesDocRef();
+    if (!ref) return null;
+    const snap = await ref.get();
+    if (!snap.exists) return null;
+    const data = snap.data() || {};
+    const items = Array.isArray(data.items) ? data.items : [];
+    const updatedAt = data.updatedAt && typeof data.updatedAt.toMillis === 'function'
+      ? data.updatedAt.toMillis()
+      : 0;
+    return { items, updatedAt };
+  }
+
+  async function writeFavoritesToFirebase(items) {
+    const ref = getFavoritesDocRef();
+    if (!ref) return;
+    await ref.set({
+      items,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  }
+
+  function mergeFavorites(localItems, remoteItems) {
+    // Уникальные элементы, сохраняем порядок: сначала локальные, потом удалённые из локали не добавляются
+    const set = new Set();
+    const merged = [];
+    localItems.forEach(item => {
+      const norm = normalizeWord(item);
+      if (!set.has(norm)) {
+        set.add(norm);
+        merged.push(item);
+      }
+    });
+    remoteItems.forEach(item => {
+      const norm = normalizeWord(item);
+      if (!set.has(norm)) {
+        set.add(norm);
+        merged.push(item);
+      }
+    });
+    return merged;
+  }
+
+  async function bootstrapFirebaseSync() {
+    if (bootstrapDone) return;
+    if (!canUseFirebase()) return;
+    try {
+      const localItems = getFavorites();
+      const localTs = getLocalTimestamp();
+      const remote = await loadFavoritesFromFirebase();
+      const remoteItems = remote ? remote.items : [];
+      const remoteTs = remote ? remote.updatedAt || 0 : 0;
+
+      if (remote && remoteTs > localTs) {
+        // Берём облако, записываем локально без триггера sync
+        saveFavorites(remoteItems, { skipSync: true });
+      } else {
+        // Локальные свежее или только локальные — отправим в облако
+        if (localItems.length > 0) {
+          await writeFavoritesToFirebase(localItems);
+        }
+      }
+    } catch (e) {
+      console.warn('Не удалось синхронизировать избранное с Firebase:', e);
+    } finally {
+      bootstrapDone = true;
+    }
+  }
+
+  async function syncToFirebase() {
+    if (syncInProgress || !canUseFirebase()) return;
+    syncInProgress = true;
+    try {
+      const items = getFavorites();
+      await writeFavoritesToFirebase(items);
+    } catch (e) {
+      console.warn('Ошибка записи избранного в Firebase:', e);
+    } finally {
+      syncInProgress = false;
+    }
+  }
+
+  function scheduleSyncToFirebase() {
+    if (!canUseFirebase()) return;
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncToFirebase, 800);
+  }
+
+  window.addEventListener('firebaseReady', bootstrapFirebaseSync);
+  window.addEventListener('online', () => {
+    // при появлении сети — пробуем синкнуть, если есть что
+    if (canUseFirebase()) scheduleSyncToFirebase();
+  });
+  // Если Firebase уже доступен на момент загрузки
+  if (window.firebaseEnabled && window.firestore) {
+    bootstrapFirebaseSync();
+  }
 
   /**
    * Синхронизация избранного с words.txt
