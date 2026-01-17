@@ -545,6 +545,7 @@
       justify-content: center;
       align-items: center;
       animation: fadeIn 0.4s ease;
+      overflow: visible;
     }
 
     @keyframes fadeIn {
@@ -562,11 +563,14 @@
       font-size: 32px;
       font-family: 'Amiri', 'Traditional Arabic', serif;
       color: #1a1a2e;
-      line-height: 1.8;
+      line-height: 1.95;
       margin-bottom: 15px;
       direction: rtl;
       text-align: center;
       word-spacing: 8px;
+      padding: 8px 10px;
+      overflow: visible;
+      display: inline-block;
     }
 
     .word-card-translation {
@@ -828,11 +832,17 @@
       }
 
       .word-card {
-        padding: 25px 15px;
+        padding: 28px 16px;
+        min-height: 190px;
+        overflow: visible;
       }
-
+      
       .word-card-arabic {
         font-size: 26px;
+        line-height: 2.05;
+        padding: 10px 12px;
+        overflow: visible;
+        display: inline-block;
       }
 
       .word-card-translation {
@@ -1027,6 +1037,43 @@
     let knownCount = 0;            // Счётчик "знаю"
     let forgotCount = 0;           // Счётчик "забыл"
     const TIMER_STORAGE_KEY = 'arabTimerSeconds';
+    let audioContext = null;
+
+    // Получить или создать AudioContext
+    function getAudioContext() {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      return audioContext;
+    }
+
+    // Звук окончания таймера (Успех - восходящая мелодия)
+    function playTimerSound() {
+      try {
+        const ctx = getAudioContext();
+        const notes = [392, 494, 587, 784]; // G4, B4, D5, G5
+        
+        notes.forEach((freq, i) => {
+          const oscillator = ctx.createOscillator();
+          const gainNode = ctx.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(ctx.destination);
+          
+          oscillator.frequency.value = freq;
+          oscillator.type = 'sine';
+          
+          const startTime = ctx.currentTime + i * 0.1;
+          gainNode.gain.setValueAtTime(0.2, startTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.25);
+          
+          oscillator.start(startTime);
+          oscillator.stop(startTime + 0.25);
+        });
+      } catch (e) {
+        console.warn('Не удалось воспроизвести звук:', e);
+      }
+    }
 
     // Показать уведомление
     function showToast(message) {
@@ -1486,6 +1533,7 @@
           updateTimerDisplay();
           
           if (timeLeft <= 0) {
+            playTimerSound();
             if (learnMode === 'learn') {
               nextWord();
             } else {
