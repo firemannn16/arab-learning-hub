@@ -1210,6 +1210,21 @@
                     }
                 }
             });
+
+            // 🆕 Добавляем новые/переименованные слова из файла, которых не было в сохранённом списке
+            newWordsFromFile.forEach(fileWord => {
+                if (!savedWordsMap.has(fileWord.ru)) {
+                    const alreadyQueued = changedWords.find(w => w.ru === fileWord.ru && w.ar === fileWord.ar);
+                    if (!alreadyQueued) {
+                        console.log(`➕ Новое или переименованное слово: "${fileWord.ru} — ${fileWord.ar}"`);
+                        changedWords.push({
+                            ru: fileWord.ru,
+                            ar: fileWord.ar,
+                            id: generateWordId()
+                        });
+                    }
+                }
+            });
             
             return { changedWords, wordsToRemove };
         }
