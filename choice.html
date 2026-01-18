@@ -279,6 +279,7 @@ let mode = 'all';
 let loadingPromise = null;
 let direction = 'arab-to-rus'; // 'arab-to-rus' или 'rus-to-arab'
 let resetVersion = safeLocalStorageGet(PREFIX + 'resetVersion', 0) || 0;
+let syncAfterRestore = false;
 
 /* ========== DOM ========== */
 const trainer = document.getElementById('trainer');
@@ -420,7 +421,7 @@ async function loadState(){
     if (localReset > firebaseReset) {
       resetVersion = localReset;
       safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
-      await saveState();
+      syncAfterRestore = true;
       return localData || firebaseData;
     } else if (firebaseReset > localReset) {
       resetVersion = firebaseReset;
@@ -436,7 +437,7 @@ async function loadState(){
       if (localTime > firebaseTime) {
         console.log(`📱 Локальные данные новее (choice): ${new Date(localTime).toLocaleString()} > ${new Date(firebaseTime).toLocaleString()}`);
         // Синхронизируем локальные данные в Firebase
-        await saveState();
+        syncAfterRestore = true;
         return localData;
       } else {
         console.log(`☁️ Firebase данные новее (choice): ${new Date(firebaseTime).toLocaleString()} >= ${new Date(localTime).toLocaleString()}`);
@@ -1037,6 +1038,14 @@ workMistakesBtn.addEventListener('click', ()=> {
 (async function init(){
   try{
     await loadWords();
+    if (syncAfterRestore) {
+      syncAfterRestore = false;
+      try {
+        await saveState();
+      } catch(e) {
+        console.warn('Не удалось синхронизировать актуальное состояние после загрузки:', e);
+      }
+    }
     
     if(direction === 'rus-to-arab'){
       formatToggle.classList.add('active');
