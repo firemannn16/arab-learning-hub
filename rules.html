@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#667eea">
+    <link rel="manifest" href="manifest.json">
+    <title>Тренажер правил — Арабский</title>
+    <script src="theme.js"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="dua.js"></script>
+    <script src="service-worker-register.js"></script>
+    <script src="storage-protection.js"></script>
+    <script src="sidebar-menu.js"></script>
+    <script src="streak.js"></script>
+    
+    <!-- Firebase -->
+    <script type="module">
+    const firebaseConfig = {
+        apiKey: "AIzaSyC2yC_BlLuP3dEzWUlWe57hhI4CezNZCy0",
+        authDomain: "arab-learning-hub.firebaseapp.com",
+        projectId: "arab-learning-hub",
+        storageBucket: "arab-learning-hub.firebasestorage.app",
+        messagingSenderId: "377334822830",
+        appId: "1:377334822830:web:7cb045a81824741f427a3f"
+    };
+    try {
+        const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+        const { initializeFirestore } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        window.firebaseApp = initializeApp(firebaseConfig);
+        window.firestore = initializeFirestore(window.firebaseApp, {
+            experimentalForceLongPolling: true,
+            useFetchStreams: false
+        });
+        window.firebaseEnabled = true;
+        const firestoreModule = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        window.firebaseModules = {
+            doc: firestoreModule.doc,
+            setDoc: firestoreModule.setDoc,
+            getDoc: firestoreModule.getDoc
+        };
+        console.log('🔥 Firebase инициализирован');
+        window.dispatchEvent(new CustomEvent('firebaseReady'));
+    } catch(e) {
+        console.warn('Firebase не инициализирован:', e);
+        window.firebaseEnabled = false;
+    }
+    </script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 20px;
+            padding-top: 80px;
+        }
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.6rem;
+        }
+        
+        /* Табы */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 12px 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: transparent;
+            color: #666;
+        }
+        .tab-btn:hover {
+            background: #f0f0f0;
+        }
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        /* Фильтр категорий */
+        .category-filter {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .category-filter label {
+            font-weight: 600;
+            color: #333;
+        }
+        .category-filter select {
+            padding: 10px 15px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            flex: 1;
+            min-width: 150px;
+        }
+        .restart-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .restart-btn:hover {
+            opacity: 0.9;
+        }
+        
+        /* Прогресс */
+        .progress-bar {
+            background: white;
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        .progress-track {
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        
+        /* Статистика */
+        .stats {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .stat {
+            background: white;
+            padding: 12px 25px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        .stat-value.correct { color: #22c55e; }
+        .stat-value.wrong { color: #ef4444; }
+        .stat-label {
+            font-size: 0.85rem;
+            color: #666;
+        }
+        
+        /* Карточка вопроса */
+        .question-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .category-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+        .question-text {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .question-text.rtl {
+            direction: rtl;
+            font-family: "Noto Naskh Arabic", Arial, sans-serif;
+            font-size: 1.4rem;
+        }
+        
+        /* Варианты ответов */
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .option-btn {
+            padding: 15px 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            background: #f9fafb;
+            font-size: 1.05rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+            color: #333;
+        }
+        .option-btn:hover:not(.disabled) {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .option-btn.rtl {
+            direction: rtl;
+            text-align: right;
+            font-family: "Noto Naskh Arabic", Arial, sans-serif;
+            font-size: 1.2rem;
+        }
+        .option-btn.correct {
+            border-color: #22c55e;
+            background: #dcfce7;
+        }
+        .option-btn.wrong {
+            border-color: #ef4444;
+            background: #fee2e2;
+        }
+        .option-btn.disabled {
+            cursor: default;
+            opacity: 0.8;
+        }
+        
+        /* Пояснение */
+        .explanation {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e0e7ff;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        .explanation-title {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        .explanation-text {
+            color: #333;
+            line-height: 1.5;
+        }
+        
+        /* Кнопка далее */
+        .next-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: opacity 0.2s;
+        }
+        .next-btn:hover {
+            opacity: 0.9;
+        }
+        
+        /* Экран результатов */
+        .results-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .results-icon {
+            font-size: 4rem;
+            margin-bottom: 15px;
+        }
+        .results-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .results-score {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #667eea;
+            margin: 20px 0;
+        }
+        .results-details {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 20px 0;
+        }
+        .result-item {
+            text-align: center;
+        }
+        .result-value {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        .result-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        /* Пустое состояние */
+        .empty-state {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .empty-state span {
+            font-size: 4rem;
+            display: block;
+            margin-bottom: 15px;
+        }
+        .empty-state h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .empty-state p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        
+        /* Режим определений */
+        .definition-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 15px;
+            box-shadow: 0 3px 15px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s;
+            border-left: 4px solid #667eea;
+        }
+        .definition-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+        .definition-card.expanded {
+            border-left-color: #22c55e;
+        }
+        .definition-term {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .definition-term.rtl {
+            direction: rtl;
+            font-family: "Noto Naskh Arabic", Arial, sans-serif;
+            font-size: 1.4rem;
+        }
+        .definition-category {
+            font-size: 0.85rem;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .definition-answer {
+            display: none;
+            padding-top: 15px;
+            border-top: 1px solid #e5e7eb;
+            margin-top: 10px;
+            color: #555;
+            line-height: 1.6;
+        }
+        .definition-card.expanded .definition-answer {
+            display: block;
+        }
+        .definition-arabic {
+            direction: rtl;
+            font-family: "Noto Naskh Arabic", Arial, sans-serif;
+            font-size: 1.15rem;
+            line-height: 1.8;
+            padding: 12px;
+            background: #e0e7ff;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .definition-russian {
+            font-size: 1rem;
+            line-height: 1.6;
+            padding: 12px;
+            background: #f0f4ff;
+            border-radius: 8px;
+            color: #444;
+        }
+        .definition-hint {
+            font-size: 0.9rem;
+            color: #999;
+            text-align: center;
+            margin-top: 5px;
+        }
+        
+        /* Статус синхронизации */
+        .sync-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            font-size: 12px;
+            color: #666;
+            display: none;
+            z-index: 10000;
+        }
+        .sync-status.show { display: block; }
+        .sync-status.syncing { color: #2196F3; }
+        .sync-status.synced { color: #4CAF50; }
+        .sync-status.error { color: #f44336; }
+        
+        .hidden { display: none !important; }
+        
+        @media (max-width: 600px) {
+            body { padding: 15px; padding-top: 75px; }
+            h1 { font-size: 1.4rem; }
+            .tabs { flex-direction: column; }
+            .tab-btn { padding: 10px; }
+            .category-filter { flex-direction: column; }
+            .category-filter select { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 Тренажер правил</h1>
+        
+        <!-- Табы -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('quiz')">📝 Тест по правилам</button>
+            <button class="tab-btn" onclick="switchTab('definitions')">📖 Определения</button>
+        </div>
+        
+        <!-- ========== РЕЖИМ ТЕСТА ========== -->
+        <div id="quizMode">
+            <!-- Фильтр категорий -->
+            <div class="category-filter" id="categoryFilter">
+                <label>Категория:</label>
+                <select id="categorySelect" onchange="filterByCategory()">
+                    <option value="all">Все категории</option>
+                    <option value="نحو">نحو (Нахв)</option>
+                    <option value="صرف">صرف (Сорф)</option>
+                </select>
+                <button class="restart-btn" onclick="restartQuiz()">🔄 Заново</button>
+            </div>
+            
+            <!-- Прогресс -->
+            <div class="progress-bar" id="progressBar">
+                <div class="progress-text">
+                    <span>Вопрос <span id="currentNum">1</span> из <span id="totalNum">0</span></span>
+                    <span id="categoryName"></span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <!-- Статистика -->
+            <div class="stats" id="statsBar">
+                <div class="stat">
+                    <div class="stat-value correct" id="correctCount">0</div>
+                    <div class="stat-label">Правильно</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value wrong" id="wrongCount">0</div>
+                    <div class="stat-label">Ошибки</div>
+                </div>
+            </div>
+            
+            <!-- Карточка вопроса -->
+            <div class="question-card" id="questionCard">
+                <div class="category-badge" id="questionCategory"></div>
+                <div class="question-text" id="questionText"></div>
+                <div class="options" id="optionsContainer"></div>
+                <div class="explanation hidden" id="explanation">
+                    <div class="explanation-title">💡 Пояснение</div>
+                    <div class="explanation-text" id="explanationText"></div>
+                </div>
+                <button class="next-btn hidden" id="nextBtn" onclick="nextQuestion()">Далее →</button>
+            </div>
+            
+            <!-- Результаты -->
+            <div class="results-card hidden" id="resultsCard">
+                <div class="results-icon" id="resultsIcon">🎉</div>
+                <div class="results-title" id="resultsTitle">Отлично!</div>
+                <div class="results-score" id="resultsScore">0%</div>
+                <div class="results-details">
+                    <div class="result-item">
+                        <div class="result-value" style="color: #22c55e;" id="finalCorrect">0</div>
+                        <div class="result-label">Правильно</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value" style="color: #ef4444;" id="finalWrong">0</div>
+                        <div class="result-label">Ошибки</div>
+                    </div>
+                </div>
+                <button class="next-btn" onclick="restartQuiz()">🔄 Пройти заново</button>
+            </div>
+            
+            <!-- Пустое состояние -->
+            <div class="empty-state hidden" id="emptyState">
+                <span>📝</span>
+                <h2>Нет правил для тренировки</h2>
+                <p>Правила загружаются из файла rules.json</p>
+            </div>
+        </div>
+        
+        <!-- ========== РЕЖИМ ОПРЕДЕЛЕНИЙ ========== -->
+        <div id="definitionsMode" class="hidden">
+            <div class="category-filter">
+                <label>Категория:</label>
+                <select id="defCategorySelect" onchange="filterDefinitions()">
+                    <option value="all">Все категории</option>
+                    <option value="نحو">نحو (Нахв)</option>
+                    <option value="صرف">صرف (Сорф)</option>
+                </select>
+            </div>
+            
+            <p class="definition-hint">Нажмите на карточку, чтобы увидеть ответ</p>
+            
+            <div id="definitionsList"></div>
+            
+            <div class="empty-state hidden" id="defEmptyState">
+                <span>📖</span>
+                <h2>Нет определений</h2>
+                <p>Добавьте правила через админ-панель</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Статус синхронизации -->
+    <div class="sync-status" id="syncStatus"></div>
+
+    <script>
+        // Сохранение последней страницы
+        localStorage.setItem('arabLastPage', 'rules.html');
+        
+        // Состояние
+        let rules = [];
+        let definitions = [];
+        let filteredRules = [];
+        let currentIndex = 0;
+        let correctCount = 0;
+        let wrongCount = 0;
+        let answered = false;
+        let currentTab = 'quiz';
+        
+        // Загрузка
+        document.addEventListener('DOMContentLoaded', async () => {
+            await Promise.all([loadRules(), loadDefinitions()]);
+            await loadProgress();
+            initQuiz();
+        });
+        
+        // Загрузка правил из JSON файла
+        async function loadRules() {
+            try {
+                const response = await fetch('rules.json?' + Date.now());
+                if (!response.ok) throw new Error('Файл не найден');
+                rules = await response.json();
+                console.log('📚 Загружено правил:', rules.length);
+            } catch(e) {
+                console.warn('Ошибка загрузки rules.json:', e);
+                rules = [];
+            }
+        }
+        
+        // Загрузка определений из JSON файла
+        async function loadDefinitions() {
+            try {
+                const response = await fetch('definitions.json?' + Date.now());
+                if (!response.ok) throw new Error('Файл не найден');
+                definitions = await response.json();
+                console.log('📖 Загружено определений:', definitions.length);
+            } catch(e) {
+                console.warn('Ошибка загрузки definitions.json:', e);
+                definitions = [];
+            }
+        }
+        
+        // ========== FIREBASE СИНХРОНИЗАЦИЯ ==========
+        
+        function getUserCode() {
+            return localStorage.getItem('userProgressCode') || null;
+        }
+        
+        async function loadProgress() {
+            const userCode = getUserCode();
+            if (!userCode) return;
+            
+            // Сначала из localStorage
+            const local = localStorage.getItem('rulesProgress');
+            if (local) {
+                try {
+                    const data = JSON.parse(local);
+                    correctCount = data.correct || 0;
+                    wrongCount = data.wrong || 0;
+                } catch(e) {}
+            }
+            
+            // Затем из Firebase
+            if (window.firebaseEnabled && window.firebaseModules?.getDoc) {
+                try {
+                    const { doc, getDoc } = window.firebaseModules;
+                    const docRef = doc(window.firestore, 'users', userCode, 'trainers', 'rules');
+                    const docSnap = await getDoc(docRef);
+                    
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        correctCount = data.correct || 0;
+                        wrongCount = data.wrong || 0;
+                        console.log('☁️ Прогресс загружен из Firebase');
+                    }
+                } catch(e) {
+                    console.warn('Ошибка загрузки из Firebase:', e);
+                }
+            }
+            
+            updateStats();
+        }
+        
+        async function saveProgress() {
+            const userCode = getUserCode();
+            if (!userCode) return;
+            
+            const data = {
+                correct: correctCount,
+                wrong: wrongCount,
+                totalAnswered: correctCount + wrongCount,
+                lastUpdated: new Date().toISOString()
+            };
+            
+            // Сохраняем локально
+            localStorage.setItem('rulesProgress', JSON.stringify(data));
+            
+            // Сохраняем в Firebase
+            if (window.firebaseEnabled && window.firebaseModules?.setDoc) {
+                showSyncStatus('syncing', '🔄 Сохранение...');
+                try {
+                    const { doc, setDoc } = window.firebaseModules;
+                    const docRef = doc(window.firestore, 'users', userCode, 'trainers', 'rules');
+                    await setDoc(docRef, data, { merge: true });
+                    showSyncStatus('synced', '✅ Сохранено');
+                    console.log('☁️ Прогресс сохранён в Firebase');
+                } catch(e) {
+                    showSyncStatus('error', '❌ Ошибка');
+                    console.warn('Ошибка сохранения в Firebase:', e);
+                }
+            }
+        }
+        
+        function showSyncStatus(type, text) {
+            const el = document.getElementById('syncStatus');
+            el.textContent = text;
+            el.className = 'sync-status show ' + type;
+            setTimeout(() => el.classList.remove('show'), 2000);
+        }
+        
+        // ========== ПЕРЕКЛЮЧЕНИЕ ТАБОВ ==========
+        
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+                btn.classList.toggle('active', (i === 0 && tab === 'quiz') || (i === 1 && tab === 'definitions'));
+            });
+            
+            document.getElementById('quizMode').classList.toggle('hidden', tab !== 'quiz');
+            document.getElementById('definitionsMode').classList.toggle('hidden', tab !== 'definitions');
+            
+            if (tab === 'definitions') {
+                renderDefinitions();
+            }
+        }
+        
+        // ========== РЕЖИМ ТЕСТА ==========
+        
+        function initQuiz() {
+            if (rules.length === 0) {
+                showEmptyState();
+                return;
+            }
+            
+            filteredRules = shuffleArray([...rules]);
+            currentIndex = 0;
+            
+            updateStats();
+            showQuestion();
+        }
+        
+        function filterByCategory() {
+            const category = document.getElementById('categorySelect').value;
+            
+            if (category === 'all') {
+                filteredRules = shuffleArray([...rules]);
+            } else {
+                filteredRules = shuffleArray(rules.filter(r => r.category === category));
+            }
+            
+            if (filteredRules.length === 0) {
+                showEmptyState();
+                return;
+            }
+            
+            currentIndex = 0;
+            showQuestion();
+            
+            document.getElementById('questionCard').classList.remove('hidden');
+            document.getElementById('resultsCard').classList.add('hidden');
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('progressBar').classList.remove('hidden');
+            document.getElementById('statsBar').classList.remove('hidden');
+        }
+        
+        function showQuestion() {
+            if (currentIndex >= filteredRules.length) {
+                showResults();
+                return;
+            }
+            
+            const rule = filteredRules[currentIndex];
+            answered = false;
+            
+            // Обновляем прогресс
+            document.getElementById('currentNum').textContent = currentIndex + 1;
+            document.getElementById('totalNum').textContent = filteredRules.length;
+            document.getElementById('categoryName').textContent = rule.category;
+            
+            const progress = ((currentIndex) / filteredRules.length) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+            
+            // Вопрос
+            document.getElementById('questionCategory').textContent = rule.category;
+            const questionEl = document.getElementById('questionText');
+            questionEl.textContent = rule.question;
+            questionEl.classList.toggle('rtl', isRTL(rule.question));
+            
+            // Варианты (перемешиваем)
+            const shuffledOptions = rule.options.map((text, originalIndex) => ({
+                text,
+                isCorrect: originalIndex === rule.correct
+            }));
+            shuffleArray(shuffledOptions);
+            
+            const container = document.getElementById('optionsContainer');
+            container.innerHTML = shuffledOptions.map((opt, i) => {
+                const rtlClass = isRTL(opt.text) ? 'rtl' : '';
+                return `<button class="option-btn ${rtlClass}" data-correct="${opt.isCorrect}" onclick="selectOption(this)">${opt.text}</button>`;
+            }).join('');
+            
+            // Скрываем пояснение и кнопку
+            document.getElementById('explanation').classList.add('hidden');
+            document.getElementById('nextBtn').classList.add('hidden');
+            
+            // Показываем карточку
+            document.getElementById('questionCard').classList.remove('hidden');
+            document.getElementById('resultsCard').classList.add('hidden');
+            document.getElementById('emptyState').classList.add('hidden');
+        }
+        
+        function selectOption(btn) {
+            if (answered) return;
+            answered = true;
+            
+            const isCorrect = btn.dataset.correct === 'true';
+            const rule = filteredRules[currentIndex];
+            
+            // Помечаем все кнопки
+            document.querySelectorAll('.option-btn').forEach(b => {
+                b.classList.add('disabled');
+                if (b.dataset.correct === 'true') {
+                    b.classList.add('correct');
+                }
+            });
+            
+            if (isCorrect) {
+                correctCount++;
+            } else {
+                wrongCount++;
+                btn.classList.add('wrong');
+            }
+            
+            updateStats();
+            
+            // Показываем пояснение если есть
+            if (rule.explanation) {
+                document.getElementById('explanationText').textContent = rule.explanation;
+                document.getElementById('explanation').classList.remove('hidden');
+            }
+            
+            // Показываем кнопку далее
+            document.getElementById('nextBtn').classList.remove('hidden');
+            
+            // Сохраняем прогресс
+            saveProgress();
+        }
+        
+        function nextQuestion() {
+            currentIndex++;
+            showQuestion();
+        }
+        
+        function showResults() {
+            document.getElementById('questionCard').classList.add('hidden');
+            document.getElementById('progressBar').classList.add('hidden');
+            document.getElementById('resultsCard').classList.remove('hidden');
+            
+            const total = filteredRules.length;
+            const sessionCorrect = filteredRules.reduce((acc, rule, i) => i < currentIndex ? acc + 1 : acc, 0) - wrongCount + correctCount;
+            const percent = total > 0 ? Math.round((correctCount / (correctCount + wrongCount)) * 100) : 0;
+            
+            document.getElementById('resultsScore').textContent = percent + '%';
+            document.getElementById('finalCorrect').textContent = correctCount;
+            document.getElementById('finalWrong').textContent = wrongCount;
+            
+            let icon, title;
+            if (percent >= 90) {
+                icon = '🏆'; title = 'Превосходно!';
+            } else if (percent >= 70) {
+                icon = '🎉'; title = 'Отлично!';
+            } else if (percent >= 50) {
+                icon = '👍'; title = 'Хорошо!';
+            } else {
+                icon = '💪'; title = 'Нужно повторить';
+            }
+            
+            document.getElementById('resultsIcon').textContent = icon;
+            document.getElementById('resultsTitle').textContent = title;
+        }
+        
+        function restartQuiz() {
+            document.getElementById('progressBar').classList.remove('hidden');
+            document.getElementById('statsBar').classList.remove('hidden');
+            document.getElementById('categorySelect').value = 'all';
+            filteredRules = shuffleArray([...rules]);
+            currentIndex = 0;
+            
+            if (filteredRules.length === 0) {
+                showEmptyState();
+            } else {
+                showQuestion();
+            }
+        }
+        
+        function showEmptyState() {
+            document.getElementById('questionCard').classList.add('hidden');
+            document.getElementById('resultsCard').classList.add('hidden');
+            document.getElementById('progressBar').classList.add('hidden');
+            document.getElementById('statsBar').classList.add('hidden');
+            document.getElementById('categoryFilter').classList.add('hidden');
+            document.getElementById('emptyState').classList.remove('hidden');
+        }
+        
+        function updateStats() {
+            document.getElementById('correctCount').textContent = correctCount;
+            document.getElementById('wrongCount').textContent = wrongCount;
+        }
+        
+        // ========== РЕЖИМ ОПРЕДЕЛЕНИЙ ==========
+        
+        function renderDefinitions() {
+            const category = document.getElementById('defCategorySelect').value;
+            let filtered = definitions;
+            
+            if (category !== 'all') {
+                filtered = definitions.filter(d => d.category === category);
+            }
+            
+            if (filtered.length === 0) {
+                document.getElementById('definitionsList').innerHTML = '';
+                document.getElementById('defEmptyState').classList.remove('hidden');
+                return;
+            }
+            
+            document.getElementById('defEmptyState').classList.add('hidden');
+            
+            const html = filtered.map(def => {
+                return `
+                    <div class="definition-card" onclick="this.classList.toggle('expanded')">
+                        <div class="definition-category">${def.category}</div>
+                        <div class="definition-term rtl">${def.term}</div>
+                        <div class="definition-answer">
+                            ${def.definitionAr ? `<div class="definition-arabic">${def.definitionAr}</div>` : ''}
+                            ${def.definitionRu ? `<div class="definition-russian">${def.definitionRu}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('definitionsList').innerHTML = html;
+        }
+        
+        function filterDefinitions() {
+            renderDefinitions();
+        }
+        
+        // ========== УТИЛИТЫ ==========
+        
+        function isRTL(text) {
+            const rtlRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+            return rtlRegex.test(text);
+        }
+        
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+    </script>
+</body>
+</html>
