@@ -1306,7 +1306,6 @@
                 const allWordsFromFile = parseWordsFromText(text);
                 
                 const savedWordsOrder = getFromLocalStorage('wordsOrder', null);
-                const savedWordCount = getFromLocalStorage('initialWordCount', null);
                 nextWordId = getFromLocalStorage('nextWordId', 0);
                 
                 if (savedWordsOrder === null || savedWordsOrder.length === 0) {
@@ -1328,24 +1327,6 @@
                         return w;
                     });
                     pageWordCounts = getFromLocalStorage('pageWordCounts', {});
-                    
-                    // 🔄 Добавляем новые слова, которых не было в сохранённом порядке
-                    const existingKeys = new Set(words.map(w => `${w.ru}|||${w.ar}`));
-                    let addedNew = 0;
-                    allWordsFromFile.forEach(w => {
-                        const key = `${w.ru}|||${w.ar}`;
-                        if (!existingKeys.has(key)) {
-                            const newWord = { ...w, id: generateWordId() };
-                            words.push(newWord);
-                            existingKeys.add(key);
-                            addedNew++;
-                        }
-                    });
-                    if (addedNew > 0) {
-                        console.log(`➕ Добавлено новых слов: ${addedNew}`);
-                        saveToLocalStorage('wordsOrder', words);
-                        saveToLocalStorage('initialWordCount', allWordsFromFile.length);
-                    }
                 }
                 
                 validateProgress(words);
@@ -1364,15 +1345,19 @@
             }
         }
 
-        async function checkAndApplyFileChanges() {
+        async function checkAndApplyFileChanges(preloadedText = null) {
             try {
-                // ✅ Используем безопасную загрузку с retry
-                const text = await safeLoadWordsFile('words.txt', 3);
+                // ✅ Используем безопасную загрузку с retry (или готовый текст)
+                const text = preloadedText !== null ? preloadedText : await safeLoadWordsFile('words.txt', 3);
                 if (!text) return;
                 const allWordsFromFile = parseWordsFromText(text);
                 
-                const savedWordCount = getFromLocalStorage('initialWordCount', 0);
-                const knownWords = allWordsFromFile.slice(0, savedWordCount);
+                const savedWordCount = getFromLocalStorage('initialWordCount', null);
+                // ✅ Не повышаем счётчик автоматически: учитываем только известное количество
+                const effectiveSavedCount = savedWordCount === null 
+                    ? Math.min(words.length, allWordsFromFile.length)
+                    : Math.min(savedWordCount, allWordsFromFile.length);
+                const knownWords = allWordsFromFile.slice(0, effectiveSavedCount);
                 
                 const { changedWords, wordsToRemove } = detectChangesAndDeletes(knownWords, words);
                 
@@ -1386,6 +1371,15 @@
                     console.log('✅ Изменения и удаления применены');
                 } else {
                     console.log('✓ Изменений и удалений не обнаружено');
+                }
+
+                // 🔄 Обновляем счётчик известных слов только если он уменьшился (удаления)
+                if (savedWordCount !== effectiveSavedCount) {
+                    saveToLocalStorage('initialWordCount', effectiveSavedCount);
+                    // Сохраняем порядок слов, чтобы не потерять актуальный список
+                    saveToLocalStorage('wordsOrder', words);
+                    scheduleSyncToFirebase();
+                    console.log(`ℹ️ Обновлён лимит известных слов: ${effectiveSavedCount}`);
                 }
             } catch (error) {
                 console.error('Ошибка проверки изменений:', error);
@@ -1421,6 +1415,7 @@
                 console.log('🆕 Создан новый код:', userCode);
                 
                 await loadWords();
+                await checkAndApplyFileChanges();
                 await syncToFirebase();
             } else {
                 console.log('👤 Код пользователя:', userCode);
@@ -1435,6 +1430,7 @@
                 await loadWords();
                 
                 await loadFromFirebase(userCode);
+                await checkAndApplyFileChanges();
                 
                 validateProgress(words);
                 
@@ -1460,11 +1456,13 @@
                 if (!text) throw new Error('Не удалось загрузить файл');
                 const allWords = parseWordsFromText(text);
                 
+                // При сбросе тянем все актуальные слова целиком (включая новые/изменённые)
                 originalWords = allWords;
                 words = shuffleArray(allWords);
                 
                 saveToLocalStorage('wordsOrder', words);
                 saveToLocalStorage('currentPage', 0);
+                // Обновляем счётчик известных слов на полный актуальный объём
                 saveToLocalStorage('initialWordCount', allWords.length);
                 resetVersion = Date.now();
                 saveToLocalStorage('resetVersion', resetVersion);
