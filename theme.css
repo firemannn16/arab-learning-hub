@@ -691,3 +691,112 @@ html.dark-theme body.main-page {
 .dark-theme ::-webkit-scrollbar-thumb:hover {
   background: #5a6578;
 }
+
+/* ===== ТРЕНАЖЕР ПРАВИЛ ===== */
+.dark-theme .question-card,
+.dark-theme .results-card,
+.dark-theme .empty-state,
+.dark-theme .progress-bar,
+.dark-theme .category-filter,
+.dark-theme .tabs {
+  background: #16213e !important;
+  color: #e0e0e0 !important;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3) !important;
+}
+
+.dark-theme .question-text,
+.dark-theme .results-title {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .option-btn {
+  background: #1e2a47 !important;
+  color: #e0e0e0 !important;
+  border-color: #4a5568 !important;
+}
+
+.dark-theme .option-btn:hover:not(.disabled) {
+  background: #253254 !important;
+  border-color: #667eea !important;
+}
+
+.dark-theme .option-btn.correct {
+  background: #1e4731 !important;
+  border-color: #22c55e !important;
+  color: #86efac !important;
+}
+
+.dark-theme .option-btn.wrong {
+  background: #4a1a1a !important;
+  border-color: #ef4444 !important;
+  color: #fca5a5 !important;
+}
+
+.dark-theme .explanation {
+  background: #1e2a47 !important;
+  border-left-color: #667eea !important;
+}
+
+.dark-theme .explanation-title {
+  color: #a5b4fc !important;
+}
+
+.dark-theme .explanation-text {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .definition-card {
+  background: #16213e !important;
+  color: #e0e0e0 !important;
+  border-left-color: #667eea !important;
+  box-shadow: 0 3px 15px rgba(0,0,0,0.3) !important;
+}
+
+.dark-theme .definition-card:hover {
+  box-shadow: 0 5px 20px rgba(0,0,0,0.4) !important;
+}
+
+.dark-theme .definition-card.expanded {
+  border-left-color: #22c55e !important;
+}
+
+.dark-theme .definition-term {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .definition-category {
+  color: #a5b4fc !important;
+}
+
+.dark-theme .definition-answer {
+  color: #b0b0b0 !important;
+  border-top-color: #4a5568 !important;
+}
+
+.dark-theme .definition-arabic {
+  background: #1e2a47 !important;
+  color: #a5b4fc !important;
+}
+
+.dark-theme .definition-russian {
+  background: #253254 !important;
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .definition-hint {
+  color: #6b7280 !important;
+}
+
+.dark-theme .category-filter select {
+  background: #1e2a47 !important;
+  color: #e0e0e0 !important;
+  border-color: #4a5568 !important;
+}
+
+.dark-theme .progress-text {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .progress-track {
+  background: #2d3748 !important;
+}
