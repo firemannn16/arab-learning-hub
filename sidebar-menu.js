@@ -17,6 +17,7 @@
     { name: 'Тренажер Тетрадь', href: 'phases.html', icon: '📊' },
     { name: 'Словарь', href: 'dictionary.html', icon: '📚' },
     { name: 'Пустой Тренажер', href: 'simple.html', icon: '📝' },
+    { name: 'Тренажер Правил', href: 'rules.html', icon: '📚' },
     { name: 'Тренажер Заучка + Практика', href: 'input.html', icon: '✍️' },
     { name: 'Тренажер Выборка', href: 'choice.html', icon: '✅' },
     { name: 'Список слов', href: 'words-list.html', icon: '📋' }
@@ -345,6 +346,8 @@
     .sidebar-menu.active .sidebar-nav-item:nth-child(4) { animation-delay: 0.2s; }
     .sidebar-menu.active .sidebar-nav-item:nth-child(5) { animation-delay: 0.25s; }
     .sidebar-menu.active .sidebar-nav-item:nth-child(6) { animation-delay: 0.3s; }
+    .sidebar-menu.active .sidebar-nav-item:nth-child(7) { animation-delay: 0.35s; }
+    .sidebar-menu.active .sidebar-nav-item:nth-child(8) { animation-delay: 0.4s; }
 
     .sidebar-menu:not(.active) .sidebar-nav-item {
       animation: none;
