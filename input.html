@@ -706,6 +706,20 @@ function showResetModal() {
       cleanOldBackups(0);
     }catch(e){ console.warn('Ошибка очистки localStorage:', e); }
     
+    // ✅ При сбросе заново загружаем актуальный words.txt
+    try{
+      const txt = await robustFetchWords();
+      const lines = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      const parsed = lines.map(parseLine);
+      if (parsed.length > 0) {
+        allWords = parsed.slice();
+      } else {
+        console.warn('words.txt пуст, оставляем текущие слова');
+      }
+    }catch(e){
+      console.warn('Не удалось загрузить words.txt при сбросе:', e);
+    }
+    
     // ✅ СРАЗУ сбрасываем все данные
     orderQueue = allWords.map(w=>w.rawLine);
     shuffle(orderQueue);
