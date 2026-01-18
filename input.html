@@ -276,7 +276,6 @@ async function loadState(){
   if (localReset > firebaseReset) {
     resetVersion = localReset;
     safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
-    await saveState({ fireAndForget: true });
     return localData || firebaseData;
   } else if (firebaseReset > localReset) {
     resetVersion = firebaseReset;
@@ -291,7 +290,6 @@ async function loadState(){
     // Используем более свежие данные
     if (localTime > firebaseTime) {
       console.log('📱 Локальные данные новее (input), синхронизируем в Firebase...');
-      await saveState({ fireAndForget: true });
       return localData;
     } else {
       console.log('☁️ Firebase данные новее (input)');
