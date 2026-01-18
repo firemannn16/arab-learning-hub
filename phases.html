@@ -565,6 +565,7 @@
             color: #4CAF50;
         }
 
+
         @media (max-width: 600px) {
             .container {
                 padding: 20px;
@@ -834,6 +835,7 @@
                 syncStatus.classList.remove('show');
             }, 2000);
         }
+
 
         // ✅ СИНХРОНИЗАЦИЯ С FIREBASE (ПОДКОЛЛЕКЦИЯ)
         async function syncToFirebase() {
@@ -1552,6 +1554,7 @@
                 updateStats();
                 renderWords();
                 scheduleSyncToFirebase();
+                alert(`Добавлено новых слов: ${newWords.length}`);
                 
                 const originalText = this.textContent;
                 this.textContent = `✓ Добавлено ${newWords.length} слов!`;
