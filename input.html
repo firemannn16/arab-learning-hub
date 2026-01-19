@@ -242,6 +242,46 @@ async function saveState(options = {}){
   await syncPromise;
 }
 
+/* ---------- Буферизация облачных сохранений (18 c) ---------- */
+const CLOUD_SAVE_INTERVAL_MS = 18000;
+let cloudSaveTimer = null;
+let cloudSavePending = false;
+
+function scheduleCloudSave(){
+  cloudSavePending = true;
+  if(cloudSaveTimer) return;
+  cloudSaveTimer = setTimeout(async () => {
+    cloudSaveTimer = null;
+    if(!cloudSavePending) return;
+    cloudSavePending = false;
+    try{
+      await saveState({ fireAndForget: true });
+    }catch(e){
+      console.warn('Cloud save failed, retry later:', e);
+      scheduleCloudSave();
+    }
+  }, CLOUD_SAVE_INTERVAL_MS);
+}
+
+async function saveStateBuffered(){
+  try{
+    await saveState({ localOnly: true });
+  }catch(e){
+    console.warn('Local save failed:', e);
+  }
+  scheduleCloudSave();
+}
+
+async function forceCloudSaveNow(){
+  cloudSavePending = false;
+  if(cloudSaveTimer){ clearTimeout(cloudSaveTimer); cloudSaveTimer = null; }
+  try{
+    await saveState({ fireAndForget: true });
+  }catch(e){
+    console.warn('Cloud save failed:', e);
+  }
+}
+
 async function loadState(){
   const localData = safeLocalStorageGet(PREFIX + 'state', 0);
   const localReset = safeLocalStorageGet(PREFIX + 'resetVersion', 0) || 0;
@@ -410,7 +450,7 @@ async function initDictionary(){
     }
   }
   updateStats();
-  saveState().catch(e => console.warn('Save failed:', e));
+  saveStateBuffered().catch(e => console.warn('Save failed:', e));
 }
 
 /* ---------- UI helpers ---------- */
@@ -441,7 +481,7 @@ function showNextLearn(){
   const obj = allWords.find(w=>w.rawLine===currentRaw) || {rus:[], arabParts:[]};
   arabicDiv.textContent = obj.arabFull || (obj.arabParts||[]).join(' - ') || '[нет арабского]';
   showMessage('Нажмите «Знаю» или «Не знаю».');
-  saveState();
+  saveStateBuffered();
 }
 
 /* ---------- Кнопки заучивания ---------- */
@@ -537,7 +577,7 @@ function startPractice(){
   roundMastered = [];
   updateStats();
   showNextPractice();
-  saveState();
+  saveStateBuffered();
 }
 
 /* ---------- showNextPractice ---------- */
@@ -549,7 +589,7 @@ function showNextPractice(){
     practiceArea.classList.add('hidden');
     updateStats();
     showNextLearn();
-    saveState();
+    saveStateBuffered();
     return;
   }
   currentRaw = practiceOrder.shift();
@@ -574,7 +614,7 @@ oralAnswerBtn.addEventListener('click', () => {
   showMessage('Засчитано как верный (устно)');
   currentRaw = null;
   showNextPractice();
-  saveState();
+  saveStateBuffered();
 });
 
 /* ---------- Практика: проверка ---------- */
@@ -598,7 +638,7 @@ practiceSubmit.addEventListener('click', () => {
       if(!practiceHistory.includes(currentRaw)) practiceHistory.push(currentRaw);
       if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
       updateStats();
-      saveState();
+      saveStateBuffered();
     };
     if(exact){
       markAsCorrect();
@@ -646,7 +686,7 @@ practiceSkip.addEventListener('click', () => {
   }
   currentRaw = null;
   showNextPractice();
-  saveState();
+  saveStateBuffered();
 });
 
 /* ---------- Добавить новые слова ---------- */
@@ -669,7 +709,7 @@ btnAdd.addEventListener('click', async () => {
       shuffle(orderQueue);
       updateStats();
       alert('Добавлено новых слов: ' + added);
-      saveState();
+      saveStateBuffered();
     } else {
       alert('Новых слов не найдено');
     }
@@ -747,7 +787,7 @@ function showResetModal() {
     showNextLearn();
     
     // ✅ Сохраняем состояние в localStorage (синхронно)
-    saveState();
+    saveStateBuffered();
     
     // ✅ Удаляем из Firebase В ФОНЕ (не блокируем UI)
     if(window.firebaseEnabled && window.firestore && window.firebaseModules){
@@ -797,6 +837,7 @@ btnReset.addEventListener('click', showResetModal);
 const saveStateLocalOnly = () => {
   try{
     saveState({ localOnly: true });
+    forceCloudSaveNow();
   }catch(e){
     console.warn('Quick save failed:', e);
   }
