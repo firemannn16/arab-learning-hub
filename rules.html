@@ -521,11 +521,10 @@
             <div class="category-filter" id="categoryFilter">
                 <label>Категория:</label>
                 <select id="categorySelect" onchange="filterByCategory()">
-                    <option value="all">Все категории</option>
                     <option value="نحو">نحو (Нахв)</option>
                     <option value="صرف">صرف (Сорф)</option>
                 </select>
-                <button class="restart-btn" onclick="restartQuiz()">🔄 Заново</button>
+                <button class="restart-btn" onclick="resetProgress()">🗑️ Сбросить прогресс</button>
             </div>
             
             <!-- Прогресс -->
@@ -578,14 +577,13 @@
                         <div class="result-label">Ошибки</div>
                     </div>
                 </div>
-                <button class="next-btn" onclick="restartQuiz()">🔄 Пройти заново</button>
+                <button class="next-btn" onclick="restartQuizWithReset()">🔄 Начать заново</button>
             </div>
             
             <!-- Пустое состояние -->
             <div class="empty-state hidden" id="emptyState">
                 <span>📝</span>
-                <h2>Нет правил для тренировки</h2>
-                <p>Правила загружаются из файла rules.json</p>
+                <h2>Нет вопросов в этой категории</h2>
             </div>
         </div>
         
@@ -628,6 +626,8 @@
         let wrongCount = 0;
         let answered = false;
         let currentTab = 'quiz';
+        let autoNextTimer = null;
+        const AUTO_NEXT_DELAY = 30000; // 30 секунд
         
         // Загрузка
         document.addEventListener('DOMContentLoaded', async () => {
@@ -804,21 +804,29 @@
                 return;
             }
             
-            filteredRules = shuffleArray([...rules]);
+            // По умолчанию фильтруем по نحو (Нахв)
+            const category = document.getElementById('categorySelect').value;
+            filteredRules = shuffleArray(rules.filter(r => r.category === category));
             currentIndex = 0;
+            
+            if (filteredRules.length === 0) {
+                showEmptyState();
+                return;
+            }
             
             updateStats();
             showQuestion();
         }
         
         function filterByCategory() {
-            const category = document.getElementById('categorySelect').value;
-            
-            if (category === 'all') {
-                filteredRules = shuffleArray([...rules]);
-            } else {
-                filteredRules = shuffleArray(rules.filter(r => r.category === category));
+            // Отменяем таймер автоперехода
+            if (autoNextTimer) {
+                clearTimeout(autoNextTimer);
+                autoNextTimer = null;
             }
+            
+            const category = document.getElementById('categorySelect').value;
+            filteredRules = shuffleArray(rules.filter(r => r.category === category));
             
             if (filteredRules.length === 0) {
                 showEmptyState();
@@ -832,6 +840,7 @@
             document.getElementById('resultsCard').classList.add('hidden');
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('progressBar').classList.remove('hidden');
+            document.getElementById('statsBar').classList.remove('hidden');
             document.getElementById('statsBar').classList.remove('hidden');
         }
         
@@ -922,14 +931,31 @@
             
             // Сохраняем прогресс
             saveProgress();
+            
+            // Автопереход через 30 секунд
+            if (autoNextTimer) clearTimeout(autoNextTimer);
+            autoNextTimer = setTimeout(() => {
+                nextQuestion();
+            }, AUTO_NEXT_DELAY);
         }
         
         function nextQuestion() {
+            // Отменяем таймер если нажали вручную
+            if (autoNextTimer) {
+                clearTimeout(autoNextTimer);
+                autoNextTimer = null;
+            }
             currentIndex++;
             showQuestion();
         }
         
         function showResults() {
+            // Отменяем таймер автоперехода
+            if (autoNextTimer) {
+                clearTimeout(autoNextTimer);
+                autoNextTimer = null;
+            }
+            
             document.getElementById('questionCard').classList.add('hidden');
             document.getElementById('progressBar').classList.add('hidden');
             document.getElementById('resultsCard').classList.remove('hidden');
@@ -960,16 +986,62 @@
             saveProgress({ forceCloud: true });
         }
         
-        function restartQuiz() {
-            document.getElementById('progressBar').classList.remove('hidden');
-            document.getElementById('statsBar').classList.remove('hidden');
-            document.getElementById('categorySelect').value = 'all';
-            filteredRules = shuffleArray([...rules]);
+        // Сброс прогресса (кнопка во время теста)
+        function resetProgress() {
+            if (!confirm('Сбросить всю статистику?')) return;
+            
+            // Отменяем таймер автоперехода
+            if (autoNextTimer) {
+                clearTimeout(autoNextTimer);
+                autoNextTimer = null;
+            }
+            
+            correctCount = 0;
+            wrongCount = 0;
+            updateStats();
+            saveProgress({ forceCloud: true });
+            
+            // Перезапускаем тест с текущей категорией
+            const category = document.getElementById('categorySelect').value;
+            filteredRules = shuffleArray(rules.filter(r => r.category === category));
             currentIndex = 0;
             
             if (filteredRules.length === 0) {
                 showEmptyState();
             } else {
+                document.getElementById('progressBar').classList.remove('hidden');
+                document.getElementById('statsBar').classList.remove('hidden');
+                document.getElementById('questionCard').classList.remove('hidden');
+                document.getElementById('resultsCard').classList.add('hidden');
+                document.getElementById('emptyState').classList.add('hidden');
+                showQuestion();
+            }
+        }
+        
+        // Начать заново после прохождения всех вопросов (сбрасывает статистику)
+        function restartQuizWithReset() {
+            // Отменяем таймер автоперехода
+            if (autoNextTimer) {
+                clearTimeout(autoNextTimer);
+                autoNextTimer = null;
+            }
+            
+            correctCount = 0;
+            wrongCount = 0;
+            updateStats();
+            
+            document.getElementById('progressBar').classList.remove('hidden');
+            document.getElementById('statsBar').classList.remove('hidden');
+            
+            const category = document.getElementById('categorySelect').value;
+            filteredRules = shuffleArray(rules.filter(r => r.category === category));
+            currentIndex = 0;
+            
+            if (filteredRules.length === 0) {
+                showEmptyState();
+            } else {
+                document.getElementById('questionCard').classList.remove('hidden');
+                document.getElementById('resultsCard').classList.add('hidden');
                 showQuestion();
             }
         }
@@ -979,7 +1051,8 @@
             document.getElementById('resultsCard').classList.add('hidden');
             document.getElementById('progressBar').classList.add('hidden');
             document.getElementById('statsBar').classList.add('hidden');
-            document.getElementById('categoryFilter').classList.add('hidden');
+            // НЕ скрываем categoryFilter чтобы можно было переключить категорию
+            document.getElementById('categoryFilter').classList.remove('hidden');
             document.getElementById('emptyState').classList.remove('hidden');
         }
         
