@@ -800,3 +800,23 @@ html.dark-theme body.main-page {
 .dark-theme .progress-track {
   background: #2d3748 !important;
 }
+
+/* Арабский текст в вопросах */
+.dark-theme .question-text .ar {
+  background: linear-gradient(135deg, #2d3a5c 0%, #3d2a5c 100%) !important;
+  color: #a5b4fc !important;
+}
+
+.dark-theme .option-btn .ar {
+  color: #a5b4fc !important;
+}
+
+.dark-theme .disclaimer {
+  background: #3d3a1a !important;
+  border-color: #6b5b1a !important;
+  color: #d4a017 !important;
+}
+
+.dark-theme .disclaimer strong {
+  color: #fbbf24 !important;
+}
