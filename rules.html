@@ -489,6 +489,54 @@
             color: #b45309;
         }
         
+        /* Экран выбора тем */
+        .topics-title {
+            color: #333;
+            text-align: center;
+            margin: 20px 0 15px;
+            font-size: 1.2rem;
+        }
+        .topics-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .topic-card {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.1);
+            border-left: 4px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .topic-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            border-left-color: #764ba2;
+        }
+        .topic-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+        }
+        .topic-count {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .no-topics {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
         .hidden { display: none !important; }
         
         @media (max-width: 600px) {
@@ -517,15 +565,27 @@
         
         <!-- ========== РЕЖИМ ТЕСТА ========== -->
         <div id="quizMode">
-            <!-- Фильтр категорий -->
-            <div class="category-filter" id="categoryFilter">
-                <label>Категория:</label>
-                <select id="categorySelect" onchange="filterByCategory()">
-                    <option value="نحو">نحو (Нахв)</option>
-                    <option value="صرف">صرف (Сорф)</option>
-                </select>
-                <button class="restart-btn" onclick="resetProgress()">🗑️ Сбросить прогресс</button>
+            <!-- Экран выбора темы -->
+            <div id="topicSelectScreen">
+                <div class="category-filter">
+                    <label>Категория:</label>
+                    <select id="categorySelect" onchange="renderTopics()">
+                        <option value="نحو">نحو (Нахв)</option>
+                        <option value="صرف">صرف (Сорф)</option>
+                    </select>
+                </div>
+                <h2 class="topics-title">📚 Выберите тему:</h2>
+                <div id="topicsList" class="topics-list"></div>
             </div>
+            
+            <!-- Экран теста (скрыт по умолчанию) -->
+            <div id="quizScreen" class="hidden">
+                <!-- Фильтр категорий -->
+                <div class="category-filter" id="categoryFilter">
+                    <button class="restart-btn" onclick="backToTopics()">← К темам</button>
+                    <span id="currentTopicName" style="font-weight: 600; flex: 1; text-align: center;"></span>
+                    <button class="restart-btn" onclick="resetProgress()">🗑️ Сбросить</button>
+                </div>
             
             <!-- Прогресс -->
             <div class="progress-bar" id="progressBar">
@@ -583,8 +643,9 @@
             <!-- Пустое состояние -->
             <div class="empty-state hidden" id="emptyState">
                 <span>📝</span>
-                <h2>Нет вопросов в этой категории</h2>
+                <h2>Нет вопросов в этой теме</h2>
             </div>
+            </div><!-- /quizScreen -->
         </div>
         
         <!-- ========== РЕЖИМ ОПРЕДЕЛЕНИЙ ========== -->
@@ -626,6 +687,7 @@
         let wrongCount = 0;
         let answered = false;
         let currentTab = 'quiz';
+        let currentTopic = null;
         let autoNextTimer = null;
         const AUTO_NEXT_DELAY = 30000; // 30 секунд
         
@@ -799,50 +861,81 @@
         // ========== РЕЖИМ ТЕСТА ==========
         
         function initQuiz() {
-            if (rules.length === 0) {
-                showEmptyState();
+            // Показываем экран выбора тем
+            renderTopics();
+        }
+        
+        // Отрисовка списка тем
+        function renderTopics() {
+            const category = document.getElementById('categorySelect').value;
+            const categoryRules = rules.filter(r => r.category === category);
+            
+            // Группируем по темам
+            const topics = {};
+            categoryRules.forEach(rule => {
+                const topic = rule.topic || 'Без темы';
+                if (!topics[topic]) topics[topic] = 0;
+                topics[topic]++;
+            });
+            
+            const container = document.getElementById('topicsList');
+            
+            if (Object.keys(topics).length === 0) {
+                container.innerHTML = '<div class="no-topics">Нет тем в этой категории</div>';
                 return;
             }
             
-            // По умолчанию фильтруем по نحو (Нахв)
+            container.innerHTML = Object.entries(topics).map(([topic, count]) => `
+                <div class="topic-card" onclick="selectTopic('${topic.replace(/'/g, "\\'")}')">
+                    <span class="topic-name">${topic}</span>
+                    <span class="topic-count">${count} вопросов</span>
+                </div>
+            `).join('');
+        }
+        
+        // Выбор темы и начало теста
+        function selectTopic(topic) {
+            currentTopic = topic;
             const category = document.getElementById('categorySelect').value;
-            filteredRules = shuffleArray(rules.filter(r => r.category === category));
+            
+            filteredRules = shuffleArray(rules.filter(r => 
+                r.category === category && (r.topic || 'Без темы') === topic
+            ));
             currentIndex = 0;
             
             if (filteredRules.length === 0) {
                 showEmptyState();
                 return;
             }
+            
+            // Показываем экран теста
+            document.getElementById('topicSelectScreen').classList.add('hidden');
+            document.getElementById('quizScreen').classList.remove('hidden');
+            document.getElementById('currentTopicName').textContent = topic;
+            
+            document.getElementById('progressBar').classList.remove('hidden');
+            document.getElementById('statsBar').classList.remove('hidden');
+            document.getElementById('questionCard').classList.remove('hidden');
+            document.getElementById('resultsCard').classList.add('hidden');
+            document.getElementById('emptyState').classList.add('hidden');
             
             updateStats();
             showQuestion();
         }
         
-        function filterByCategory() {
-            // Отменяем таймер автоперехода
+        // Вернуться к выбору тем
+        function backToTopics() {
             if (autoNextTimer) {
                 clearTimeout(autoNextTimer);
                 autoNextTimer = null;
             }
             
-            const category = document.getElementById('categorySelect').value;
-            filteredRules = shuffleArray(rules.filter(r => r.category === category));
-            
-            if (filteredRules.length === 0) {
-                showEmptyState();
-                return;
-            }
-            
-            currentIndex = 0;
-            showQuestion();
-            
-            document.getElementById('questionCard').classList.remove('hidden');
-            document.getElementById('resultsCard').classList.add('hidden');
-            document.getElementById('emptyState').classList.add('hidden');
-            document.getElementById('progressBar').classList.remove('hidden');
-            document.getElementById('statsBar').classList.remove('hidden');
-            document.getElementById('statsBar').classList.remove('hidden');
+            currentTopic = null;
+            document.getElementById('topicSelectScreen').classList.remove('hidden');
+            document.getElementById('quizScreen').classList.add('hidden');
         }
+        
+        // filterByCategory удалена - теперь фильтрация через выбор темы
         
         function showQuestion() {
             if (currentIndex >= filteredRules.length) {
@@ -1001,20 +1094,24 @@
             updateStats();
             saveProgress({ forceCloud: true });
             
-            // Перезапускаем тест с текущей категорией
-            const category = document.getElementById('categorySelect').value;
-            filteredRules = shuffleArray(rules.filter(r => r.category === category));
-            currentIndex = 0;
-            
-            if (filteredRules.length === 0) {
-                showEmptyState();
-            } else {
-                document.getElementById('progressBar').classList.remove('hidden');
-                document.getElementById('statsBar').classList.remove('hidden');
-                document.getElementById('questionCard').classList.remove('hidden');
-                document.getElementById('resultsCard').classList.add('hidden');
-                document.getElementById('emptyState').classList.add('hidden');
-                showQuestion();
+            // Перезапускаем тест с текущей темой
+            if (currentTopic) {
+                const category = document.getElementById('categorySelect').value;
+                filteredRules = shuffleArray(rules.filter(r => 
+                    r.category === category && (r.topic || 'Без темы') === currentTopic
+                ));
+                currentIndex = 0;
+                
+                if (filteredRules.length === 0) {
+                    showEmptyState();
+                } else {
+                    document.getElementById('progressBar').classList.remove('hidden');
+                    document.getElementById('statsBar').classList.remove('hidden');
+                    document.getElementById('questionCard').classList.remove('hidden');
+                    document.getElementById('resultsCard').classList.add('hidden');
+                    document.getElementById('emptyState').classList.add('hidden');
+                    showQuestion();
+                }
             }
         }
         
@@ -1033,16 +1130,21 @@
             document.getElementById('progressBar').classList.remove('hidden');
             document.getElementById('statsBar').classList.remove('hidden');
             
-            const category = document.getElementById('categorySelect').value;
-            filteredRules = shuffleArray(rules.filter(r => r.category === category));
-            currentIndex = 0;
-            
-            if (filteredRules.length === 0) {
-                showEmptyState();
-            } else {
-                document.getElementById('questionCard').classList.remove('hidden');
-                document.getElementById('resultsCard').classList.add('hidden');
-                showQuestion();
+            // Перезапускаем с текущей темой
+            if (currentTopic) {
+                const category = document.getElementById('categorySelect').value;
+                filteredRules = shuffleArray(rules.filter(r => 
+                    r.category === category && (r.topic || 'Без темы') === currentTopic
+                ));
+                currentIndex = 0;
+                
+                if (filteredRules.length === 0) {
+                    showEmptyState();
+                } else {
+                    document.getElementById('questionCard').classList.remove('hidden');
+                    document.getElementById('resultsCard').classList.add('hidden');
+                    showQuestion();
+                }
             }
         }
         
@@ -1051,8 +1153,6 @@
             document.getElementById('resultsCard').classList.add('hidden');
             document.getElementById('progressBar').classList.add('hidden');
             document.getElementById('statsBar').classList.add('hidden');
-            // НЕ скрываем categoryFilter чтобы можно было переключить категорию
-            document.getElementById('categoryFilter').classList.remove('hidden');
             document.getElementById('emptyState').classList.remove('hidden');
         }
         
