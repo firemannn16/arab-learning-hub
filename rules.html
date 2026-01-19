@@ -214,13 +214,24 @@
             font-size: 1.2rem;
             font-weight: 600;
             color: #333;
-            line-height: 1.6;
+            line-height: 1.8;
             margin-bottom: 20px;
+            white-space: pre-line;
+            unicode-bidi: plaintext;
         }
         .question-text.rtl {
             direction: rtl;
             font-family: "Noto Naskh Arabic", Arial, sans-serif;
             font-size: 1.4rem;
+        }
+        .question-text .ar {
+            font-family: "Noto Naskh Arabic", Arial, sans-serif;
+            font-size: 1.3rem;
+            unicode-bidi: isolate;
+            background: linear-gradient(135deg, #e0e7ff 0%, #f0e6ff 100%);
+            padding: 2px 8px;
+            border-radius: 6px;
+            margin: 0 4px;
         }
         
         /* Варианты ответов */
@@ -239,6 +250,13 @@
             transition: all 0.2s;
             text-align: left;
             color: #333;
+            white-space: pre-line;
+            unicode-bidi: plaintext;
+        }
+        .option-btn .ar {
+            font-family: "Noto Naskh Arabic", Arial, sans-serif;
+            font-size: 1.15rem;
+            unicode-bidi: isolate;
         }
         .option-btn:hover:not(.disabled) {
             border-color: #667eea;
@@ -279,6 +297,7 @@
         .explanation-text {
             color: #333;
             line-height: 1.5;
+            white-space: pre-line;
         }
         
         /* Кнопка далее */
@@ -455,6 +474,21 @@
         .sync-status.synced { color: #4CAF50; }
         .sync-status.error { color: #f44336; }
         
+        .disclaimer {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 10px;
+            padding: 12px 15px;
+            margin-bottom: 20px;
+            font-size: 0.85rem;
+            color: #92400e;
+            line-height: 1.5;
+            text-align: center;
+        }
+        .disclaimer strong {
+            color: #b45309;
+        }
+        
         .hidden { display: none !important; }
         
         @media (max-width: 600px) {
@@ -470,6 +504,10 @@
 <body>
     <div class="container">
         <h1>📚 Тренажер правил</h1>
+        
+        <div class="disclaimer">
+            ⚠️ <strong>Внимание:</strong> Вопросы и определения составлены с использованием ИИ — возможны неточности. Автор не является учёным. При обнаружении ошибок, пожалуйста, сообщите о них — они будут исправлены, إن شاء الله.
+        </div>
         
         <!-- Табы -->
         <div class="tabs">
@@ -778,8 +816,10 @@
             // Вопрос
             document.getElementById('questionCategory').textContent = rule.category;
             const questionEl = document.getElementById('questionText');
-            questionEl.textContent = rule.question;
-            questionEl.classList.toggle('rtl', isRTL(rule.question));
+            questionEl.innerHTML = highlightArabic(rule.question);
+            // Если вопрос полностью на арабском - добавляем rtl
+            const arabicRatio = (rule.question.match(/[\u0600-\u06FF]/g) || []).length / rule.question.length;
+            questionEl.classList.toggle('rtl', arabicRatio > 0.7);
             
             // Варианты (перемешиваем)
             const shuffledOptions = rule.options.map((text, originalIndex) => ({
@@ -790,8 +830,12 @@
             
             const container = document.getElementById('optionsContainer');
             container.innerHTML = shuffledOptions.map((opt, i) => {
-                const rtlClass = isRTL(opt.text) ? 'rtl' : '';
-                return `<button class="option-btn ${rtlClass}" data-correct="${opt.isCorrect}" onclick="selectOption(this)">${opt.text}</button>`;
+                // Если текст в основном арабский (>70%) - используем rtl, иначе подсвечиваем арабские слова
+                const arabicChars = (opt.text.match(/[\u0600-\u06FF]/g) || []).length;
+                const arabicRatio = arabicChars / opt.text.replace(/\s/g, '').length;
+                const rtlClass = arabicRatio > 0.7 ? 'rtl' : '';
+                const content = arabicRatio > 0.7 ? opt.text : highlightArabic(opt.text);
+                return `<button class="option-btn ${rtlClass}" data-correct="${opt.isCorrect}" onclick="selectOption(this)">${content}</button>`;
             }).join('');
             
             // Скрываем пояснение и кнопку
@@ -945,6 +989,20 @@
         function isRTL(text) {
             const rtlRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
             return rtlRegex.test(text);
+        }
+        
+        // Оборачивает арабский текст в <span class="ar"> для правильного отображения
+        function highlightArabic(text) {
+            // Экранируем HTML
+            const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            // Находим арабские слова/фразы и оборачиваем их
+            return escaped.replace(/([\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\s\u064B-\u065F]+)/g, 
+                (match) => {
+                    // Если это только пробелы - не оборачиваем
+                    if (/^\s+$/.test(match)) return match;
+                    return `<span class="ar">${match.trim()}</span>`;
+                }
+            );
         }
         
         function shuffleArray(array) {
