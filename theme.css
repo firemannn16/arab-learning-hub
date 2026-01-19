@@ -820,3 +820,28 @@ html.dark-theme body.main-page {
 .dark-theme .disclaimer strong {
   color: #fbbf24 !important;
 }
+
+/* Экран выбора тем */
+.dark-theme .topics-title {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .topic-card {
+  background: #16213e !important;
+  border-left-color: #667eea !important;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.3) !important;
+}
+
+.dark-theme .topic-card:hover {
+  background: #1e2a47 !important;
+  border-left-color: #a78bfa !important;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.4) !important;
+}
+
+.dark-theme .topic-name {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .no-topics {
+  color: #6b7280 !important;
+}
