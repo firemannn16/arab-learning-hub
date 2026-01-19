@@ -703,34 +703,73 @@
             updateStats();
         }
         
-        async function saveProgress() {
-            const userCode = getUserCode();
-            if (!userCode) return;
-            
-            const data = {
+        // Буферизация сохранений прогресса (18 c)
+        const PROGRESS_CLOUD_SAVE_INTERVAL_MS = 18000;
+        let progressCloudTimer = null;
+        let progressPending = false;
+        
+        function buildProgressData() {
+            return {
                 correct: correctCount,
                 wrong: wrongCount,
                 totalAnswered: correctCount + wrongCount,
                 lastUpdated: new Date().toISOString()
             };
+        }
+        
+        async function writeProgressToCloud(data) {
+            const userCode = getUserCode();
+            if (!userCode) return;
+            const { doc, setDoc } = window.firebaseModules;
+            const docRef = doc(window.firestore, 'users', userCode, 'trainers', 'rules');
+            await setDoc(docRef, data, { merge: true });
+            showSyncStatus('synced', '✅ Сохранено');
+            console.log('☁️ Прогресс сохранён в Firebase');
+        }
+        
+        async function saveProgress(options = {}) {
+            const { forceCloud = false } = options;
+            const data = buildProgressData();
+            const userCode = getUserCode();
+            if (!userCode) return;
             
             // Сохраняем локально
             localStorage.setItem('rulesProgress', JSON.stringify(data));
             
-            // Сохраняем в Firebase
-            if (window.firebaseEnabled && window.firebaseModules?.setDoc) {
+            // Буферизуем или отправляем в Firebase
+            if (!(window.firebaseEnabled && window.firebaseModules?.setDoc)) return;
+            
+            if (forceCloud) {
+                progressPending = false;
+                if (progressCloudTimer) {
+                    clearTimeout(progressCloudTimer);
+                    progressCloudTimer = null;
+                }
                 showSyncStatus('syncing', '🔄 Сохранение...');
                 try {
-                    const { doc, setDoc } = window.firebaseModules;
-                    const docRef = doc(window.firestore, 'users', userCode, 'trainers', 'rules');
-                    await setDoc(docRef, data, { merge: true });
-                    showSyncStatus('synced', '✅ Сохранено');
-                    console.log('☁️ Прогресс сохранён в Firebase');
+                    await writeProgressToCloud(data);
                 } catch(e) {
                     showSyncStatus('error', '❌ Ошибка');
                     console.warn('Ошибка сохранения в Firebase:', e);
                 }
+                return;
             }
+            
+            progressPending = true;
+            if (progressCloudTimer) return;
+            
+            progressCloudTimer = setTimeout(async () => {
+                progressCloudTimer = null;
+                if (!progressPending) return;
+                progressPending = false;
+                showSyncStatus('syncing', '🔄 Сохранение...');
+                try {
+                    await writeProgressToCloud(buildProgressData());
+                } catch(e) {
+                    showSyncStatus('error', '❌ Ошибка');
+                    console.warn('Ошибка сохранения в Firebase:', e);
+                }
+            }, PROGRESS_CLOUD_SAVE_INTERVAL_MS);
         }
         
         function showSyncStatus(type, text) {
@@ -916,6 +955,9 @@
             
             document.getElementById('resultsIcon').textContent = icon;
             document.getElementById('resultsTitle').textContent = title;
+            
+            // Итог сессии отправляем в облако сразу
+            saveProgress({ forceCloud: true });
         }
         
         function restartQuiz() {
