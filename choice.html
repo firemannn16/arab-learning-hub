@@ -347,7 +347,13 @@ async function robustFetchWords(){
 }
 
 /* ========== ✅ Save/Load State (ПОДКОЛЛЕКЦИЯ) ========== */
-async function saveState(){
+const CLOUD_SAVE_INTERVAL_MS = 18000;
+let cloudSaveTimer = null;
+let cloudSavePending = false;
+let latestStateSnapshot = null;
+
+async function saveState(options = {}){
+  const { forceCloud = false } = options;
   let st = null;
   try {
     st = {
@@ -364,10 +370,16 @@ async function saveState(){
       timestamp: Date.now()
     };
     
+    latestStateSnapshot = st;
     safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
+    safeLocalStorageSet(PREFIX + 'state', st);
     
-    // ✅ Сохраняем в Firebase (подколлекция) + backup в localStorage
-    if (window.firebaseEnabled && window.firestore && window.firebaseModules && st) {
+    if (!(window.firebaseEnabled && window.firestore && window.firebaseModules && st)) {
+      showSyncStatus('✓ Сохранено локально', 'synced');
+      return;
+    }
+    
+    const pushToCloud = async (payload) => {
       await safeFirebaseSave(
         async () => {
           const docRef = window.firebaseModules.doc(
@@ -375,18 +387,40 @@ async function saveState(){
             'users', USER_CODE, 
             'trainers', TRAINER_ID
           );
-          return await window.firebaseModules.setDoc(docRef, st, { merge: true });
+          return await window.firebaseModules.setDoc(docRef, payload, { merge: true });
         },
         PREFIX + 'state',
-        st
+        payload
       );
       console.log('✓ Сохранено в Firestore (choice)');
       showSyncStatus('✓ Синхронизировано', 'synced');
-    } else {
-      // Fallback: только localStorage
-      safeLocalStorageSet(PREFIX + 'state', st);
-      showSyncStatus('✓ Сохранено локально', 'synced');
+    };
+    
+    if (forceCloud) {
+      cloudSavePending = false;
+      if (cloudSaveTimer) {
+        clearTimeout(cloudSaveTimer);
+        cloudSaveTimer = null;
+      }
+      await pushToCloud(st);
+      return;
     }
+    
+    cloudSavePending = true;
+    if (cloudSaveTimer) return;
+    
+    cloudSaveTimer = setTimeout(async () => {
+      cloudSaveTimer = null;
+      if (!cloudSavePending) return;
+      cloudSavePending = false;
+      try {
+        await pushToCloud(latestStateSnapshot || st);
+      } catch(e) {
+        console.warn('Не удалось сохранить прогресс (cloud):', e);
+        showSyncStatus('❌ Ошибка синхронизации', 'error');
+      }
+    }, CLOUD_SAVE_INTERVAL_MS);
+    
   } catch(e) {
     console.warn('Не удалось сохранить прогресс:', e);
     showSyncStatus('❌ Ошибка синхронизации', 'error');
@@ -919,7 +953,7 @@ function finishSession(){
   arabicWordDiv.classList.remove('rus-mode');
   afterDiv.classList.remove('hidden');
   workMistakesBtn.classList.toggle('hidden', mistakes.length === 0);
-  saveState(); 
+  saveState({ forceCloud: true }); 
   renderLists();
 }
 
@@ -946,7 +980,7 @@ async function addNewWords(){
     if(added === 0){
       alert('Новых слов не найдено.');
     } else {
-      await saveState();
+      await saveState({ forceCloud: true });
       updateProgress();
       alert('Добавлено новых слов: ' + added);
       
@@ -993,7 +1027,7 @@ async function loadWords() {
         currentRaw = null; 
         mode = 'all';
         direction = 'arab-to-rus';
-        await saveState();
+        await saveState({ forceCloud: true });
       }
       
       if(skipped && skipped.length) {
@@ -1065,12 +1099,12 @@ workMistakesBtn.addEventListener('click', ()=> {
 })();
 
 window.addEventListener('beforeunload', () => { 
-  saveState().catch(e => console.warn('Save on unload failed:', e)); 
+  saveState({ forceCloud: true }).catch(e => console.warn('Save on unload failed:', e)); 
 });
 
 window.addEventListener('visibilitychange', ()=>{ 
   if(document.visibilityState==='hidden') {
-    saveState().catch(e => console.warn('Save on visibility change failed:', e)); 
+    saveState({ forceCloud: true }).catch(e => console.warn('Save on visibility change failed:', e)); 
   }
 });
 
