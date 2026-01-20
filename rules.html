@@ -1014,13 +1014,21 @@
             updateStats();
             
             // Показываем пояснение если есть
+            const explanationEl = document.getElementById('explanation');
             if (rule.explanation) {
                 document.getElementById('explanationText').textContent = rule.explanation;
-                document.getElementById('explanation').classList.remove('hidden');
+                explanationEl.classList.remove('hidden');
             }
             
             // Показываем кнопку далее
-            document.getElementById('nextBtn').classList.remove('hidden');
+            const nextBtn = document.getElementById('nextBtn');
+            nextBtn.classList.remove('hidden');
+            
+            // Автоскролл к пояснению/кнопке (с небольшой задержкой для рендера)
+            setTimeout(() => {
+                const scrollTarget = rule.explanation ? explanationEl : nextBtn;
+                scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
             
             // Сохраняем прогресс
             saveProgress();
