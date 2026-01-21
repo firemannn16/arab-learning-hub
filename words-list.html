@@ -1037,6 +1037,7 @@
     let knownCount = 0;            // Счётчик "знаю"
     let forgotCount = 0;           // Счётчик "забыл"
     const TIMER_STORAGE_KEY = 'arabTimerSeconds';
+    const SESSION_STORAGE_KEY = 'arabLearnSession';
     let audioContext = null;
 
     // Получить или создать AudioContext
@@ -1152,6 +1153,133 @@
         console.warn('Не удалось загрузить таймер', e);
       }
       return 15;
+    }
+
+    // ========== СОХРАНЕНИЕ ПРОГРЕССА ==========
+    
+    function saveSession() {
+      if (learnWords.length === 0) return;
+      
+      try {
+        const sessionData = {
+          learnWords: learnWords,
+          currentWordIndex: currentWordIndex,
+          learnMode: learnMode,
+          forgottenWords: forgottenWords,
+          knownCount: knownCount,
+          forgotCount: forgotCount,
+          selectedTime: selectedTime,
+          textareaContent: document.getElementById('learnTextarea')?.value || '',
+          timestamp: Date.now()
+        };
+        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionData));
+      } catch (e) {
+        console.warn('Не удалось сохранить сессию', e);
+      }
+    }
+
+    function loadSession() {
+      try {
+        const saved = localStorage.getItem(SESSION_STORAGE_KEY);
+        if (saved) {
+          return JSON.parse(saved);
+        }
+      } catch (e) {
+        console.warn('Не удалось загрузить сессию', e);
+      }
+      return null;
+    }
+
+    function clearSession() {
+      try {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+      } catch (e) {
+        console.warn('Не удалось очистить сессию', e);
+      }
+    }
+
+    function checkSavedSession() {
+      const session = loadSession();
+      if (session && session.learnWords && session.learnWords.length > 0) {
+        showResumeModal(session);
+      }
+    }
+
+    function showResumeModal(session) {
+      const overlay = document.getElementById('modalOverlay');
+      const content = document.getElementById('modalContent');
+      
+      const modeText = session.learnMode === 'learn' ? 'заучивание' : 'проверка';
+      const progressText = `${session.currentWordIndex + 1} из ${session.learnWords.length}`;
+      
+      content.innerHTML = `
+        <div class="modal-icon">📚</div>
+        <div class="modal-title">Продолжить сессию?</div>
+        <div class="modal-text">
+          Найдена незавершённая сессия:<br>
+          <strong>${modeText}</strong> — слово ${progressText}
+        </div>
+        <div class="modal-buttons">
+          <button class="modal-btn modal-btn-primary" onclick="resumeSession()">
+            ▶️ Продолжить
+          </button>
+          <button class="modal-btn modal-btn-danger" onclick="startFresh()">
+            🔄 Начать заново
+          </button>
+        </div>
+      `;
+      overlay.style.display = 'flex';
+    }
+
+    function resumeSession() {
+      const session = loadSession();
+      if (!session) {
+        closeModal();
+        return;
+      }
+      
+      // Восстанавливаем состояние
+      learnWords = session.learnWords;
+      currentWordIndex = session.currentWordIndex;
+      learnMode = session.learnMode;
+      forgottenWords = session.forgottenWords || [];
+      knownCount = session.knownCount || 0;
+      forgotCount = session.forgotCount || 0;
+      selectedTime = session.selectedTime || 15;
+      isPaused = false;
+      
+      // Восстанавливаем текст в textarea
+      if (session.textareaContent) {
+        document.getElementById('learnTextarea').value = session.textareaContent;
+      }
+      
+      closeModal();
+      
+      // Активируем звук
+      unlockAudio();
+      
+      // Переключаемся на вкладку заучивания
+      showTab('learn');
+      
+      // Показываем нужный режим
+      document.getElementById('learnInputSection').style.display = 'none';
+      
+      if (learnMode === 'learn') {
+        document.getElementById('learnModeSection').style.display = 'block';
+        document.getElementById('testModeSection').style.display = 'none';
+        showCurrentWord();
+      } else {
+        document.getElementById('learnModeSection').style.display = 'none';
+        document.getElementById('testModeSection').style.display = 'block';
+        showTestWord();
+      }
+      
+      startTimer();
+    }
+
+    function startFresh() {
+      clearSession();
+      closeModal();
     }
 
     function highlightPickerValue(value) {
@@ -1513,6 +1641,7 @@
       
       showCurrentWord();
       startTimer();
+      saveSession();
     }
 
     // Показать текущее слово (режим заучивания)
@@ -1581,6 +1710,7 @@
     // Следующее слово (заучивание)
     function nextWord() {
       currentWordIndex++;
+      saveSession();
       
       if (currentWordIndex >= learnWords.length) {
         finishLearning();
@@ -1596,6 +1726,7 @@
       isPaused = !isPaused;
       const btn = document.getElementById('pauseBtn');
       btn.innerHTML = isPaused ? '▶️ Продолжить' : '⏸️ Пауза';
+      saveSession();
     }
 
     // Завершить заучивание
@@ -1633,6 +1764,7 @@
       
       showTestWord();
       startTimer();
+      saveSession();
     }
 
     // Показать текущее слово (режим проверки)
@@ -1664,6 +1796,7 @@
       isPaused = !isPaused;
       const btn = document.getElementById('testPauseBtn');
       btn.innerHTML = isPaused ? '▶️ Продолжить' : '⏸️ Пауза';
+      saveSession();
     }
 
     // Я знаю
@@ -1682,6 +1815,7 @@
     // Следующее слово (проверка)
     function nextTestWord() {
       currentWordIndex++;
+      saveSession();
       
       if (currentWordIndex >= learnWords.length) {
         finishTest();
@@ -1797,6 +1931,7 @@
       document.getElementById('testModeSection').style.display = 'none';
       showCurrentWord();
       startTimer();
+      saveSession();
     }
 
     function repeatWithNewTimer() {
@@ -1815,6 +1950,7 @@
 
     function closeModalAndReset() {
       closeModal();
+      clearSession();
       resetLearning();
     }
 
@@ -1831,6 +1967,7 @@
       
       showCurrentWord();
       startTimer();
+      saveSession();
     }
 
     // Сброс заучивания
@@ -1861,6 +1998,9 @@
 
     // Инициализация picker при загрузке
     initPicker();
+    
+    // Проверяем сохранённую сессию
+    checkSavedSession();
   </script>
 </body>
 </html>
