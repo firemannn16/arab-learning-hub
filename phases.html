@@ -1224,47 +1224,78 @@
             const changedWords = [];
             const wordsToRemove = [];
             
-            const fileWordsMap = new Map();
+            // 🔧 Используем составной ключ ru|||ar для корректной работы с дубликатами
+            const fileWordsSet = new Set();
             newWordsFromFile.forEach(word => {
-                fileWordsMap.set(word.ru, word.ar);
+                fileWordsSet.add(`${word.ru}|||${word.ar}`);
             });
             
-            const savedWordsMap = new Map();
-            savedWords.forEach(word => {
-                if (!savedWordsMap.has(word.ru)) {
-                    savedWordsMap.set(word.ru, []);
+            // Также храним все арабские варианты для каждого русского слова
+            const fileWordsByRu = new Map();
+            newWordsFromFile.forEach(word => {
+                if (!fileWordsByRu.has(word.ru)) {
+                    fileWordsByRu.set(word.ru, []);
                 }
-                savedWordsMap.get(word.ru).push(word);
+                fileWordsByRu.get(word.ru).push(word.ar);
             });
             
+            const savedWordsSet = new Set();
+            savedWords.forEach(word => {
+                savedWordsSet.add(`${word.ru}|||${word.ar}`);
+            });
+            
+            // Проверяем сохранённые слова
             savedWords.forEach(savedWord => {
-                const fileAr = fileWordsMap.get(savedWord.ru);
+                const key = `${savedWord.ru}|||${savedWord.ar}`;
                 
-                if (fileAr === undefined) {
+                if (fileWordsSet.has(key)) {
+                    // Слово существует в файле с той же парой ru-ar - ничего не делаем
+                    return;
+                }
+                
+                // Слово не найдено с таким же арабским переводом
+                const fileArVariants = fileWordsByRu.get(savedWord.ru);
+                
+                if (!fileArVariants || fileArVariants.length === 0) {
+                    // Русское слово полностью удалено из файла
                     console.log(`🗑️ Удалено: "${savedWord.ru} — ${savedWord.ar}"`);
                     wordsToRemove.push(savedWord.id);
-                }
-                else if (fileAr !== savedWord.ar) {
-                    console.log(`📝 Изменено: "${savedWord.ru} — ${savedWord.ar}" → "${savedWord.ru} — ${fileAr}"`);
-                    wordsToRemove.push(savedWord.id);
+                } else {
+                    // Русское слово есть, но с другим арабским переводом
+                    // Проверяем, не было ли уже добавлено это изменение
+                    const newAr = fileArVariants[0]; // Берём первый вариант
+                    const newKey = `${savedWord.ru}|||${newAr}`;
                     
-                    const existingChanged = changedWords.find(w => w.ru === savedWord.ru);
-                    if (!existingChanged) {
-                        changedWords.push({
-                            ru: savedWord.ru,
-                            ar: fileAr,
-                            id: generateWordId()
-                        });
+                    // Проверяем, существует ли уже такая пара в saved (может быть другое слово с таким же ru и новым ar)
+                    if (!savedWordsSet.has(newKey)) {
+                        console.log(`📝 Изменено: "${savedWord.ru} — ${savedWord.ar}" → "${savedWord.ru} — ${newAr}"`);
+                        wordsToRemove.push(savedWord.id);
+                        
+                        // Добавляем новую версию только если её ещё нет в changedWords
+                        const existingChanged = changedWords.find(w => w.ru === savedWord.ru && w.ar === newAr);
+                        if (!existingChanged) {
+                            changedWords.push({
+                                ru: savedWord.ru,
+                                ar: newAr,
+                                id: generateWordId()
+                            });
+                        }
+                    } else {
+                        // Новая пара уже есть в saved - просто удаляем старую версию
+                        console.log(`🔄 Дубликат удалён: "${savedWord.ru} — ${savedWord.ar}" (новая версия уже есть)`);
+                        wordsToRemove.push(savedWord.id);
                     }
                 }
             });
 
-            // 🆕 Добавляем новые/переименованные слова из файла, которых не было в сохранённом списке
+            // 🆕 Добавляем новые слова из файла, которых нет в сохранённом списке
             newWordsFromFile.forEach(fileWord => {
-                if (!savedWordsMap.has(fileWord.ru)) {
+                const key = `${fileWord.ru}|||${fileWord.ar}`;
+                if (!savedWordsSet.has(key)) {
+                    // Проверяем, не было ли уже добавлено в changedWords
                     const alreadyQueued = changedWords.find(w => w.ru === fileWord.ru && w.ar === fileWord.ar);
                     if (!alreadyQueued) {
-                        console.log(`➕ Новое или переименованное слово: "${fileWord.ru} — ${fileWord.ar}"`);
+                        console.log(`➕ Новое слово: "${fileWord.ru} — ${fileWord.ar}"`);
                         changedWords.push({
                             ru: fileWord.ru,
                             ar: fileWord.ar,
