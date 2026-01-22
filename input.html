@@ -19,6 +19,9 @@ const TRAINER_ID = 'input';
 /* ========== ✅ ПРЕФИКС ДЛЯ ЭТОГО ТРЕНАЖЕРА ========== */
 const PREFIX = 'input_';
 
+/* ========== ✅ КЛЮЧ ЧИСЛА ИЗВЕСТНЫХ СЛОВ ========== */
+const KNOWN_KEY = PREFIX + 'knownCount';
+
 /* ========== ✅ ОБЩИЙ КОД ДЛЯ ВСЕХ ТРЕНАЖЕРОВ ========== */
 const SHARED_CODE_KEY = 'userProgressCode';
 
@@ -390,6 +393,7 @@ async function initDictionary(){
   let serverWords = [];
   let serverWordsByRaw = new Map();
   let serverRawSet = new Set();
+  let knownCount = safeLocalStorageGet(KNOWN_KEY, 0) || 0;
   try{
     const txt = await robustFetchWords();
     const lines = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -430,6 +434,8 @@ async function initDictionary(){
         practiceOrder = practiceOrder.filter(r => r !== rawLine);
         if(!orderQueue.includes(rawLine)) orderQueue.push(rawLine);
       });
+      // Не добавляем новые строки автоматически: только актуализируем счётчик
+      knownCount = Math.min(Math.max(knownCount, allWords.length), serverWords.length);
     } else {
       orderQueue = st.orderQueue || [];
       masteredFinal = st.masteredFinal || [];
@@ -442,12 +448,18 @@ async function initDictionary(){
     currentRaw = (st.currentRaw && serverRawSet.has(st.currentRaw)) ? st.currentRaw : null;
   } else {
     if(serverWords.length > 0){
-      allWords = serverWords.slice();
+      if(!knownCount) knownCount = serverWords.length;
+      const limit = Math.min(knownCount, serverWords.length);
+      allWords = serverWords.slice(0, limit);
       masteredFinal = []; practiceHistory = []; roundMastered = []; practiceAccum = []; practiceOrder = [];
       phase = 'learn'; currentRaw = null;
       orderQueue = allWords.map(w=>w.rawLine);
       shuffle(orderQueue);
     }
+  }
+  if(serverWords.length > 0){
+    const normalizedKnown = Math.min(Math.max(knownCount, allWords.length), serverWords.length);
+    safeLocalStorageSet(KNOWN_KEY, normalizedKnown);
   }
   updateStats();
   saveStateBuffered().catch(e => console.warn('Save failed:', e));
@@ -695,9 +707,15 @@ btnAdd.addEventListener('click', async () => {
     const txt = await robustFetchWords();
     const lines = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     const serverWords = lines.map(parseLine);
+    const storedKnown = safeLocalStorageGet(KNOWN_KEY, allWords.length) || allWords.length;
+    if (serverWords.length <= storedKnown) {
+      alert('Новых слов не найдено');
+      return;
+    }
+    const newWords = serverWords.slice(storedKnown);
     const existing = new Set(allWords.map(w => w.rawLine));
     let added = 0;
-    for(const w of serverWords){
+    for(const w of newWords){
       if(!existing.has(w.rawLine)){
         allWords.push(w);
         orderQueue.push(w.rawLine);
@@ -706,6 +724,7 @@ btnAdd.addEventListener('click', async () => {
       }
     }
     if(added){
+      safeLocalStorageSet(KNOWN_KEY, Math.max(serverWords.length, storedKnown + added));
       shuffle(orderQueue);
       updateStats();
       alert('Добавлено новых слов: ' + added);
@@ -770,6 +789,7 @@ function showResetModal() {
     currentRaw = null;
     resetVersion = Date.now();
     safeLocalStorageSet(PREFIX + 'resetVersion', resetVersion);
+    safeLocalStorageSet(KNOWN_KEY, allWords.length);
     
     // ✅ СРАЗУ очищаем UI
     arabicDiv.textContent = '';
