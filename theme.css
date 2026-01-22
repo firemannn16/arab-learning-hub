@@ -67,6 +67,10 @@
   background: #1e3a2f !important;
 }
 
+.dark-theme .word-row.error-swipe {
+  background: #4a1a1a !important;
+}
+
 .dark-theme .word-cell,
 .dark-theme td {
   color: #e0e0e0 !important;
