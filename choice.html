@@ -206,6 +206,9 @@ const TRAINER_ID = 'choice';
 /* ========== ✅ ПРЕФИКС ДЛЯ ЭТОГО ТРЕНАЖЕРА ========== */
 const PREFIX = 'choice_';
 
+/* ========== ✅ КЛЮЧ ЧИСЛА ИЗВЕСТНЫХ СЛОВ ========== */
+const KNOWN_KEY = PREFIX + 'knownCount';
+
 /* ========== ✅ ОБЩИЙ КОД ДЛЯ ВСЕХ ТРЕНАЖЕРОВ ========== */
 const SHARED_CODE_KEY = 'userProgressCode';
 
@@ -894,6 +897,7 @@ async function showResetModal() {
     mode = 'all';
     direction = 'arab-to-rus';
     formatToggle.classList.remove('active');
+    safeLocalStorageSet(KNOWN_KEY, allWords.length);
     
     // ✅ Очищаем UI
     correctListDiv.innerHTML = '—';
@@ -963,11 +967,14 @@ async function addNewWords(){
     const txt = await robustFetchWords();
     const { parsed } = improvedParseText(txt);
     if(!Array.isArray(parsed)) return alert('Нет парсируемых строк в words.txt');
+    const storedKnown = safeLocalStorageGet(KNOWN_KEY, allWords.length) || allWords.length;
+    const startIdx = Math.min(storedKnown, parsed.length);
+    const newWords = parsed.slice(startIdx);
     
     const existingSet = new Set(allWords.map(w=>w.rawLine));
     let added = 0;
     
-    for(const p of parsed){
+    for(const p of newWords){
       if(!existingSet.has(p.rawLine)){
         allWords.push(p);
         const pos = Math.floor(Math.random() * (orderRaw.length + 1));
@@ -980,6 +987,7 @@ async function addNewWords(){
     if(added === 0){
       alert('Новых слов не найдено.');
     } else {
+      safeLocalStorageSet(KNOWN_KEY, Math.max(parsed.length, storedKnown + added));
       await saveState({ forceCloud: true });
       updateProgress();
       alert('Добавлено новых слов: ' + added);
@@ -1015,11 +1023,15 @@ async function loadWords() {
       const txt = await robustFetchWords();
       const { parsed, skipped } = improvedParseText(txt);
       const serverWords = parsed.slice();
+      let knownCount = safeLocalStorageGet(KNOWN_KEY, 0) || 0;
       
       const restored = await restoreStateAfterLoad(serverWords);
       
       if (!restored || allWords.length === 0) {
-        allWords = serverWords.slice();
+        // Первый запуск: если нет сохранённого значения — считаем известными все текущие строки
+        if (!knownCount) knownCount = serverWords.length;
+        const limit = Math.min(knownCount, serverWords.length);
+        allWords = serverWords.slice(0, limit);
         orderRaw = allWords.map(w=>w.rawLine); 
         shuffle(orderRaw);
         mistakes = []; 
@@ -1027,7 +1039,13 @@ async function loadWords() {
         currentRaw = null; 
         mode = 'all';
         direction = 'arab-to-rus';
+        safeLocalStorageSet(KNOWN_KEY, limit);
         await saveState({ forceCloud: true });
+      } else {
+        // Если состояние восстановлено, актуализируем счётчик известных слов,
+        // но не добавляем новые строки без клика
+        knownCount = Math.min(Math.max(knownCount, allWords.length), serverWords.length);
+        safeLocalStorageSet(KNOWN_KEY, knownCount);
       }
       
       if(skipped && skipped.length) {
