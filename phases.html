@@ -1541,11 +1541,12 @@
                 // При сбросе тянем все актуальные слова целиком (включая новые/изменённые)
                 originalWords = allWords;
                 words = shuffleArray(allWords);
-                
+
+                // 🔄 Обновляем счётчик известных слов на полный актуальный объём ПЕРЕД сохранением
+                const fullWordCount = allWords.length;
+                saveToLocalStorage('initialWordCount', fullWordCount);
                 saveToLocalStorage('wordsOrder', words);
                 saveToLocalStorage('currentPage', 0);
-                // Обновляем счётчик известных слов на полный актуальный объём
-                saveToLocalStorage('initialWordCount', allWords.length);
                 resetVersion = Date.now();
                 saveToLocalStorage('resetVersion', resetVersion);
                 
