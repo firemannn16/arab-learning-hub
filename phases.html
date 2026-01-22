@@ -1347,6 +1347,7 @@
                 saveToLocalStorage('fileWordCount', fileWordCount);
                 
                 const savedWordsOrder = getFromLocalStorage('wordsOrder', null);
+                const isFirstLoad = !Array.isArray(savedWordsOrder) || savedWordsOrder.length === 0;
                 nextWordId = getFromLocalStorage('nextWordId', 0);
                 const savedWordCount = getFromLocalStorage('initialWordCount', null);
                 const observedWordCount = Array.isArray(savedWordsOrder) ? savedWordsOrder.length : 0;
@@ -1354,6 +1355,9 @@
                     ? Math.max(savedWordCount, fileWordCount, observedWordCount)
                     : fileWordCount;
                 knownCount = Math.min(knownCount, fileWordCount);
+                if (isFirstLoad) {
+                    knownCount = fileWordCount;
+                }
                 // Если в wordsOrder уже есть весь объём файла (например, после сброса),
                 // поднимаем счётчик до полного размера, чтобы не терять хвост при перезагрузке
                 if (observedWordCount === fileWordCount && knownCount < fileWordCount) {
@@ -1361,10 +1365,10 @@
                     saveToLocalStorage('initialWordCount', knownCount);
                 }
                 
-                if (savedWordsOrder === null || savedWordsOrder.length === 0) {
+                if (isFirstLoad) {
                     console.log('🆕 Первый запуск тренажера - перемешиваем слова');
-                    // Не добавляем новые строки автоматически: ограничиваемся известным объёмом
-                    originalWords = allWordsFromFile.slice(0, knownCount);
+                    // Берём весь актуальный список слов без обрезания
+                    originalWords = allWordsFromFile;
                     words = shuffleArray(originalWords);
                     pageWordCounts = {};
                     saveToLocalStorage('wordsOrder', words);
