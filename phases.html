@@ -807,8 +807,20 @@
                 const { timestamp, ...cleanData } = result;
                 // Если после удаления timestamp остались другие ключи, возвращаем их
                 if (Object.keys(cleanData).length > 0) {
+                    // Распаковываем _data, если это была примитивная обёртка
+                    if ('_data' in cleanData && Object.keys(cleanData).length === 1) {
+                        return cleanData._data;
+                    }
+                    if ('_data' in cleanData) {
+                        return cleanData._data;
+                    }
                     return cleanData;
                 }
+            }
+
+            // Если safeLocalStorageGet вернул обёртку только с _data без timestamp
+            if (result && typeof result === 'object' && '_data' in result && Object.keys(result).length === 1) {
+                return result._data;
             }
             
             return result !== null ? result : defaultValue;
