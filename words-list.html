@@ -771,6 +771,42 @@
       background: #fecaca;
     }
 
+    /* Кнопка показать перевод (глазок) */
+    .show-translation-btn {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: rgba(102, 126, 234, 0.1);
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      z-index: 10;
+    }
+
+    .show-translation-btn:hover {
+      background: rgba(102, 126, 234, 0.2);
+      transform: scale(1.1);
+    }
+
+    .show-translation-btn:active {
+      transform: scale(0.95);
+    }
+
+    .show-translation-btn.active {
+      background: rgba(102, 126, 234, 0.3);
+    }
+
+    .word-card {
+      position: relative;
+    }
+
     /* Статус пауза */
     .paused-overlay {
       position: absolute;
@@ -989,6 +1025,9 @@
         </div>
         
         <div class="word-card word-card-hidden" id="testWordCard">
+          <button class="show-translation-btn" id="showTranslationBtn" onclick="toggleTranslation()" title="Показать перевод">
+            👁️
+          </button>
           <div class="word-card-arabic" id="testCardArabic">مُصْحَفٌ - مَصَاحِفُ</div>
           <div class="word-card-translation" id="testCardTranslation">экземпляр, книга</div>
         </div>
@@ -1778,6 +1817,9 @@
       document.getElementById('testCardArabic').textContent = word.arabic;
       document.getElementById('testCardTranslation').textContent = word.translation;
       
+      // Сбросить состояние показа перевода (скрыть перевод)
+      resetTranslationButton();
+      
       // Обновить прогресс
       const progress = ((currentWordIndex + 1) / learnWords.length) * 100;
       document.getElementById('testProgressFill').style.width = progress + '%';
@@ -1797,6 +1839,31 @@
       const btn = document.getElementById('testPauseBtn');
       btn.innerHTML = isPaused ? '▶️ Продолжить' : '⏸️ Пауза';
       saveSession();
+    }
+
+    // Показать/скрыть перевод в режиме проверки
+    function toggleTranslation() {
+      const card = document.getElementById('testWordCard');
+      const btn = document.getElementById('showTranslationBtn');
+      
+      if (card.classList.contains('word-card-hidden')) {
+        card.classList.remove('word-card-hidden');
+        btn.classList.add('active');
+        btn.title = 'Скрыть перевод';
+      } else {
+        card.classList.add('word-card-hidden');
+        btn.classList.remove('active');
+        btn.title = 'Показать перевод';
+      }
+    }
+
+    // Сбросить состояние кнопки показа перевода
+    function resetTranslationButton() {
+      const card = document.getElementById('testWordCard');
+      const btn = document.getElementById('showTranslationBtn');
+      card.classList.add('word-card-hidden');
+      btn.classList.remove('active');
+      btn.title = 'Показать перевод';
     }
 
     // Я знаю
