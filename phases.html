@@ -1070,8 +1070,15 @@
                         saveToLocalStorage('initialWordCount', actualWordCount);
                         
                         if (data.wordsOrder && data.wordsOrder.length > 0) {
-                            words = data.wordsOrder;
-                            saveToLocalStorage('wordsOrder', words);
+                            // ⚖️ Берем порядок слов из облака только если он не короче локального/файлового
+                            if (data.wordsOrder.length >= actualWordCount || data.wordsOrder.length >= words.length) {
+                                words = data.wordsOrder;
+                                saveToLocalStorage('wordsOrder', words);
+                            } else {
+                                console.warn(`⚠️ Пропускаем cloud wordsOrder (${data.wordsOrder.length}) — локально/в файле больше (${actualWordCount})`);
+                                // Отправим актуальный объём назад в облако
+                                scheduleSyncToFirebase();
+                            }
                         }
                         
                         if (data.currentPage !== undefined) {
@@ -1416,10 +1423,11 @@
                 const allWordsFromFile = parseWordsFromText(text);
                 
                 const savedWordCount = getFromLocalStorage('initialWordCount', null);
-                // ✅ Не повышаем счётчик автоматически: учитываем только известное количество
-                const effectiveSavedCount = savedWordCount === null 
-                    ? Math.min(words.length, allWordsFromFile.length)
-                    : Math.min(savedWordCount, allWordsFromFile.length);
+                // ✅ Не занижаем известный объём: учитываем максимум из сохранённого и текущего списка
+                const baseKnownCount = savedWordCount === null 
+                    ? words.length 
+                    : Math.max(savedWordCount, words.length);
+                const effectiveSavedCount = Math.min(allWordsFromFile.length, baseKnownCount);
                 const knownWords = allWordsFromFile.slice(0, effectiveSavedCount);
                 
                 const { changedWords, wordsToRemove } = detectChangesAndDeletes(knownWords, words);
