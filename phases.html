@@ -1324,17 +1324,23 @@
                 
                 const savedWordsOrder = getFromLocalStorage('wordsOrder', null);
                 nextWordId = getFromLocalStorage('nextWordId', 0);
+                const savedWordCount = getFromLocalStorage('initialWordCount', null);
                 
                 if (savedWordsOrder === null || savedWordsOrder.length === 0) {
                     console.log('🆕 Первый запуск тренажера - перемешиваем слова');
-                    originalWords = allWordsFromFile;
-                    words = shuffleArray(allWordsFromFile);
+                    // Не добавляем новые строки автоматически: ограничиваемся известным объёмом
+                    const knownCount = savedWordCount !== null
+                        ? Math.min(savedWordCount, allWordsFromFile.length)
+                        : allWordsFromFile.length;
+                    originalWords = allWordsFromFile.slice(0, knownCount);
+                    words = shuffleArray(originalWords);
                     pageWordCounts = {};
                     saveToLocalStorage('wordsOrder', words);
                     saveToLocalStorage('pageWordCounts', pageWordCounts);
                     saveToLocalStorage('nextWordId', nextWordId);
                     saveToLocalStorage('currentPage', 0);
-                    saveToLocalStorage('initialWordCount', allWordsFromFile.length);
+                    // Фиксируем количество известных слов, не повышая его автоматически
+                    saveToLocalStorage('initialWordCount', knownCount);
                 } else {
                     console.log('📂 Загружаем сохраненный порядок слов');
                     words = savedWordsOrder.map(w => {
