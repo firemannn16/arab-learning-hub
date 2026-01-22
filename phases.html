@@ -1288,22 +1288,7 @@
                 }
             });
 
-            // 🆕 Добавляем новые слова из файла, которых нет в сохранённом списке
-            newWordsFromFile.forEach(fileWord => {
-                const key = `${fileWord.ru}|||${fileWord.ar}`;
-                if (!savedWordsSet.has(key)) {
-                    // Проверяем, не было ли уже добавлено в changedWords
-                    const alreadyQueued = changedWords.find(w => w.ru === fileWord.ru && w.ar === fileWord.ar);
-                    if (!alreadyQueued) {
-                        console.log(`➕ Новое слово: "${fileWord.ru} — ${fileWord.ar}"`);
-                        changedWords.push({
-                            ru: fileWord.ru,
-                            ar: fileWord.ar,
-                            id: generateWordId()
-                        });
-                    }
-                }
-            });
+            // ❌ Новые слова НЕ добавляются автоматически — только по кнопке "Добавить новые слова"
             
             return { changedWords, wordsToRemove };
         }
@@ -1404,25 +1389,9 @@
                 const savedWordsOrder = getFromLocalStorage('wordsOrder', null);
                 const isFirstLoad = !Array.isArray(savedWordsOrder) || savedWordsOrder.length === 0;
                 nextWordId = getFromLocalStorage('nextWordId', 0);
-                const savedWordCount = getFromLocalStorage('initialWordCount', null);
-                const observedWordCount = Array.isArray(savedWordsOrder) ? savedWordsOrder.length : 0;
-                let knownCount = savedWordCount !== null
-                    ? Math.max(savedWordCount, fileWordCount, observedWordCount)
-                    : fileWordCount;
-                knownCount = Math.min(knownCount, fileWordCount);
-                if (isFirstLoad) {
-                    knownCount = fileWordCount;
-                }
-                // Если в wordsOrder уже есть весь объём файла (например, после сброса),
-                // поднимаем счётчик до полного размера, чтобы не терять хвост при перезагрузке
-                if (observedWordCount === fileWordCount && knownCount < fileWordCount) {
-                    knownCount = fileWordCount;
-                    saveToLocalStorage('initialWordCount', knownCount);
-                }
                 
                 if (isFirstLoad) {
                     console.log('🆕 Первый запуск тренажера - перемешиваем слова');
-                    // Берём весь актуальный список слов без обрезания
                     originalWords = allWordsFromFile;
                     words = shuffleArray(originalWords);
                     pageWordCounts = {};
@@ -1430,8 +1399,9 @@
                     saveToLocalStorage('pageWordCounts', pageWordCounts);
                     saveToLocalStorage('nextWordId', nextWordId);
                     saveToLocalStorage('currentPage', 0);
-                    // Фиксируем количество известных слов, не повышая его автоматически
-                    saveToLocalStorage('initialWordCount', knownCount);
+                    // initialWordCount = сколько слов "разблокировано" у пользователя
+                    // При первом запуске = все слова из файла
+                    saveToLocalStorage('initialWordCount', fileWordCount);
                 } else {
                     console.log('📂 Загружаем сохраненный порядок слов');
                     words = savedWordsOrder.map(w => {
@@ -1443,26 +1413,7 @@
                     pageWordCounts = getFromLocalStorage('pageWordCounts', {});
                 }
                 
-                // 🛠️ ВСЕГДА проверяем на пропущенные слова (независимо от savedWordCount)
-                // Это исправляет баг когда Firebase перезаписывает список меньшим количеством слов
-                const wordsSet = new Set(words.map(w => `${w.ru}|||${w.ar}`));
-                const missing =allWordsFromFile.filter(w => !wordsSet.has(`${w.ru}|||${w.ar}`));
-                if (missing.length > 0) {
-                    console.log(`📈 Добавляем пропущенные слова без сброса: ${missing.length}`);
-                    console.log(`   Было: ${words.length}, в файле: ${allWordsFromFile.length}`);
-                    words.push(...missing);
-                    originalWords.push(...missing);
-                    // Увеличиваем размер последней страницы
-                    const pageKeys = Object.keys(pageWordCounts).map(Number);
-                    const lastPage = pageKeys.length ? Math.max(...pageKeys) : 0;
-                    pageWordCounts[lastPage] = (pageWordCounts[lastPage] || wordsPerPage) + missing.length;
-                    saveToLocalStorage('wordsOrder', words);
-                    saveToLocalStorage('pageWordCounts', pageWordCounts);
-                    saveToLocalStorage('initialWordCount', allWordsFromFile.length);
-                    console.log(`   Стало: ${words.length} слов`);
-                    // Синхронизируем исправленный список в Firebase
-                    scheduleSyncToFirebase();
-                }
+                // ❌ Новые слова НЕ добавляются автоматически — только по кнопке "Добавить новые слова"
                 
                 validateProgress(words);
                 
@@ -1487,18 +1438,9 @@
                 if (!text) return;
                 const allWordsFromFile = parseWordsFromText(text);
                 
-                const savedWordCount = getFromLocalStorage('initialWordCount', null);
-                const fileWordCount = getFromLocalStorage('fileWordCount', allWordsFromFile.length);
-                // ✅ Не занижаем известный объём: учитываем максимум из сохранённого и текущего списка
-                const baseKnownCount = Math.max(
-                    savedWordCount === null ? 0 : savedWordCount,
-                    words.length,
-                    fileWordCount
-                );
-                const effectiveSavedCount = Math.min(allWordsFromFile.length, baseKnownCount);
-                const knownWords = allWordsFromFile.slice(0, effectiveSavedCount);
-                
-                const { changedWords, wordsToRemove } = detectChangesAndDeletes(knownWords, words);
+                // 🔧 Упрощённая логика: сравниваем текущий список пользователя с файлом
+                // Обнаруживаем ТОЛЬКО изменения и удаления (новые слова — только по кнопке)
+                const { changedWords, wordsToRemove } = detectChangesAndDeletes(allWordsFromFile, words);
                 
                 const hasChanges = applyChangesToWords(changedWords, wordsToRemove);
                 
@@ -1510,15 +1452,6 @@
                     console.log('✅ Изменения и удаления применены');
                 } else {
                     console.log('✓ Изменений и удалений не обнаружено');
-                }
-
-                // 🔄 Обновляем счётчик известных слов только если он уменьшился (удаления)
-                if (savedWordCount !== effectiveSavedCount) {
-                    saveToLocalStorage('initialWordCount', effectiveSavedCount);
-                    // Сохраняем порядок слов, чтобы не потерять актуальный список
-                    saveToLocalStorage('wordsOrder', words);
-                    scheduleSyncToFirebase();
-                    console.log(`ℹ️ Обновлён лимит известных слов: ${effectiveSavedCount}`);
                 }
             } catch (error) {
                 console.error('Ошибка проверки изменений:', error);
