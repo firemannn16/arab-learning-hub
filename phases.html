@@ -1325,13 +1325,20 @@
                 const savedWordsOrder = getFromLocalStorage('wordsOrder', null);
                 nextWordId = getFromLocalStorage('nextWordId', 0);
                 const savedWordCount = getFromLocalStorage('initialWordCount', null);
+                const observedWordCount = Array.isArray(savedWordsOrder) ? savedWordsOrder.length : 0;
+                let knownCount = savedWordCount !== null
+                    ? Math.min(savedWordCount, allWordsFromFile.length)
+                    : allWordsFromFile.length;
+                // Если в wordsOrder уже есть весь объём файла (например, после сброса),
+                // поднимаем счётчик до полного размера, чтобы не терять хвост при перезагрузке
+                if (observedWordCount === allWordsFromFile.length && knownCount < allWordsFromFile.length) {
+                    knownCount = allWordsFromFile.length;
+                    saveToLocalStorage('initialWordCount', knownCount);
+                }
                 
                 if (savedWordsOrder === null || savedWordsOrder.length === 0) {
                     console.log('🆕 Первый запуск тренажера - перемешиваем слова');
                     // Не добавляем новые строки автоматически: ограничиваемся известным объёмом
-                    const knownCount = savedWordCount !== null
-                        ? Math.min(savedWordCount, allWordsFromFile.length)
-                        : allWordsFromFile.length;
                     originalWords = allWordsFromFile.slice(0, knownCount);
                     words = shuffleArray(originalWords);
                     pageWordCounts = {};
@@ -1350,6 +1357,25 @@
                         return w;
                     });
                     pageWordCounts = getFromLocalStorage('pageWordCounts', {});
+                }
+                
+                // 🛠️ Фикс старого ограничения: если известный объём меньше фактического,
+                // но слова в файле не новые (хвост потерян), автоматически добавляем недостающие
+                if (savedWordCount !== null && savedWordCount < allWordsFromFile.length) {
+                    const wordsSet = new Set(words.map(w => `${w.ru}|||${w.ar}`));
+                    const missing = allWordsFromFile.filter(w => !wordsSet.has(`${w.ru}|||${w.ar}`));
+                    if (missing.length > 0) {
+                        console.log(`📈 Добавляем пропущенные слова без сброса: ${missing.length}`);
+                        words.push(...missing);
+                        originalWords.push(...missing);
+                        // Увеличиваем размер последней страницы
+                        const pageKeys = Object.keys(pageWordCounts).map(Number);
+                        const lastPage = pageKeys.length ? Math.max(...pageKeys) : 0;
+                        pageWordCounts[lastPage] = (pageWordCounts[lastPage] || wordsPerPage) + missing.length;
+                        saveToLocalStorage('wordsOrder', words);
+                        saveToLocalStorage('pageWordCounts', pageWordCounts);
+                        saveToLocalStorage('initialWordCount', allWordsFromFile.length);
+                    }
                 }
                 
                 validateProgress(words);
