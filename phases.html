@@ -1064,9 +1064,10 @@
                         // ✅ ВАЖНО: Сравниваем initialWordCount из Firebase с текущим количеством слов
                         const firebaseWordCount = data.initialWordCount || 0;
                         const currentLocalWordCount = getFromLocalStorage('initialWordCount', 0);
+                        const fileWordCount = getFromLocalStorage('fileWordCount', 0);
                         
                         // Используем МАКСИМАЛЬНОЕ значение (если в words.txt добавили слова)
-                        const actualWordCount = Math.max(firebaseWordCount, currentLocalWordCount, words.length);
+                        const actualWordCount = Math.max(firebaseWordCount, currentLocalWordCount, words.length, fileWordCount);
                         saveToLocalStorage('initialWordCount', actualWordCount);
                         
                         if (data.wordsOrder && data.wordsOrder.length > 0) {
@@ -1342,18 +1343,21 @@
                     throw new Error('Не удалось загрузить файл');
                 }
                 const allWordsFromFile = parseWordsFromText(text);
+                const fileWordCount = allWordsFromFile.length;
+                saveToLocalStorage('fileWordCount', fileWordCount);
                 
                 const savedWordsOrder = getFromLocalStorage('wordsOrder', null);
                 nextWordId = getFromLocalStorage('nextWordId', 0);
                 const savedWordCount = getFromLocalStorage('initialWordCount', null);
                 const observedWordCount = Array.isArray(savedWordsOrder) ? savedWordsOrder.length : 0;
                 let knownCount = savedWordCount !== null
-                    ? Math.min(savedWordCount, allWordsFromFile.length)
-                    : allWordsFromFile.length;
+                    ? Math.max(savedWordCount, fileWordCount, observedWordCount)
+                    : fileWordCount;
+                knownCount = Math.min(knownCount, fileWordCount);
                 // Если в wordsOrder уже есть весь объём файла (например, после сброса),
                 // поднимаем счётчик до полного размера, чтобы не терять хвост при перезагрузке
-                if (observedWordCount === allWordsFromFile.length && knownCount < allWordsFromFile.length) {
-                    knownCount = allWordsFromFile.length;
+                if (observedWordCount === fileWordCount && knownCount < fileWordCount) {
+                    knownCount = fileWordCount;
                     saveToLocalStorage('initialWordCount', knownCount);
                 }
                 
@@ -1423,10 +1427,13 @@
                 const allWordsFromFile = parseWordsFromText(text);
                 
                 const savedWordCount = getFromLocalStorage('initialWordCount', null);
+                const fileWordCount = getFromLocalStorage('fileWordCount', allWordsFromFile.length);
                 // ✅ Не занижаем известный объём: учитываем максимум из сохранённого и текущего списка
-                const baseKnownCount = savedWordCount === null 
-                    ? words.length 
-                    : Math.max(savedWordCount, words.length);
+                const baseKnownCount = Math.max(
+                    savedWordCount === null ? 0 : savedWordCount,
+                    words.length,
+                    fileWordCount
+                );
                 const effectiveSavedCount = Math.min(allWordsFromFile.length, baseKnownCount);
                 const knownWords = allWordsFromFile.slice(0, effectiveSavedCount);
                 
