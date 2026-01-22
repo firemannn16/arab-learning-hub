@@ -1071,12 +1071,28 @@
                         saveToLocalStorage('initialWordCount', actualWordCount);
                         
                         if (data.wordsOrder && data.wordsOrder.length > 0) {
-                            // ⚖️ Берем порядок слов из облака только если он не короче локального/файлового
-                            if (data.wordsOrder.length >= actualWordCount || data.wordsOrder.length >= words.length) {
+                            // ⚖️ Получаем актуальное количество слов в файле
+                            const currentFileWordCount = getFromLocalStorage('fileWordCount', 0);
+                            const localWordsCount = words.length;
+                            const maxExpectedCount = Math.max(actualWordCount, localWordsCount, currentFileWordCount);
+                            
+                            // Берем порядок слов из облака только если он не короче файла
+                            if (data.wordsOrder.length >= maxExpectedCount) {
                                 words = data.wordsOrder;
                                 saveToLocalStorage('wordsOrder', words);
                             } else {
-                                console.warn(`⚠️ Пропускаем cloud wordsOrder (${data.wordsOrder.length}) — локально/в файле больше (${actualWordCount})`);
+                                console.warn(`⚠️ Пропускаем cloud wordsOrder (${data.wordsOrder.length}) — в файле/локально больше (${maxExpectedCount})`);
+                                
+                                // 🔧 Добавляем недостающие слова из локального списка в облачный
+                                if (localWordsCount > data.wordsOrder.length) {
+                                    console.log(`📈 Сохраняем локальный список слов (${localWordsCount}), он полнее облачного`);
+                                    // words уже содержит правильный список из loadWords()
+                                } else {
+                                    // Берём облачный, но потом добавим недостающие
+                                    words = data.wordsOrder;
+                                    saveToLocalStorage('wordsOrder', words);
+                                }
+                                
                                 // Отправим актуальный объём назад в облако
                                 scheduleSyncToFirebase();
                             }
@@ -1112,6 +1128,14 @@
                         
                         firebaseDataLoaded = true; // ✅ Данные загружены из Firebase
                         console.log('✅ Firebase данные загружены, синхронизация разрешена');
+                        
+                        // 🔧 ФИНАЛЬНАЯ ПРОВЕРКА: если в файле больше слов - добавляем недостающие
+                        const finalFileCount = getFromLocalStorage('fileWordCount', 0);
+                        if (finalFileCount > 0 && words.length < finalFileCount) {
+                            console.log(`⚠️ После Firebase: words=${words.length}, file=${finalFileCount}. Нужно добавить слова!`);
+                            // Помечаем что нужно проверить и добавить слова
+                            // checkAndApplyFileChanges() будет вызван в initialize() после loadFromFirebase()
+                        }
                         
                         // ✅ Обновляем UI после загрузки данных
                         updateStats();
@@ -1388,23 +1412,25 @@
                     pageWordCounts = getFromLocalStorage('pageWordCounts', {});
                 }
                 
-                // 🛠️ Фикс старого ограничения: если известный объём меньше фактического,
-                // но слова в файле не новые (хвост потерян), автоматически добавляем недостающие
-                if (savedWordCount !== null && savedWordCount < allWordsFromFile.length) {
-                    const wordsSet = new Set(words.map(w => `${w.ru}|||${w.ar}`));
-                    const missing = allWordsFromFile.filter(w => !wordsSet.has(`${w.ru}|||${w.ar}`));
-                    if (missing.length > 0) {
-                        console.log(`📈 Добавляем пропущенные слова без сброса: ${missing.length}`);
-                        words.push(...missing);
-                        originalWords.push(...missing);
-                        // Увеличиваем размер последней страницы
-                        const pageKeys = Object.keys(pageWordCounts).map(Number);
-                        const lastPage = pageKeys.length ? Math.max(...pageKeys) : 0;
-                        pageWordCounts[lastPage] = (pageWordCounts[lastPage] || wordsPerPage) + missing.length;
-                        saveToLocalStorage('wordsOrder', words);
-                        saveToLocalStorage('pageWordCounts', pageWordCounts);
-                        saveToLocalStorage('initialWordCount', allWordsFromFile.length);
-                    }
+                // 🛠️ ВСЕГДА проверяем на пропущенные слова (независимо от savedWordCount)
+                // Это исправляет баг когда Firebase перезаписывает список меньшим количеством слов
+                const wordsSet = new Set(words.map(w => `${w.ru}|||${w.ar}`));
+                const missing =allWordsFromFile.filter(w => !wordsSet.has(`${w.ru}|||${w.ar}`));
+                if (missing.length > 0) {
+                    console.log(`📈 Добавляем пропущенные слова без сброса: ${missing.length}`);
+                    console.log(`   Было: ${words.length}, в файле: ${allWordsFromFile.length}`);
+                    words.push(...missing);
+                    originalWords.push(...missing);
+                    // Увеличиваем размер последней страницы
+                    const pageKeys = Object.keys(pageWordCounts).map(Number);
+                    const lastPage = pageKeys.length ? Math.max(...pageKeys) : 0;
+                    pageWordCounts[lastPage] = (pageWordCounts[lastPage] || wordsPerPage) + missing.length;
+                    saveToLocalStorage('wordsOrder', words);
+                    saveToLocalStorage('pageWordCounts', pageWordCounts);
+                    saveToLocalStorage('initialWordCount', allWordsFromFile.length);
+                    console.log(`   Стало: ${words.length} слов`);
+                    // Синхронизируем исправленный список в Firebase
+                    scheduleSyncToFirebase();
                 }
                 
                 validateProgress(words);
@@ -1541,12 +1567,11 @@
                 // При сбросе тянем все актуальные слова целиком (включая новые/изменённые)
                 originalWords = allWords;
                 words = shuffleArray(allWords);
-
-                // 🔄 Обновляем счётчик известных слов на полный актуальный объём ПЕРЕД сохранением
-                const fullWordCount = allWords.length;
-                saveToLocalStorage('initialWordCount', fullWordCount);
+                
                 saveToLocalStorage('wordsOrder', words);
                 saveToLocalStorage('currentPage', 0);
+                // Обновляем счётчик известных слов на полный актуальный объём
+                saveToLocalStorage('initialWordCount', allWords.length);
                 resetVersion = Date.now();
                 saveToLocalStorage('resetVersion', resetVersion);
                 
