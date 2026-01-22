@@ -988,11 +988,15 @@
                 );
                 
                 if (data) {
+                    let useFirebaseData = true;
+
                     const firebaseReset = data.resetVersion || 0;
                     const localReset = getFromLocalStorage('resetVersion', 0);
                     if (localReset > firebaseReset) {
+                        // Локальный сброс новее – не затираем свежие данные облаком
                         resetVersion = localReset;
                         saveToLocalStorage('resetVersion', resetVersion);
+                        useFirebaseData = false;
                         await syncToFirebase();
                         showSyncStatus('✓ Синхронизировано (после сброса)', 'synced');
                     } else if (firebaseReset > localReset) {
@@ -1015,8 +1019,6 @@
                     } catch(e) {
                         console.warn('Не удалось прочитать локальный timestamp:', e);
                     }
-                    
-                    let useFirebaseData = true;
                     
                     if (localTimestamp > 0 && firebaseTimestamp > 0) {
                         // Если локальные данные НОВЕЕ - не перезаписываем
