@@ -233,6 +233,149 @@
       let allWords = [], sessionWords = [], mistakes = [], mistakeLines = [], total = 0, currentIndex = 0;
       let modalTimer = null;
 
+      // ========== localStorage ключи ==========
+      const WORDS_STORAGE_KEY = 'simpleTrainerWords';
+      const SESSION_STORAGE_KEY = 'simpleTrainerSession';
+
+      // ========== Функции localStorage ==========
+      
+      // Сохранить список слов
+      function saveWordList(text) {
+        try {
+          localStorage.setItem(WORDS_STORAGE_KEY, text);
+        } catch (e) {
+          console.warn('Не удалось сохранить список слов', e);
+        }
+      }
+
+      // Загрузить список слов
+      function loadWordList() {
+        try {
+          return localStorage.getItem(WORDS_STORAGE_KEY) || '';
+        } catch (e) {
+          return '';
+        }
+      }
+
+      // Сохранить текущую сессию
+      function saveSession() {
+        if (sessionWords.length === 0) return;
+        
+        try {
+          const sessionData = {
+            allWords: allWords,
+            sessionWords: sessionWords,
+            currentIndex: currentIndex,
+            mistakes: mistakes,
+            mistakeLines: mistakeLines,
+            total: total,
+            timestamp: Date.now()
+          };
+          localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionData));
+        } catch (e) {
+          console.warn('Не удалось сохранить сессию', e);
+        }
+      }
+
+      // Загрузить сессию
+      function loadSession() {
+        try {
+          const saved = localStorage.getItem(SESSION_STORAGE_KEY);
+          return saved ? JSON.parse(saved) : null;
+        } catch (e) {
+          console.warn('Не удалось загрузить сессию', e);
+          return null;
+        }
+      }
+
+      // Очистить сессию
+      function clearSession() {
+        try {
+          localStorage.removeItem(SESSION_STORAGE_KEY);
+        } catch (e) {
+          console.warn('Не удалось очистить сессию', e);
+        }
+      }
+
+      // Показать модальное окно восстановления сессии
+      function showResumeModal(session) {
+        const root = document.getElementById('modal-root');
+        const overlay = document.createElement('div');
+        overlay.className = 'overlay';
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        
+        const progress = `${session.currentIndex + 1} из ${session.total}`;
+        const mistakesCount = session.mistakes ? session.mistakes.length : 0;
+        
+        modal.innerHTML = 
+          '<h2>📚 Продолжить сессию?</h2>' +
+          '<div class="label" style="margin-bottom:15px;">' +
+          'Найдена незавершённая тренировка:<br>' +
+          '<strong>Слово ' + progress + '</strong>, ошибок: ' + mistakesCount +
+          '</div>' +
+          '<div class="controls" style="gap:10px;flex-wrap:wrap;">' +
+          '<button id="resume-session-btn" class="close-btn" style="background:#e8f5e9;border-color:#81c784;">▶️ Продолжить</button>' +
+          '<button id="restart-session-btn" class="close-btn" style="background:#ffebee;border-color:#e57373;">🔄 Начать заново</button>' +
+          '</div>';
+        
+        overlay.appendChild(modal);
+        root.appendChild(overlay);
+
+        document.getElementById('resume-session-btn').addEventListener('click', function() {
+          root.innerHTML = '';
+          resumeSession(session);
+        });
+
+        document.getElementById('restart-session-btn').addEventListener('click', function() {
+          root.innerHTML = '';
+          clearSession();
+          // Показать loader с сохранённым текстом
+          loader.classList.remove('hidden');
+          trainer.classList.add('hidden');
+        });
+      }
+
+      // Восстановить сессию
+      function resumeSession(session) {
+        allWords = session.allWords;
+        sessionWords = session.sessionWords;
+        currentIndex = session.currentIndex;
+        mistakes = session.mistakes || [];
+        mistakeLines = session.mistakeLines || [];
+        total = session.total;
+
+        loader.classList.add('hidden');
+        controls.classList.add('hidden');
+        trainer.classList.remove('hidden');
+        submitBtn.disabled = false;
+        oralBtn.disabled = false;
+        forgotBtn.disabled = false;
+        afterSession.classList.add('hidden');
+        
+        // Восстановить списки правильных и ошибок
+        correctListDiv.innerHTML = '';
+        mistakeListDiv.innerHTML = '';
+        
+        // Показать уже пройденные ошибки
+        mistakeLines.forEach(function(line) {
+          mistakeListDiv.innerHTML += '<div>' + escapeHtml(line) + '</div>';
+        });
+        if (mistakeLines.length > 0) {
+          copyMistakesContainer.classList.remove('hidden');
+        }
+
+        nextWord();
+      }
+
+      // Проверить сохранённую сессию при загрузке
+      function checkSavedSession() {
+        const session = loadSession();
+        if (session && session.sessionWords && session.sessionWords.length > 0 && session.currentIndex < session.total) {
+          showResumeModal(session);
+        }
+      }
+
       const loader = document.getElementById('loader');
       const controls = document.getElementById('controls');
       const trainer = document.getElementById('trainer');
@@ -265,6 +408,8 @@
           alert('Не удалось распознать слова. Проверьте формат.');
           return;
         }
+        // Сохраняем список слов
+        saveWordList(text);
         loader.classList.add('hidden');
         startSession(false);
       });
@@ -283,6 +428,15 @@
         }
       }
       updateFavHint();
+
+      // Загружаем сохранённый список слов
+      const savedWordList = loadWordList();
+      if (savedWordList) {
+        wordListTextarea.value = savedWordList;
+      }
+
+      // Проверяем сохранённую сессию
+      checkSavedSession();
       
       loadFavoritesBtn.addEventListener('click', function() {
         const favText = typeof getFavoritesAsText === 'function' ? getFavoritesAsText() : '';
@@ -347,11 +501,12 @@
         forgotBtn.disabled = false;
         afterSession.classList.add('hidden');
         nextWord();
+        saveSession(); // Сохраняем сессию
       }
 
       startAllBtn.addEventListener('click', function() { startSession(false); });
       startMistakesBtn.addEventListener('click', function() { if (mistakes.length) startSession(true); });
-      retryAllBtn.addEventListener('click', function() { startSession(false); });
+      retryAllBtn.addEventListener('click', function() { clearSession(); startSession(false); });
 
       // Показать/скрыть перевод
       function toggleTranslation() {
@@ -392,6 +547,7 @@
             copyMistakesContainer.classList.remove('hidden');
           }
           afterSession.classList.remove('hidden');
+          clearSession(); // Очищаем сессию при завершении
           return;
         }
         const it = sessionWords[currentIndex];
@@ -476,11 +632,12 @@
           correctListDiv.innerHTML += '<div>' + escapeHtml(it.originalLine) + '</div>';
           if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
           currentIndex++;
+          saveSession();
           nextWord();
         } else {
           addMistake(it);
           const corr = it.rusVariants.join(', ');
-          showWrongModal(it.arabicFull, corr, function() { currentIndex++; nextWord(); });
+          showWrongModal(it.arabicFull, corr, function() { currentIndex++; saveSession(); nextWord(); });
         }
       }
 
@@ -489,6 +646,7 @@
         correctListDiv.innerHTML += '<div>' + escapeHtml(it.originalLine) + '</div>';
         if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
         currentIndex++;
+        saveSession();
         nextWord();
       }
 
@@ -496,6 +654,7 @@
         const it = sessionWords[currentIndex];
         addMistake(it);
         currentIndex++;
+        saveSession();
         nextWord();
       }
 
