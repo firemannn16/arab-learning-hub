@@ -20,18 +20,106 @@
     .button { padding: 10px 16px; margin: 8px; font-size: 1em; cursor: pointer; }
     #progress { margin-top: 12px; font-size: 1.1em; }
 
-    #arabic-word {
-      font-size: 2rem;
-      padding: 12px;
-      white-space: nowrap;
-      overflow-x: auto;
-      background: #f5f5f5;
-      border-radius: 8px;
-      width: 48%;
-      margin-left: 0;
-      margin-right: auto;
-      text-align: right;
+    /* Карточка слова */
+    .word-card {
+      position: relative;
+      background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+      border: 2px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 35px 25px;
+      margin: 20px 0;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      animation: fadeIn 0.4s ease;
+      overflow: visible;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .word-card-arabic {
+      font-size: 32px;
+      font-family: 'Amiri', 'Traditional Arabic', serif;
+      color: #1a1a2e;
+      line-height: 2.4;
+      margin-bottom: 15px;
       direction: rtl;
+      text-align: center;
+      word-spacing: 8px;
+      padding: 18px 10px 8px 10px;
+      overflow: visible;
+      display: inline-block;
+    }
+
+    .word-card-translation {
+      font-size: 18px;
+      color: #4b5563;
+      line-height: 1.6;
+    }
+
+    .word-card-hidden .word-card-translation {
+      display: none;
+    }
+
+    /* Кнопка показать перевод (глазок) */
+    .show-translation-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: rgba(102, 126, 234, 0.1);
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      z-index: 10;
+    }
+
+    .show-translation-btn:hover {
+      background: rgba(102, 126, 234, 0.2);
+      transform: scale(1.1);
+    }
+
+    .show-translation-btn:active {
+      transform: scale(0.95);
+    }
+
+    .show-translation-btn.active {
+      background: rgba(102, 126, 234, 0.3);
+    }
+
+    @media (max-width:480px) {
+      .modal { padding: 12px; }
+      .modal h2 { font-size: 20px; }
+      .modal .answer { font-size: 18px; }
+      .word-card {
+        padding: 28px 16px;
+        min-height: 150px;
+      }
+      .word-card-arabic {
+        font-size: 26px;
+        line-height: 2.5;
+        padding: 16px 12px 8px 12px;
+      }
+      .word-card-translation {
+        font-size: 16px;
+      }
     }
 
     #correct-list, #mistake-list { max-height: 160px; overflow-y: auto; background: #fafafa; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
@@ -82,12 +170,6 @@
       margin-left: 8px;
     }
 
-    @media (max-width:480px) {
-      .modal { padding: 12px; }
-      .modal h2 { font-size: 20px; }
-      .modal .answer { font-size: 18px; }
-      #arabic-word { width: 90%; }
-    }
   </style>
 </head>
 <body>
@@ -112,7 +194,15 @@
     <!-- Сам тренажёр -->
     <div id="trainer" class="hidden">
       <div id="progress"></div>
-      <h2 id="arabic-word"></h2>
+      
+      <div class="word-card word-card-hidden" id="wordCard">
+        <button class="show-translation-btn" id="showTranslationBtn" onclick="toggleTranslation()" title="Показать перевод">
+          👁️
+        </button>
+        <div class="word-card-arabic" id="arabic-word"></div>
+        <div class="word-card-translation" id="word-translation"></div>
+      </div>
+      
       <input type="text" id="answer-input" placeholder="Введите перевод" autofocus>
       <button id="submit-answer" class="button">Ответить</button>
       <button id="oral-answer" class="button oral-btn">Ответил устно</button>
@@ -263,6 +353,34 @@
       startMistakesBtn.addEventListener('click', function() { if (mistakes.length) startSession(true); });
       retryAllBtn.addEventListener('click', function() { startSession(false); });
 
+      // Показать/скрыть перевод
+      function toggleTranslation() {
+        const card = document.getElementById('wordCard');
+        const btn = document.getElementById('showTranslationBtn');
+        
+        if (card.classList.contains('word-card-hidden')) {
+          card.classList.remove('word-card-hidden');
+          btn.classList.add('active');
+          btn.title = 'Скрыть перевод';
+        } else {
+          card.classList.add('word-card-hidden');
+          btn.classList.remove('active');
+          btn.title = 'Показать перевод';
+        }
+      }
+
+      // Сбросить состояние кнопки показа перевода
+      function resetTranslationButton() {
+        const card = document.getElementById('wordCard');
+        const btn = document.getElementById('showTranslationBtn');
+        card.classList.add('word-card-hidden');
+        btn.classList.remove('active');
+        btn.title = 'Показать перевод';
+      }
+
+      // Делаем toggleTranslation глобальной
+      window.toggleTranslation = toggleTranslation;
+
       function nextWord() {
         if (currentIndex >= total) {
           progressDiv.textContent = 'Готово! Пройдено ' + total + '/' + total + ', ошибок: ' + mistakes.length;
@@ -278,9 +396,17 @@
         }
         const it = sessionWords[currentIndex];
         arabicWordH2.textContent = it.arabicFull;
+        document.getElementById('word-translation').textContent = it.rusVariants.join(', ');
+        resetTranslationButton();
         progressDiv.textContent = (currentIndex + 1) + '/' + total + ' слов пройдено – ' + mistakes.length + ' ошибок';
         answerInput.value = '';
         answerInput.focus();
+        
+        // Анимация карточки
+        const card = document.getElementById('wordCard');
+        card.style.animation = 'none';
+        card.offsetHeight; // Trigger reflow
+        card.style.animation = 'fadeIn 0.4s ease';
       }
 
       function addMistake(it) {
