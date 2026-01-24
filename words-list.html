@@ -230,6 +230,110 @@
       opacity: 1;
     }
 
+    /* Кружочек для выбора */
+    .select-circle {
+      width: 22px;
+      height: 22px;
+      border: 2px solid #d1d5db;
+      border-radius: 50%;
+      flex-shrink: 0;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .select-circle:hover {
+      border-color: #667eea;
+    }
+
+    .select-circle.selected {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-color: #667eea;
+    }
+
+    .select-circle.selected::after {
+      content: '✓';
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .word-item.selected {
+      background: #f0f4ff;
+    }
+
+    /* Панель выбранных */
+    .selection-bar {
+      display: none;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 15px;
+      animation: slideDown 0.2s ease;
+    }
+
+    .selection-bar.visible {
+      display: flex;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .selection-info {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .selection-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .selection-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .selection-btn-copy {
+      background: white;
+      color: #667eea;
+    }
+
+    .selection-btn-copy:hover {
+      background: #f0f4ff;
+    }
+
+    .selection-btn-clear {
+      background: rgba(255,255,255,0.2);
+      color: white;
+    }
+
+    .selection-btn-clear:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
     .toast {
       position: fixed;
       bottom: 30px;
@@ -926,6 +1030,19 @@
       </div>
     </div>
 
+    <!-- Панель выбранных слов -->
+    <div class="selection-bar" id="selectionBar">
+      <span class="selection-info" id="selectionInfo">Выбрано: 0</span>
+      <div class="selection-actions">
+        <button class="selection-btn selection-btn-copy" onclick="copySelected()">
+          📋 Копировать
+        </button>
+        <button class="selection-btn selection-btn-clear" onclick="clearSelection()">
+          ✕ Снять
+        </button>
+      </div>
+    </div>
+
     <div class="words-container" id="wordsContainer">
       <div class="loading">
         <div class="loading-spinner"></div>
@@ -1060,6 +1177,7 @@
     let allWordsText = '';
     let allWords = [];
     let currentTab = 'all';
+    let selectedWords = new Set(); // Выбранные слова для копирования
 
     // ========== ЗАУЧИВАНИЕ - Переменные ==========
     let learnWords = [];           // Слова для заучивания [{arabic: '...', translation: '...'}, ...]
@@ -1382,6 +1500,9 @@
       }
       
       if (tab === 'all' || tab === 'favorites') {
+        // Очищаем выбор при переключении вкладок
+        selectedWords.clear();
+        updateSelectionBar();
         renderWords();
         updateCounts();
       }
@@ -1424,8 +1545,10 @@
         const cleanLine = typeof line === 'string' ? line.trim() : line;
         if (cleanLine) {
           const isFav = isFavorite(cleanLine);
+          const isSelected = selectedWords.has(cleanLine);
           html += `
-            <div class="word-item" data-text="${escapeHtml(cleanLine).replace(/"/g, '&quot;')}">
+            <div class="word-item ${isSelected ? 'selected' : ''}" data-text="${escapeHtml(cleanLine).replace(/"/g, '&quot;')}">
+              <div class="select-circle ${isSelected ? 'selected' : ''}" onclick="toggleWordSelection(event, this)"></div>
               <span class="word-text">${escapeHtml(cleanLine)}</span>
               <div class="word-actions">
                 <button class="star-btn ${isFav ? 'active' : ''}" onclick="toggleStar(event, this)" title="${isFav ? 'Убрать из избранного' : 'В избранное'}">
@@ -1439,6 +1562,7 @@
       });
 
       container.innerHTML = html;
+      updateSelectionBar();
     }
 
     // Переключить избранное
@@ -1461,6 +1585,54 @@
       }
       
       updateCounts();
+    }
+
+    // Переключить выбор слова
+    function toggleWordSelection(event, circle) {
+      event.stopPropagation();
+      const wordItem = circle.closest('.word-item');
+      const text = wordItem.getAttribute('data-text');
+      
+      if (selectedWords.has(text)) {
+        selectedWords.delete(text);
+        circle.classList.remove('selected');
+        wordItem.classList.remove('selected');
+      } else {
+        selectedWords.add(text);
+        circle.classList.add('selected');
+        wordItem.classList.add('selected');
+      }
+      
+      updateSelectionBar();
+    }
+
+    // Обновить панель выбранных
+    function updateSelectionBar() {
+      const bar = document.getElementById('selectionBar');
+      const info = document.getElementById('selectionInfo');
+      
+      if (selectedWords.size > 0) {
+        bar.classList.add('visible');
+        info.textContent = `Выбрано: ${selectedWords.size}`;
+      } else {
+        bar.classList.remove('visible');
+      }
+    }
+
+    // Копировать выбранные
+    async function copySelected() {
+      if (selectedWords.size === 0) return;
+      
+      const text = Array.from(selectedWords).join('\n');
+      await copyText(text);
+      showToast(`Скопировано ${selectedWords.size} слов!`);
+    }
+
+    // Снять выделение
+    function clearSelection() {
+      selectedWords.clear();
+      updateSelectionBar();
+      renderWords();
     }
 
     // Копировать слово
