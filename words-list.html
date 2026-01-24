@@ -264,32 +264,38 @@
       background: #f0f4ff;
     }
 
-    /* Панель выбранных */
+    /* Панель выбранных - плавающая внизу */
     .selection-bar {
       display: none;
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
       padding: 12px 20px;
       border-radius: 12px;
-      margin-bottom: 15px;
       align-items: center;
       justify-content: space-between;
       gap: 15px;
-      animation: slideDown 0.2s ease;
+      box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+      z-index: 1000;
+      animation: slideUp 0.2s ease;
+      max-width: 90%;
     }
 
     .selection-bar.visible {
       display: flex;
     }
 
-    @keyframes slideDown {
+    @keyframes slideUp {
       from {
         opacity: 0;
-        transform: translateY(-10px);
+        transform: translateX(-50%) translateY(20px);
       }
       to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateX(-50%) translateY(0);
       }
     }
 
@@ -1709,10 +1715,10 @@
       updateCounts();
     });
 
-    // Клик на строку - копировать
+    // Клик на строку - копировать (но не на кружочек, звезду или иконку копирования)
     document.getElementById('wordsContainer').addEventListener('click', async (e) => {
       const wordItem = e.target.closest('.word-item');
-      if (wordItem && !e.target.closest('.star-btn') && !e.target.closest('.copy-icon')) {
+      if (wordItem && !e.target.closest('.star-btn') && !e.target.closest('.copy-icon') && !e.target.closest('.select-circle')) {
         const text = wordItem.getAttribute('data-text');
         await copyText(text);
         wordItem.classList.add('copied');
