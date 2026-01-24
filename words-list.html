@@ -1075,6 +1075,7 @@
     const TIMER_STORAGE_KEY = 'arabTimerSeconds';
     const SESSION_STORAGE_KEY = 'arabLearnSession';
     let audioContext = null;
+    let skipSessionCheck = false;  // Флаг для пропуска проверки сессии при переходе из resumeSession
 
     // Получить или создать AudioContext
     function getAudioContext() {
@@ -1315,6 +1316,9 @@
       // Активируем звук
       unlockAudio();
       
+      // Устанавливаем флаг чтобы не показывать модальное окно повторно
+      skipSessionCheck = true;
+      
       // Переключаемся на вкладку заучивания
       showTab('learn');
       
@@ -1368,8 +1372,13 @@
       }
       
       // При переходе на вкладку заучивания — проверить сохранённую сессию (без кнопки "позже")
+      // Но только если не пришли из resumeSession (где уже выбрали "Продолжить")
       if (tab === 'learn') {
-        checkSavedSessionOnLearnTab();
+        if (skipSessionCheck) {
+          skipSessionCheck = false; // Сбрасываем флаг
+        } else {
+          checkSavedSessionOnLearnTab();
+        }
       }
       
       if (tab === 'all' || tab === 'favorites') {
