@@ -1234,19 +1234,34 @@
       }
     }
 
+    // Проверить сохранённую сессию при загрузке страницы
     function checkSavedSession() {
       const session = loadSession();
       if (session && session.learnWords && session.learnWords.length > 0) {
-        showResumeModal(session);
+        showResumeModal(session, true); // true = показать кнопку "Продолжить позже"
       }
     }
 
-    function showResumeModal(session) {
+    // Проверить сохранённую сессию при входе в заучивание
+    function checkSavedSessionOnLearnTab() {
+      const session = loadSession();
+      if (session && session.learnWords && session.learnWords.length > 0) {
+        showResumeModal(session, false); // false = без кнопки "Продолжить позже"
+      }
+    }
+
+    function showResumeModal(session, showPostponeButton) {
       const overlay = document.getElementById('modalOverlay');
       const content = document.getElementById('modalContent');
       
       const modeText = session.learnMode === 'learn' ? 'заучивание' : 'проверка';
       const progressText = `${session.currentWordIndex + 1} из ${session.learnWords.length}`;
+      
+      const postponeButtonHtml = showPostponeButton 
+        ? `<button class="modal-btn modal-btn-secondary" onclick="postponeSession()">
+            ⏰ Продолжить позже
+          </button>`
+        : '';
       
       content.innerHTML = `
         <div class="modal-icon">📚</div>
@@ -1262,9 +1277,7 @@
           <button class="modal-btn modal-btn-danger" onclick="startFresh()">
             🔄 Начать заново
           </button>
-          <button class="modal-btn modal-btn-secondary" onclick="postponeSession()">
-            ⏰ Продолжить позже
-          </button>
+          ${postponeButtonHtml}
         </div>
       `;
       overlay.style.display = 'flex';
@@ -1273,8 +1286,6 @@
     // Отложить сессию — просто закрыть окно, сессия остаётся в localStorage
     function postponeSession() {
       closeModal();
-      // Переключаемся на вкладку "Все слова"
-      showTab('all');
     }
 
     function resumeSession() {
@@ -1356,9 +1367,9 @@
         resetLearning();
       }
       
-      // При переходе на вкладку заучивания — проверить сохранённую сессию
+      // При переходе на вкладку заучивания — проверить сохранённую сессию (без кнопки "позже")
       if (tab === 'learn') {
-        checkSavedSession();
+        checkSavedSessionOnLearnTab();
       }
       
       if (tab === 'all' || tab === 'favorites') {
@@ -2077,6 +2088,9 @@
 
     // Инициализация picker при загрузке
     initPicker();
+    
+    // Проверяем сохранённую сессию при загрузке страницы
+    checkSavedSession();
   </script>
 </body>
 </html>
