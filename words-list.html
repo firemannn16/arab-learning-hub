@@ -1262,9 +1262,19 @@
           <button class="modal-btn modal-btn-danger" onclick="startFresh()">
             🔄 Начать заново
           </button>
+          <button class="modal-btn modal-btn-secondary" onclick="postponeSession()">
+            ⏰ Продолжить позже
+          </button>
         </div>
       `;
       overlay.style.display = 'flex';
+    }
+
+    // Отложить сессию — просто закрыть окно, сессия остаётся в localStorage
+    function postponeSession() {
+      closeModal();
+      // Переключаемся на вкладку "Все слова"
+      showTab('all');
     }
 
     function resumeSession() {
@@ -1341,9 +1351,14 @@
       // Скрыть header-info на вкладке заучивания
       document.querySelector('.header-info').style.display = tab === 'learn' ? 'none' : 'flex';
       
-      // При переходе на другую вкладку — сброс заучивания
+      // При переходе на другую вкладку — сброс заучивания (но не localStorage)
       if (tab !== 'learn') {
         resetLearning();
+      }
+      
+      // При переходе на вкладку заучивания — проверить сохранённую сессию
+      if (tab === 'learn') {
+        checkSavedSession();
       }
       
       if (tab === 'all' || tab === 'favorites') {
@@ -2062,9 +2077,6 @@
 
     // Инициализация picker при загрузке
     initPicker();
-    
-    // Проверяем сохранённую сессию
-    checkSavedSession();
   </script>
 </body>
 </html>
