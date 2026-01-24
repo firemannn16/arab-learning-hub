@@ -196,7 +196,7 @@
       <div id="progress"></div>
       
       <div class="word-card word-card-hidden" id="wordCard">
-        <button class="show-translation-btn" id="showTranslationBtn" onclick="toggleTranslation()" title="Показать перевод">
+        <button class="show-translation-btn" id="showTranslationBtn" onclick="toggleTranslation()" onmousedown="event.preventDefault()" ontouchstart="event.preventDefault()" title="Показать перевод">
           👁️
         </button>
         <div class="word-card-arabic" id="arabic-word"></div>
@@ -317,6 +317,7 @@
           '<div class="controls" style="gap:10px;flex-wrap:wrap;">' +
           '<button id="resume-session-btn" class="close-btn" style="background:#e8f5e9;border-color:#81c784;">▶️ Продолжить</button>' +
           '<button id="restart-session-btn" class="close-btn" style="background:#ffebee;border-color:#e57373;">🔄 Начать заново</button>' +
+          '<button id="postpone-session-btn" class="close-btn" style="background:#f3f4f6;border-color:#d1d5db;">⏰ Продолжить позже</button>' +
           '</div>';
         
         overlay.appendChild(modal);
@@ -333,6 +334,12 @@
           // Показать loader с сохранённым текстом
           loader.classList.remove('hidden');
           trainer.classList.add('hidden');
+        });
+
+        document.getElementById('postpone-session-btn').addEventListener('click', function() {
+          root.innerHTML = '';
+          // Просто закрываем окно, сессия остаётся в localStorage
+          // При следующем входе снова покажется это окно
         });
       }
 
