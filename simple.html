@@ -196,7 +196,7 @@
       <div id="progress"></div>
       
       <div class="word-card word-card-hidden" id="wordCard">
-        <button class="show-translation-btn" id="showTranslationBtn" onclick="toggleTranslation()" onmousedown="event.preventDefault()" ontouchstart="event.preventDefault()" title="Показать перевод">
+        <button class="show-translation-btn" id="showTranslationBtn" onclick="toggleTranslation()" onmousedown="event.preventDefault()" title="Показать перевод">
           👁️
         </button>
         <div class="word-card-arabic" id="arabic-word"></div>
@@ -254,6 +254,15 @@
           return localStorage.getItem(WORDS_STORAGE_KEY) || '';
         } catch (e) {
           return '';
+        }
+      }
+
+      // Очистить список слов
+      function clearWordList() {
+        try {
+          localStorage.removeItem(WORDS_STORAGE_KEY);
+        } catch (e) {
+          console.warn('Не удалось очистить список слов', e);
         }
       }
 
@@ -331,7 +340,10 @@
         document.getElementById('restart-session-btn').addEventListener('click', function() {
           root.innerHTML = '';
           clearSession();
-          // Показать loader с сохранённым текстом
+          clearWordList();
+          // Очищаем textarea
+          wordListTextarea.value = '';
+          // Показать loader
           loader.classList.remove('hidden');
           trainer.classList.add('hidden');
         });
@@ -529,6 +541,11 @@
           btn.classList.remove('active');
           btn.title = 'Показать перевод';
         }
+        
+        // Возвращаем фокус на поле ввода (для мобильных устройств)
+        setTimeout(function() {
+          answerInput.focus();
+        }, 10);
       }
 
       // Сбросить состояние кнопки показа перевода
