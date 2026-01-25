@@ -1082,6 +1082,9 @@
           <button class="learn-btn learn-btn-secondary" onclick="pasteFromClipboard()">
             📋 Вставить из буфера
           </button>
+          <button class="learn-btn learn-btn-secondary" onclick="addFromFavorites()" style="background:#fff8e1;border-color:#ffc107;color:#6d5c00">
+            ⭐ Добавить из избранного
+          </button>
           <button class="learn-btn learn-btn-primary" id="startLearnBtn" onclick="startLearning()">
             ▶️ Начать заучивание
           </button>
@@ -1764,6 +1767,28 @@
       } catch (e) {
         showToast('Не удалось получить доступ к буферу');
       }
+    }
+
+    // Добавить слова из избранного
+    function addFromFavorites() {
+      const favorites = getFavorites();
+      if (!favorites || favorites.length === 0) {
+        showToast('Избранное пусто');
+        return;
+      }
+      
+      const textarea = document.getElementById('learnTextarea');
+      const currentText = textarea.value.trim();
+      const favoritesText = favorites.join('\n');
+      
+      // Если textarea пустой - просто вставляем, иначе добавляем с новой строки
+      if (currentText) {
+        textarea.value = currentText + '\n' + favoritesText;
+      } else {
+        textarea.value = favoritesText;
+      }
+      
+      showToast(`Добавлено ${favorites.length} слов из избранного!`);
     }
 
     // Инициализация scroll-picker
