@@ -177,7 +177,6 @@ try {
         <button class="choice-btn" id="opt2"></button>
       </div>
       <div style="margin-top:10px">
-        <button id="add-new-btn" class="button">Добавить новые слова</button>
         <button id="reset-progress-btn" class="button">Сбросить прогресс</button>
         <button id="copy-mistakes-btn" class="button">Копировать ошибки</button>
       </div>
@@ -289,7 +288,6 @@ const trainer = document.getElementById('trainer');
 const progressDiv = document.getElementById('progress');
 const arabicWordDiv = document.getElementById('arabic-word');
 const optButtons = [document.getElementById('opt0'), document.getElementById('opt1'), document.getElementById('opt2')];
-const addNewBtn = document.getElementById('add-new-btn');
 const resetProgressBtn = document.getElementById('reset-progress-btn');
 const copyMistakesBtn = document.getElementById('copy-mistakes-btn');
 const correctListDiv = document.getElementById('correct-list');
@@ -961,52 +959,6 @@ function finishSession(){
   renderLists();
 }
 
-/* ========== Добавление новых слов ========== */
-async function addNewWords(){
-  try{
-    const txt = await robustFetchWords();
-    const { parsed } = improvedParseText(txt);
-    if(!Array.isArray(parsed)) return alert('Нет парсируемых строк в words.txt');
-    const storedKnown = safeLocalStorageGet(KNOWN_KEY, allWords.length) || allWords.length;
-    const startIdx = Math.min(storedKnown, parsed.length);
-    const newWords = parsed.slice(startIdx);
-    
-    const existingSet = new Set(allWords.map(w=>w.rawLine));
-    let added = 0;
-    
-    for(const p of newWords){
-      if(!existingSet.has(p.rawLine)){
-        allWords.push(p);
-        const pos = Math.floor(Math.random() * (orderRaw.length + 1));
-        orderRaw.splice(pos, 0, p.rawLine);
-        added++;
-        existingSet.add(p.rawLine);
-      }
-    }
-    
-    if(added === 0){
-      alert('Новых слов не найдено.');
-    } else {
-      safeLocalStorageSet(KNOWN_KEY, Math.max(parsed.length, storedKnown + added));
-      await saveState({ forceCloud: true });
-      updateProgress();
-      alert('Добавлено новых слов: ' + added);
-      
-      if (added > 0 && orderRaw.length > 0) {
-        afterDiv.classList.add('hidden');
-        if (!currentRaw) {
-          nextWord();
-        } else {
-          displayCurrentRaw();
-        }
-      }
-    }
-  }catch(e){
-    console.error(e);
-    alert('Ошибка при добавлении слов.');
-  }
-}
-
 /* ========== Копирование ошибок ========== */
 function copyMistakes(){
   if(!mistakes.length) return alert('Ошибок нет.');
@@ -1027,11 +979,11 @@ async function loadWords() {
       
       const restored = await restoreStateAfterLoad(serverWords);
       
+      // Все строки из файла считаются известными
+      knownCount = serverWords.length;
+
       if (!restored || allWords.length === 0) {
-        // Первый запуск: если нет сохранённого значения — считаем известными все текущие строки
-        if (!knownCount) knownCount = serverWords.length;
-        const limit = Math.min(knownCount, serverWords.length);
-        allWords = serverWords.slice(0, limit);
+        allWords = serverWords.slice();
         orderRaw = allWords.map(w=>w.rawLine); 
         shuffle(orderRaw);
         mistakes = []; 
@@ -1039,12 +991,21 @@ async function loadWords() {
         currentRaw = null; 
         mode = 'all';
         direction = 'arab-to-rus';
-        safeLocalStorageSet(KNOWN_KEY, limit);
+        safeLocalStorageSet(KNOWN_KEY, knownCount);
         await saveState({ forceCloud: true });
       } else {
-        // Если состояние восстановлено, актуализируем счётчик известных слов,
-        // но не добавляем новые строки без клика
-        knownCount = Math.min(Math.max(knownCount, allWords.length), serverWords.length);
+        const existingSet = new Set(allWords.map(w => w.rawLine));
+        const missing = serverWords.filter(w => !existingSet.has(w.rawLine));
+        if (missing.length) {
+          missing.forEach(w => {
+            allWords.push(w);
+            orderRaw.push(w.rawLine);
+          });
+        }
+        if (!orderRaw || orderRaw.length === 0) {
+          orderRaw = allWords.map(w => w.rawLine);
+          shuffle(orderRaw);
+        }
         safeLocalStorageSet(KNOWN_KEY, knownCount);
       }
       
@@ -1064,7 +1025,6 @@ async function loadWords() {
 }
 
 /* ========== Обработчики UI ========== */
-addNewBtn.addEventListener('click', addNewWords);
 resetProgressBtn.addEventListener('click', showResetModal);
 copyMistakesBtn.addEventListener('click', copyMistakes);
 
