@@ -655,7 +655,6 @@
         </div>
 
         <div class="action-buttons">
-            <button class="action-btn add-words-btn" id="add-new-words-btn">Добавить новые слова</button>
             <button class="action-btn reset-btn" id="reset-progress-btn">Сбросить прогресс</button>
         </div>
 
@@ -752,7 +751,6 @@
         const errorsList = document.getElementById('errors-list');
         const copyErrorsBtn = document.getElementById('copy-errors-btn');
         const restoreWordsBtn = document.getElementById('restore-words-btn');
-        const addNewWordsBtn = document.getElementById('add-new-words-btn');
         const resetProgressBtn = document.getElementById('reset-progress-btn');
         const nextPageBtn = document.getElementById('next-page-btn');
         const prevPageBtn = document.getElementById('prev-page-btn');
@@ -1223,6 +1221,7 @@
         function detectChangesAndDeletes(newWordsFromFile, savedWords) {
             const changedWords = [];
             const wordsToRemove = [];
+            const newWords = [];
             
             // 🔧 Используем составной ключ ru|||ar для корректной работы с дубликатами
             const fileWordsSet = new Set();
@@ -1288,13 +1287,36 @@
                 }
             });
 
-            // ❌ Новые слова НЕ добавляются автоматически — только по кнопке "Добавить новые слова"
+            // Новые слова: всё, что есть в файле, но отсутствует в сохранённом наборе
+            newWordsFromFile.forEach(word => {
+                const key = `${word.ru}|||${word.ar}`;
+                if (!savedWordsSet.has(key)) {
+                    newWords.push({
+                        ru: word.ru,
+                        ar: word.ar,
+                        id: generateWordId()
+                    });
+                }
+            });
             
-            return { changedWords, wordsToRemove };
+            return { changedWords, wordsToRemove, newWords };
         }
 
-        function applyChangesToWords(changedWords, wordsToRemove) {
-            if (wordsToRemove.length === 0 && changedWords.length === 0) {
+        function recalcPageWordCounts(total) {
+            const counts = {};
+            let remaining = total;
+            let page = 0;
+            while (remaining > 0) {
+                const size = Math.min(wordsPerPage, remaining);
+                counts[page] = size;
+                remaining -= size;
+                page++;
+            }
+            return counts;
+        }
+
+        function applyChangesToWords(changedWords, wordsToRemove, newWords) {
+            if (wordsToRemove.length === 0 && changedWords.length === 0 && newWords.length === 0) {
                 return false;
             }
             
@@ -1324,6 +1346,13 @@
                 words.splice(nextPageStartIndex, 0, ...changedWords);
                 console.log(`✓ ${changedWords.length} измененных слов добавлены в начало страницы ${currentPage + 2}`);
             }
+
+            if (newWords.length > 0) {
+                words.push(...newWords);
+                console.log(`➕ Добавлено новых слов: ${newWords.length}`);
+            }
+
+            pageWordCounts = recalcPageWordCounts(words.length);
             
             saveToLocalStorage('wordsOrder', words);
             saveToLocalStorage('pageWordCounts', pageWordCounts);
@@ -1394,7 +1423,7 @@
                     console.log('🆕 Первый запуск тренажера - перемешиваем слова');
                     originalWords = allWordsFromFile;
                     words = shuffleArray(originalWords);
-                    pageWordCounts = {};
+                    pageWordCounts = recalcPageWordCounts(words.length);
                     saveToLocalStorage('wordsOrder', words);
                     saveToLocalStorage('pageWordCounts', pageWordCounts);
                     saveToLocalStorage('nextWordId', nextWordId);
@@ -1412,8 +1441,6 @@
                     });
                     pageWordCounts = getFromLocalStorage('pageWordCounts', {});
                 }
-                
-                // ❌ Новые слова НЕ добавляются автоматически — только по кнопке "Добавить новые слова"
                 
                 validateProgress(words);
                 
@@ -1438,11 +1465,9 @@
                 if (!text) return;
                 const allWordsFromFile = parseWordsFromText(text);
                 
-                // 🔧 Упрощённая логика: сравниваем текущий список пользователя с файлом
-                // Обнаруживаем ТОЛЬКО изменения и удаления (новые слова — только по кнопке)
-                const { changedWords, wordsToRemove } = detectChangesAndDeletes(allWordsFromFile, words);
+                const { changedWords, wordsToRemove, newWords } = detectChangesAndDeletes(allWordsFromFile, words);
                 
-                const hasChanges = applyChangesToWords(changedWords, wordsToRemove);
+                const hasChanges = applyChangesToWords(changedWords, wordsToRemove, newWords);
                 
                 if (hasChanges) {
                     validateProgress(words);
@@ -1574,52 +1599,6 @@
                 console.error('Ошибка при сбросе:', error);
                 alert('Ошибка при сбросе прогресса');
                 document.getElementById('reset-modal').classList.remove('show');
-            }
-        });
-
-        addNewWordsBtn.addEventListener('click', async function() {
-            try {
-                // ✅ Используем безопасную загрузку с retry
-                const text = await safeLoadWordsFile('words.txt', 3);
-                if (!text) throw new Error('Не удалось загрузить файл');
-                const allWords = parseWordsFromText(text);
-                
-                const savedWordCount = getFromLocalStorage('initialWordCount', 0);
-                
-                if (allWords.length <= savedWordCount) {
-                    alert('Новых слов не найдено');
-                    return;
-                }
-                
-                const newWords = allWords.slice(savedWordCount);
-                console.log(`➕ Найдено новых слов: ${newWords.length}`);
-                
-                const shuffledNewWords = shuffleArray(newWords);
-                
-                shuffledNewWords.forEach(word => {
-                    words.push(word);
-                    originalWords.push(word);
-                });
-                
-                saveToLocalStorage('initialWordCount', allWords.length);
-                saveToLocalStorage('wordsOrder', words);
-                
-                formattedCache.clear();
-                
-                updateStats();
-                renderWords();
-                scheduleSyncToFirebase();
-                alert(`Добавлено новых слов: ${newWords.length}`);
-                
-                const originalText = this.textContent;
-                this.textContent = `✓ Добавлено ${newWords.length} слов!`;
-                setTimeout(() => {
-                    this.textContent = originalText;
-                }, 2000);
-                
-            } catch (error) {
-                console.error('Ошибка при добавлении новых слов:', error);
-                alert('Ошибка при добавлении новых слов');
             }
         });
 
