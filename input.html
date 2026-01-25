@@ -120,7 +120,6 @@ const arabicDiv = document.getElementById('arabic');
 const learnControls = document.getElementById('learn-controls');
 const btnKnow = document.getElementById('btn-know');
 const btnDont = document.getElementById('btn-dont');
-const btnAdd = document.getElementById('btn-add');
 const btnReset = document.getElementById('btn-reset');
 const messageDiv = document.getElementById('message');
 const practiceArea = document.getElementById('practice-area');
@@ -426,6 +425,15 @@ async function initDictionary(){
           }
         }
       });
+      // ➕ Добавляем новые строки из файла, которых не было в сохранённом состоянии
+      const existingSet = new Set(allWords.map(w => w.rawLine));
+      const newFromFile = serverWords.filter(w => !existingSet.has(w.rawLine));
+      if(newFromFile.length){
+        newFromFile.forEach(w => {
+          allWords.push(w);
+          orderQueue.push(w.rawLine);
+        });
+      }
       changedWords.forEach(rawLine => {
         masteredFinal = masteredFinal.filter(r => r !== rawLine);
         practiceHistory = practiceHistory.filter(r => r !== rawLine);
@@ -434,8 +442,8 @@ async function initDictionary(){
         practiceOrder = practiceOrder.filter(r => r !== rawLine);
         if(!orderQueue.includes(rawLine)) orderQueue.push(rawLine);
       });
-      // Не добавляем новые строки автоматически: только актуализируем счётчик
-      knownCount = Math.min(Math.max(knownCount, allWords.length), serverWords.length);
+      // Все строки из файла считаются известными
+      knownCount = serverWords.length;
     } else {
       orderQueue = st.orderQueue || [];
       masteredFinal = st.masteredFinal || [];
@@ -448,9 +456,8 @@ async function initDictionary(){
     currentRaw = (st.currentRaw && serverRawSet.has(st.currentRaw)) ? st.currentRaw : null;
   } else {
     if(serverWords.length > 0){
-      if(!knownCount) knownCount = serverWords.length;
-      const limit = Math.min(knownCount, serverWords.length);
-      allWords = serverWords.slice(0, limit);
+      knownCount = serverWords.length;
+      allWords = serverWords.slice();
       masteredFinal = []; practiceHistory = []; roundMastered = []; practiceAccum = []; practiceOrder = [];
       phase = 'learn'; currentRaw = null;
       orderQueue = allWords.map(w=>w.rawLine);
@@ -458,7 +465,7 @@ async function initDictionary(){
     }
   }
   if(serverWords.length > 0){
-    const normalizedKnown = Math.min(Math.max(knownCount, allWords.length), serverWords.length);
+    const normalizedKnown = serverWords.length;
     safeLocalStorageSet(KNOWN_KEY, normalizedKnown);
   }
   updateStats();
@@ -702,39 +709,6 @@ practiceSkip.addEventListener('click', () => {
 });
 
 /* ---------- Добавить новые слова ---------- */
-btnAdd.addEventListener('click', async () => {
-  try{
-    const txt = await robustFetchWords();
-    const lines = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    const serverWords = lines.map(parseLine);
-    const storedKnown = safeLocalStorageGet(KNOWN_KEY, allWords.length) || allWords.length;
-    if (serverWords.length <= storedKnown) {
-      alert('Новых слов не найдено');
-      return;
-    }
-    const newWords = serverWords.slice(storedKnown);
-    const existing = new Set(allWords.map(w => w.rawLine));
-    let added = 0;
-    for(const w of newWords){
-      if(!existing.has(w.rawLine)){
-        allWords.push(w);
-        orderQueue.push(w.rawLine);
-        existing.add(w.rawLine);
-        added++;
-      }
-    }
-    if(added){
-      safeLocalStorageSet(KNOWN_KEY, Math.max(serverWords.length, storedKnown + added));
-      shuffle(orderQueue);
-      updateStats();
-      alert('Добавлено новых слов: ' + added);
-      saveStateBuffered();
-    } else {
-      alert('Новых слов не найдено');
-    }
-  }catch(e){ alert('Ошибка: '+e.message); }
-});
-
 /* ---------- Сброс прогресса ---------- */
 function showResetModal() {
   closeModal();
@@ -936,7 +910,6 @@ showNextPractice = function() {
     <div class="controls-vertical">
       <div class="controls">
         <button id="btn-reset" class="btn-danger">Сбросить прогресс</button>
-        <button id="btn-add">Добавить новые слова</button>
       </div>
     </div>
     <div id="practice-area" class="hidden" style="margin-top:12px">
