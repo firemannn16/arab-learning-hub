@@ -681,7 +681,7 @@
 
         <div class="errors-section">
             <div class="errors-header">
-                <span class="errors-title">Ошибки:</span>
+                <span class="errors-title">Ошибки: <span id="errors-count">0</span></span>
                 <div class="errors-buttons">
                     <button class="restore-btn" id="restore-words-btn">Вернуть слова</button>
                     <button class="copy-btn" id="copy-errors-btn">Копировать ошибки</button>
@@ -1081,7 +1081,28 @@
                         const mergedAdded = Object.keys(mergedOpened).length > Object.keys(firebaseOpened).length;
                         
                         openedWordsMap = mergedOpened;
-                        errorWords = data.errors || [];
+                        
+                        // 🛡️ MERGE ошибок вместо перезаписи (сравниваем по содержимому ru+ar)
+                        const firebaseErrors = data.errors || [];
+                        const localErrors = getFromLocalStorage('errors', []);
+                        const mergedErrorsMap = new Map();
+                        
+                        // Добавляем ошибки из Firebase
+                        firebaseErrors.forEach(error => {
+                            const key = `${error.word.ru}|||${error.word.ar}`;
+                            mergedErrorsMap.set(key, error);
+                        });
+                        
+                        // Добавляем локальные ошибки (приоритет локальным)
+                        localErrors.forEach(error => {
+                            const key = `${error.word.ru}|||${error.word.ar}`;
+                            if (!mergedErrorsMap.has(key)) {
+                                mergedErrorsMap.set(key, error);
+                            }
+                        });
+                        
+                        errorWords = Array.from(mergedErrorsMap.values());
+                        
                         pageWordCounts = data.pageWordCounts || {};
                         nextWordId = data.nextWordId || 0;
                         
@@ -1395,6 +1416,13 @@
             
             const currentWordsIds = new Set(currentWords.map(w => w.id));
             
+            // Создаём Map для поиска по содержимому (ru|||ar)
+            const currentWordsContent = new Map();
+            currentWords.forEach(w => {
+                const key = `${w.ru}|||${w.ar}`;
+                currentWordsContent.set(key, w);
+            });
+            
             const newOpenedWordsMap = {};
             for (const [id, isOpened] of Object.entries(openedWordsMap)) {
                 if (currentWordsIds.has(id)) {
@@ -1405,13 +1433,29 @@
                 }
             }
             
+            // 🛡️ Проверяем ошибки по содержимому (ru+ar), а не только по ID
             const newErrorWords = errorWords.filter(error => {
-                const exists = currentWordsIds.has(error.word.id);
-                if (!exists) {
+                // Сначала проверяем по ID
+                if (currentWordsIds.has(error.word.id)) {
+                    return true;
+                }
+                
+                // Если ID не найден, проверяем по содержимому
+                const key = `${error.word.ru}|||${error.word.ar}`;
+                const existsByContent = currentWordsContent.has(key);
+                
+                if (!existsByContent) {
                     removedCount++;
                     changesDetected = true;
+                    console.log(`🗑️ Удалена ошибка (слово не найдено): ${error.word.ru} — ${error.word.ar}`);
+                    return false;
                 }
-                return exists;
+                
+                // Слово найдено по содержимому - обновляем ID
+                const matchedWord = currentWordsContent.get(key);
+                error.word.id = matchedWord.id;
+                console.log(`🔄 Обновлен ID ошибки: ${error.word.ru} — ${error.word.ar}`);
+                return true;
             });
             
             if (changesDetected) {
@@ -1650,12 +1694,16 @@
         }
 
         function renderErrors() {
+            const errorsCount = document.getElementById('errors-count');
+            
             if (errorWords.length === 0) {
                 errorsList.innerHTML = '<div class="no-errors">Ошибок пока нет</div>';
+                if (errorsCount) errorsCount.textContent = '0';
             } else {
                 errorsList.innerHTML = errorWords.map(error => 
                     `<div class="error-item">${error.text}</div>`
                 ).join('');
+                if (errorsCount) errorsCount.textContent = errorWords.length;
             }
         }
 
