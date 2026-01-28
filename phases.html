@@ -140,6 +140,7 @@
             transition: background-color 0.3s ease;
             position: relative;
             background: white;
+            overflow: visible;
         }
         
         .fav-cell {
@@ -188,6 +189,7 @@
             padding: 20px 15px;
             vertical-align: middle;
             overflow-wrap: break-word;
+            overflow: visible;
         }
 
         .word-cell.russian {
@@ -206,8 +208,9 @@
             color: #2c3e50;
             font-size: 30px;
             width: 50%;
-            line-height: 1.6;
-            padding: 28px 15px;
+            line-height: 2.2;
+            padding: 35px 15px;
+            overflow: visible;
         }
 
         .word-cell.arabic.arabic-medium {
@@ -248,18 +251,22 @@
             left: auto;
             right: 15px;
             font-size: 30px;
+            line-height: 2.2;
         }
 
         .word-cell.arabic.arabic-medium.hidden::before {
             font-size: 26px;
+            line-height: 2.2;
         }
 
         .word-cell.arabic.arabic-small.hidden::before {
             font-size: 22px;
+            line-height: 2.2;
         }
 
         .word-cell.arabic.arabic-very-small.hidden::before {
             font-size: 18px;
+            line-height: 2.2;
         }
 
         .pagination {
@@ -604,7 +611,7 @@
 
             .word-cell.arabic {
                 font-size: 26px;
-                padding: 24px 12px;
+                padding: 32px 12px;
             }
 
             .word-cell.arabic.arabic-medium {
@@ -865,14 +872,6 @@
         async function syncToFirebase() {
             if (!userCode) return;
             
-            // ✅ ЗАЩИТА: Не синхронизировать пустые данные если Firebase ещё не загружен
-            // Это предотвращает перезапись существующих данных в Firebase пустыми
-            if (!firebaseDataLoaded && Object.keys(openedWordsMap).length === 0) {
-                console.log('⚠️ Синхронизация отменена: данные из Firebase не загружены и openedWords пуст');
-                console.log('   Это защита от перезаписи существующих данных пустыми');
-                return;
-            }
-            
             try {
                 // ✅ ЗАЩИТА: Если данные из Firebase НЕ загружены - отправляем только базовые поля
                 // Это предотвращает перезапись существующих данных в Firebase
@@ -880,25 +879,34 @@
                 
                 if (!firebaseDataLoaded) {
                     console.log('⚠️ Firebase данные не были загружены - синхронизация ограничена');
-                    console.log('   Будут обновлены только: timestamp, lastSync, lastUpdated');
+                    console.log('   Обновляем timestamp/lastSync/lastUpdated + текущую страницу');
                     
-                    // Минимальные данные - только метки времени
-                    // Это позволит следующей загрузке получить актуальные данные
+                    const lastSyncedReset = getFromLocalStorage('resetVersionSynced', 0);
+                    const resetUnsynced = resetVersion > lastSyncedReset;
+
+                    // Минимальные данные — обновляем метки времени и страницу,
+                    // а при несинхронизированном сбросе ещё и очищаем прогресс.
                     const minimalData = {
                         code: userCode,
                         trainerId: TRAINER_ID,
                         timestamp: Date.now(),
                         lastSync: new Date().toISOString(),
                         lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
-                        resetVersion
+                        resetVersion,
+                        currentPage
                     };
                     
-                    // Если есть хоть какой-то прогресс - добавляем его через dot notation
-                    // Это ДОБАВИТ слова, а не перезапишет весь объект
                     const updateData = { ...minimalData };
                     
-                    if (Object.keys(openedWordsMap).length > 0) {
-                        // Используем dot notation для безопасного добавления
+                    if (resetUnsynced) {
+                        // После свежего сброса явно очищаем прогресс в облаке
+                        updateData.openedWords = {};
+                        updateData.errors = [];
+                        updateData.pageWordCounts = {};
+                        updateData.nextWordId = 0;
+                        console.log('   ↳ Очистка прогресса в облаке после сброса');
+                    } else if (Object.keys(openedWordsMap).length > 0) {
+                        // Если есть прогресс — добавляем его через dot notation, чтобы не затирать чужие поля
                         Object.keys(openedWordsMap).forEach(wordId => {
                             updateData[`openedWords.${wordId}`] = openedWordsMap[wordId];
                         });
@@ -919,6 +927,9 @@
                     
                     if (success) {
                         saveToLocalStorage('lastSync', new Date().toISOString());
+                        if (resetUnsynced) {
+                            saveToLocalStorage('resetVersionSynced', resetVersion);
+                        }
                         console.log('✓ Ограниченная синхронизация выполнена');
                         showSyncStatus('✓ Синхронизировано', 'synced');
                     }
@@ -960,6 +971,7 @@
                 
                 if (success) {
                     saveToLocalStorage('lastSync', new Date().toISOString());
+                    saveToLocalStorage('resetVersionSynced', resetVersion);
                     console.log('✓ Синхронизировано с Firebase (phases)');
                     showSyncStatus('✓ Синхронизировано', 'synced');
                 } else {
