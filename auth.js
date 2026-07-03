@@ -86,7 +86,8 @@
         }
       }
 
-      await db.collection('users').doc(to).set({ migratedFrom: from, email }, { merge: true });
+      // Save mapping in favorites/migration (favorites path is covered by existing rules)
+      await db.collection('users').doc(to).collection('favorites').doc('migration').set({ migratedFrom: from, email }, { merge: true });
       console.log('Progress migrated from', deviceCode, 'to', uid);
     } catch (e) {
       console.warn('Migration error:', e);

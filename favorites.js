@@ -425,9 +425,9 @@
             let fallbackCode = oldCode;
             if (window.authUser) {
               try {
-                const userDoc = await window.firestore.collection('users').doc(window.authUser.uid).get();
-                if (userDoc.exists && userDoc.data().migratedFrom) {
-                  fallbackCode = userDoc.data().migratedFrom;
+                const metaSnap = await window.firestore.collection('users').doc(window.authUser.uid).collection('favorites').doc('migration').get();
+                if (metaSnap.exists && metaSnap.data().migratedFrom) {
+                  fallbackCode = metaSnap.data().migratedFrom;
                 }
               } catch(e3) {}
             }
