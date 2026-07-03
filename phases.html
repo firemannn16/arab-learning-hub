@@ -2165,6 +2165,22 @@
         }
 
         initialize();
+
+        // Если authUser ещё не был установлен при инициализации (onAuthStateChanged async),
+        // перезагружаем данные из облака когда auth становится известен
+        window.addEventListener('authChanged', async (e) => {
+            if (!e.detail.user) return;
+            const newCode = getUserCode();
+            if (newCode === userCode) return;
+            userCode = newCode;
+            console.log('🔐 Auth готов, перезагружаем данные из облака для', userCode);
+            await loadFromFirebase(userCode);
+            validateProgress(words);
+            renderErrors();
+            updateStats();
+            currentPage = getFromLocalStorage('currentPage', 0);
+            renderWords();
+        });
     </script>
 </body>
 </html>
