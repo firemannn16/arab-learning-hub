@@ -118,6 +118,18 @@
         }
       }
 
+      // Migrate all trainer progress (input, choice, phases, rules, etc.)
+      try {
+        const trainerDocs = await db.collection('users').doc(from).collection('trainers').get();
+        for (const td of trainerDocs.docs) {
+          const targetSnap = await db.collection('users').doc(to).collection('trainers').doc(td.id).get();
+          if (targetSnap.exists) continue;
+          await db.collection('users').doc(to).collection('trainers').doc(td.id).set(td.data(), { merge: true });
+        }
+      } catch(e) {
+        console.warn('Trainer migration error:', e);
+      }
+
       // Save mapping in favorites/migration (favorites path is covered by existing rules)
       await db.collection('users').doc(to).collection('favorites').doc('migration').set({ migratedFrom: from, email }, { merge: true });
       console.log('Progress migrated from', deviceCode, 'to', uid);
