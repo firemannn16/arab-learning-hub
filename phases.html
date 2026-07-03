@@ -2168,19 +2168,38 @@
 
         // Если authUser ещё не был установлен при инициализации (onAuthStateChanged async),
         // перезагружаем данные из облака когда auth становится известен
-        window.addEventListener('authChanged', async (e) => {
-            if (!e.detail.user) return;
-            const newCode = getUserCode();
-            if (newCode === userCode) return;
-            userCode = newCode;
-            console.log('🔐 Auth готов, перезагружаем данные из облака для', userCode);
-            await loadFromFirebase(userCode);
-            validateProgress(words);
-            renderErrors();
-            updateStats();
-            currentPage = getFromLocalStorage('currentPage', 0);
-            renderWords();
-        });
+        (function watchAuth() {
+            const authUser = window.authUser;
+            if (authUser) {
+                const newCode = getUserCode();
+                if (newCode !== userCode) {
+                    userCode = newCode;
+                    console.log('🔐 Auth уже готов, перезагружаем данные для', userCode);
+                    loadFromFirebase(userCode).then(() => {
+                        validateProgress(words);
+                        renderErrors();
+                        updateStats();
+                        currentPage = getFromLocalStorage('currentPage', 0);
+                        renderWords();
+                    });
+                }
+                return;
+            }
+            window.addEventListener('authChanged', async function onAuth(e) {
+                if (!e.detail.user) return;
+                window.removeEventListener('authChanged', onAuth);
+                const newCode = getUserCode();
+                if (newCode === userCode) return;
+                userCode = newCode;
+                console.log('🔐 Auth готов, перезагружаем данные из облака для', userCode);
+                await loadFromFirebase(userCode);
+                validateProgress(words);
+                renderErrors();
+                updateStats();
+                currentPage = getFromLocalStorage('currentPage', 0);
+                renderWords();
+            });
+        })();
     </script>
 </body>
 </html>
