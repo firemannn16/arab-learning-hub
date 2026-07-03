@@ -109,6 +109,9 @@
       ];
 
       for (const item of dataTypes) {
+        // Check if uid path already has data — if so, do NOT overwrite
+        const targetSnap = await db.collection(item.target[0]).doc(item.target[1]).collection(item.target[2]).doc(item.target[3]).get();
+        if (targetSnap.exists) continue;
         const snap = await db.collection(item.path[0]).doc(item.path[1]).collection(item.path[2]).doc(item.path[3]).get();
         if (snap.exists) {
           await db.collection(item.target[0]).doc(item.target[1]).collection(item.target[2]).doc(item.target[3]).set(snap.data(), { merge: true });
