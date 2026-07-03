@@ -297,10 +297,7 @@
 
   async function writeFavoritesToFirebase(items) {
     const ctx = getFirebaseContext();
-    if (!ctx) { console.log('⭐ writeFavorites: нет контекста'); return; }
-    const code = getUserCode();
-    console.log('⭐ writeFavorites:', items.length, 'слов, code:', code, 'mode:', ctx.mode);
-    console.trace('⭐ writeFavorites stack');
+    if (!ctx) return;
 
     snapSkipNext = true;  // Don't react to our own write
 
@@ -309,7 +306,6 @@
         items,
         updatedAt: ctx.serverTimestamp
       }, { merge: true });
-      console.log('⭐ writeFavorites успешно');
       return;
     }
 
@@ -317,7 +313,6 @@
       items,
       updatedAt: ctx.serverTimestamp()
     }, { merge: true });
-    console.log('⭐ writeFavorites успешно (modular)');
   }
 
   function mergeFavorites(localItems, remoteItems) {
@@ -342,23 +337,18 @@
   }
 
   async function bootstrapFirebaseSync() {
-    if (bootstrapDone) { console.log('⭐ bootstrap: уже выполнена'); return; }
-    if (!canUseFirebase()) { console.log('⭐ bootstrap: нет Firebase'); return; }
+    if (bootstrapDone) return;
+    if (!canUseFirebase()) return;
     try {
       const localItems = getFavorites();
       const localTs = getLocalTimestamp();
-      const code = getUserCode();
-      console.log('⭐ bootstrap: локально', localItems.length, 'слов, code:', code);
       const remote = await loadFavoritesFromFirebase();
       const remoteItems = remote ? remote.items : [];
       const remoteTs = remote ? remote.updatedAt || 0 : 0;
-      console.log('⭐ bootstrap: облако', remoteItems.length, 'слов, localTs:', localTs, 'remoteTs:', remoteTs);
 
       if (remote && remoteTs > localTs) {
-        console.log('⭐ bootstrap: облако новее, берём его');
         saveFavorites(remoteItems, { skipSync: true });
       } else {
-        console.log('⭐ bootstrap: локальное новее или только локальное, пишем в облако');
         if (localItems.length > 0) {
           await writeFavoritesToFirebase(localItems);
         }
@@ -367,7 +357,6 @@
       console.warn('Не удалось синхронизировать избранное с Firebase:', e);
     } finally {
       bootstrapDone = true;
-      console.log('⭐ bootstrap: завершена, code:', getUserCode());
     }
   }
 
@@ -432,7 +421,6 @@
 
   // Wire up listeners
   window.addEventListener('firebaseReady', () => {
-    bootstrapFirebaseSync();
     startFavoritesListener();
   });
 
@@ -449,29 +437,24 @@
       let remote = await loadFavoritesFromFirebase();
       let gotFromFallback = false;
 
-      const authUid = window.authUser?.uid;
-      console.log('⭐ authChanged: remote=', remote?.items?.length, 'слов, uid=', authUid, 'code=', getUserCode());
       if (!remote || !remote.items || !remote.items.length) {
-        console.log('⭐ authChanged: uid пуст, проверяем fallback');
         try {
           const oldCode = localStorage.getItem('userProgressCode');
           if (window.firestore && typeof window.firestore.collection === 'function') {
             let fallbackCode = oldCode;
-            if (authUid) {
+            if (window.authUser) {
               try {
-                const metaSnap = await window.firestore.collection('users').doc(authUid).collection('favorites').doc('migration').get();
+                const metaSnap = await window.firestore.collection('users').doc(window.authUser.uid).collection('favorites').doc('migration').get();
                 if (metaSnap.exists && metaSnap.data().migratedFrom) {
                   fallbackCode = metaSnap.data().migratedFrom;
                 }
               } catch(e3) {}
             }
-            if (fallbackCode && fallbackCode !== authUid) {
-              console.log('⭐ authChanged: читаем fallback из', fallbackCode);
+            if (fallbackCode && fallbackCode !== window.authUser?.uid) {
               const oldSnap = await window.firestore.collection('users').doc(fallbackCode).collection('favorites').doc('data').get();
               if (oldSnap.exists) {
                 const data = oldSnap.data();
                 if (data.items && data.items.length > 0) {
-                  console.log('⭐ authChanged: fallback содержит', data.items.length, 'слов');
                   remote = { items: data.items, updatedAt: data.updatedAt };
                   gotFromFallback = true;
                   await writeFavoritesToFirebase(data.items);
@@ -481,8 +464,6 @@
             }
           }
         } catch(e2) { console.warn('⭐ Fallback error:', e2); }
-      } else {
-        console.log('⭐ authChanged: uid не пуст, fallback пропущен');
       }
 
       const localItems = getFavorites();
@@ -501,7 +482,6 @@
   });
 
   if (window.firebaseEnabled && window.firestore) {
-    bootstrapFirebaseSync();
     startFavoritesListener();
   }
 
