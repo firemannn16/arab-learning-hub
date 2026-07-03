@@ -79,6 +79,7 @@
   let syncInProgress = false;
   let snapListener = null;
   let snapSkipNext = false;
+  let listenerGen = 0;
 
   function ensureCacheLoaded() {
     if (favoritesCache !== null && favoritesNormalizedCache !== null) return;
@@ -385,9 +386,11 @@
     stopFavoritesListener();
     const ctx = getFirebaseContext();
     if (!ctx) return;
+    const gen = ++listenerGen;
     try {
       if (ctx.mode === 'compat') {
         snapListener = ctx.ref.onSnapshot((snap) => {
+          if (gen !== listenerGen) return; // stale callback from old listener
           if (snapSkipNext) { snapSkipNext = false; return; }
           if (snap.exists) {
             const data = snap.data();
