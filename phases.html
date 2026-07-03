@@ -1,0 +1,2192 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тренажер Тетрадь - Арабские слова</title>
+    <script src="theme.js"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="dua.js"></script>
+    <script src="service-worker-register.js"></script>
+    <script src="storage-protection.js"></script>
+    <script src="sidebar-menu.js"></script>
+    <script src="favorites.js"></script>
+    <script src="streak.js"></script>
+    <script src="auth.js"></script>
+    <!-- Yandex.Metrika counter -->
+<script type="text/javascript">
+    (function(m,e,t,r,i,k,a){
+        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();
+        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=106498597', 'ym');
+
+    ym(106498597, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/106498597" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<!-- /Yandex.Metrika counter -->
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            direction: ltr;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .mode-toggle {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 10px;
+        }
+
+        .mode-text {
+            font-size: 13px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 28px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: background-color .4s;
+            border-radius: 28px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 3px;
+            bottom: 3px;
+            background-color: #000;
+            transition: transform .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #4CAF50;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        .stats {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+            border: 1px solid #333;
+            padding: 10px 20px;
+            border-radius: 8px;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .words-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .word-row {
+            border-bottom: 1px solid #e0e0e0;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            position: relative;
+            background: white;
+            overflow: visible;
+        }
+        
+        .fav-cell {
+            width: 40px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        
+        .fav-star-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            opacity: 0.3;
+            transition: all 0.2s;
+            padding: 5px;
+        }
+        
+        .fav-star-btn:hover {
+            opacity: 1;
+            transform: scale(1.2);
+        }
+        
+        .fav-star-btn.active {
+            opacity: 1;
+        }
+
+        .word-row:hover {
+            background-color: #f9f9f9;
+        }
+
+        .word-row.revealed {
+            background-color: #e8f5e9;
+        }
+
+        .word-row.swiping {
+            transition: none;
+            will-change: transform, opacity;
+        }
+
+        .word-row.error-swipe {
+            background-color: #ffcdd2;
+        }
+
+        .word-cell {
+            padding: 20px 15px;
+            vertical-align: middle;
+            overflow-wrap: break-word;
+            overflow: visible;
+        }
+
+        .word-cell.russian {
+            text-align: left;
+            color: #2c3e50;
+            width: 50%;
+            font-size: 18px;
+            line-height: 1.8;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+
+        .word-cell.arabic {
+            text-align: right;
+            direction: rtl;
+            color: #2c3e50;
+            font-size: 30px;
+            width: 50%;
+            line-height: 2.05;
+            padding: 35px 15px;
+            overflow: visible;
+        }
+
+        .word-cell.arabic.arabic-medium {
+            font-size: 26px;
+        }
+
+        .word-cell.arabic.arabic-small {
+            font-size: 22px;
+        }
+
+        .word-cell.arabic.arabic-very-small {
+            font-size: 18px;
+        }
+
+        .word-cell.arabic.has-multiline {
+            white-space: normal;
+        }
+
+        .word-cell.arabic:not(.has-multiline) {
+            white-space: nowrap;
+        }
+
+        .word-cell.hidden {
+            color: transparent;
+            user-select: none;
+            position: relative;
+        }
+
+        .word-cell.hidden::before {
+            content: '**********';
+            color: #999;
+            position: absolute;
+            left: 15px;
+            font-size: 18px;
+        }
+
+        .word-cell.arabic.hidden::before {
+            left: auto;
+            right: 15px;
+            font-size: 30px;
+            line-height: 1.85;
+        }
+
+        .word-cell.arabic.arabic-medium.hidden::before {
+            font-size: 26px;
+            line-height: 1.85;
+        }
+
+        .word-cell.arabic.arabic-small.hidden::before {
+            font-size: 22px;
+            line-height: 1.85;
+        }
+
+        .word-cell.arabic.arabic-very-small.hidden::before {
+            font-size: 18px;
+            line-height: 1.85;
+        }
+
+        .pagination {
+            text-align: center;
+            margin-top: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .page-info {
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .arrow-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .arrow-btn {
+            background: white;
+            color: #2196F3;
+            border: 2px solid #2196F3;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 24px;
+            font-weight: bold;
+            transition: all 0.3s;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .arrow-btn:hover {
+            background: #2196F3;
+            color: white;
+        }
+
+        .arrow-btn:disabled {
+            border-color: #ccc;
+            color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .arrow-btn:disabled:hover {
+            background: white;
+            color: #ccc;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            flex: 1;
+            min-width: 150px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            transition: background 0.3s;
+            color: white;
+        }
+
+        .add-words-btn {
+            background: #2196F3;
+        }
+
+        .add-words-btn:hover {
+            background: #1976D2;
+        }
+
+        .reset-btn {
+            background: #f44336;
+        }
+
+        .reset-btn:hover {
+            background: #d32f2f;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal.show {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 450px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-title {
+            font-size: 22px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .modal-text {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 20px;
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+
+        .modal-btn.cancel {
+            background: #ccc;
+            color: #333;
+        }
+
+        .modal-btn.cancel:hover {
+            background: #bbb;
+        }
+
+        .modal-btn.confirm {
+            background: #f44336;
+            color: white;
+        }
+
+        .modal-btn.confirm:hover {
+            background: #d32f2f;
+        }
+
+        .errors-section {
+            margin-top: 40px;
+            padding: 20px;
+            background: #fff3cd;
+            border-radius: 8px;
+            border: 2px solid #ffc107;
+        }
+
+        .errors-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .errors-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .errors-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .copy-btn, .restore-btn {
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+
+        .copy-btn {
+            background: #4CAF50;
+        }
+
+        .copy-btn:hover {
+            background: #45a049;
+        }
+
+        .restore-btn {
+            background: #FF9800;
+        }
+
+        .restore-btn:hover {
+            background: #F57C00;
+        }
+
+        .errors-list {
+            font-size: 16px;
+            color: #333;
+            line-height: 1.6;
+            max-height: 300px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .errors-list::-webkit-scrollbar {
+            width: 12px;
+        }
+
+        .errors-list::-webkit-scrollbar-track {
+            background: #e0e0e0;
+            border-radius: 10px;
+        }
+
+        .errors-list::-webkit-scrollbar-thumb {
+            background: #000;
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .errors-list::-webkit-scrollbar-thumb:hover {
+            background: #222;
+        }
+
+        .error-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #ffe08a;
+        }
+
+        .error-item:last-child {
+            border-bottom: none;
+        }
+
+        .no-errors {
+            color: #666;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .hint {
+            text-align: center;
+            color: #666;
+            margin-top: 20px;
+            font-style: italic;
+            font-size: 13px;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 40px;
+            font-size: 16px;
+        }
+
+        .sync-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            font-size: 12px;
+            color: #666;
+            display: none;
+        }
+
+        .sync-status.show {
+            display: block;
+        }
+
+        .sync-status.syncing {
+            color: #2196F3;
+        }
+
+        .sync-status.synced {
+            color: #4CAF50;
+        }
+
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 20px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .action-btn {
+                width: 100%;
+            }
+
+            .word-cell.russian {
+                font-size: 16px;
+                padding: 18px 12px;
+            }
+
+            .word-cell.arabic {
+                font-size: 26px;
+                padding: 27px 12px;
+            }
+
+            .word-cell.arabic.arabic-medium {
+                font-size: 22px;
+            }
+
+            .word-cell.arabic.arabic-small {
+                font-size: 18px;
+            }
+
+            .word-cell.arabic.arabic-very-small {
+                font-size: 16px;
+            }
+
+            .errors-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .errors-buttons {
+                width: 100%;
+                flex-direction: column;
+            }
+
+            .copy-btn, .restore-btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌙 Тренажер Тетрадь</h1>
+        
+        <div class="mode-toggle">
+            <span class="mode-text" id="mode-text">Формат: АРБ → РУС</span>
+            <label class="switch">
+                <input type="checkbox" id="mode-toggle">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="stats" id="stats">
+            ВСЕГО: 0, ОСТАЛОСЬ ПРОЙТИ: 0
+        </div>
+
+        <div id="words-list">
+            <div class="loading">Загрузка слов...</div>
+        </div>
+
+        <div class="pagination">
+            <div class="page-info" id="page-info"></div>
+            <div class="arrow-buttons">
+                <button class="arrow-btn" id="prev-page-btn" disabled>←</button>
+                <button class="arrow-btn" id="next-page-btn" disabled>→</button>
+            </div>
+        </div>
+
+        <div class="hint">
+            💡 Нажмите на строку, чтобы показать перевод<br>
+            👉 Свайп вправо с левого края, чтобы отметить как ошибку
+        </div>
+
+        <div class="action-buttons">
+            <button class="action-btn reset-btn" id="reset-progress-btn">Сбросить прогресс</button>
+        </div>
+
+        <div class="errors-section">
+            <div class="errors-header">
+                <span class="errors-title">Ошибки: <span id="errors-count">0</span></span>
+                <div class="errors-buttons">
+                    <button class="restore-btn" id="restore-words-btn">Вернуть слова</button>
+                    <button class="copy-btn" id="copy-errors-btn">Копировать ошибки</button>
+                </div>
+            </div>
+            <div class="errors-list" id="errors-list">
+                <div class="no-errors">Ошибок пока нет</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="sync-status" id="sync-status">
+        ⏳ Синхронизация...
+    </div>
+
+    <div class="modal" id="reset-modal">
+        <div class="modal-content">
+            <div class="modal-title">⚠️ Подтверждение сброса</div>
+            <div class="modal-text">
+                Вы уверены, что хотите сбросить весь прогресс?<br><br>
+                Это действие нельзя отменить. Все открытые слова и ошибки будут удалены.
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn cancel" id="cancel-reset-btn">Отмена</button>
+                <button class="modal-btn confirm" id="confirm-reset-btn">Да, сбросить</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+    <script>
+        // ✅ ИДЕНТИФИКАТОР ТРЕНАЖЕРА
+        const TRAINER_ID = 'phases';
+        
+        // ✅ ПРЕФИКС ДЛЯ ЭТОГО ТРЕНАЖЕРА
+        const PREFIX = 'phases_';
+        
+        // ✅ ОБЩИЙ КОД ДЛЯ ВСЕХ ТРЕНАЖЕРОВ
+        const SHARED_CODE_KEY = 'userProgressCode';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyC2yC_BlLuP3dEzWUlWe57hhI4CezNZCy0",
+            authDomain: "arab-learning-hub.firebaseapp.com",
+            projectId: "arab-learning-hub",
+            storageBucket: "arab-learning-hub.firebasestorage.app",
+            messagingSenderId: "377334822830",
+            appId: "1:377334822830:web:7cb045a81824741f427a3f",
+            measurementId: "G-XBW1F1KGW3"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        // 🔧 Для сетей с прокси/блокировками: форсируем long-polling и отключаем stream
+        db.settings({
+            experimentalForceLongPolling: true,
+            useFetchStreams: false
+        });
+        
+        // ✅ Делаем Firebase доступным глобально для streak.js
+        window.firestore = db;
+        window.firebaseEnabled = true;
+        
+        // ✅ Уведомляем о готовности Firebase
+        window.dispatchEvent(new CustomEvent('firebaseReady'));
+
+        let words = [];
+        let originalWords = [];
+        let mode = 'ar-ru';
+        let openedWordsMap = {};
+        let errorWords = [];
+        let currentPage = 0;
+        const wordsPerPage = 100;
+        let pageWordCounts = {};
+        let userCode = '';
+        let firebaseDataLoaded = false; // ✅ Флаг: данные из Firebase загружены?
+        let pendingSync = false;
+        let syncTimeout = null;
+        let nextWordId = 0;
+        let resetVersion = getFromLocalStorage('resetVersion', 0); // 🔄 Версия сброса для приоритета
+
+        let formattedCache = new Map();
+        
+        const wordsList = document.getElementById('words-list');
+        const modeToggle = document.getElementById('mode-toggle');
+        const modeText = document.getElementById('mode-text');
+        const errorsList = document.getElementById('errors-list');
+        const copyErrorsBtn = document.getElementById('copy-errors-btn');
+        const restoreWordsBtn = document.getElementById('restore-words-btn');
+        const resetProgressBtn = document.getElementById('reset-progress-btn');
+        const nextPageBtn = document.getElementById('next-page-btn');
+        const prevPageBtn = document.getElementById('prev-page-btn');
+        const pageInfo = document.getElementById('page-info');
+        const statsEl = document.getElementById('stats');
+        const syncStatus = document.getElementById('sync-status');
+
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchCurrentX = 0;
+        let touchCurrentY = 0;
+        let isSwiping = false;
+        let isValidSwipeStart = false;
+        let currentSwipeRow = null;
+        let rafId = null;
+
+        // ✅ ФУНКЦИИ ДЛЯ РАБОТЫ С ОБЩИМ КОДОМ
+        function getUserCode() {
+            // ✅ Читаем напрямую (код хранится как простая строка)
+            try {
+                return localStorage.getItem(SHARED_CODE_KEY) || '';
+            } catch(e) {
+                console.warn('Ошибка чтения кода:', e);
+                return '';
+            }
+        }
+
+        function saveUserCode(code) {
+            // ✅ Сохраняем напрямую (как простая строка, совместимо с index.html)
+            try {
+                localStorage.setItem(SHARED_CODE_KEY, code);
+            } catch(e) {
+                console.warn('Ошибка сохранения кода:', e);
+            }
+        }
+
+        function generateWordId() {
+            return `word_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        }
+
+        function saveToLocalStorage(key, value) {
+            // ✅ Используем безопасное сохранение с timestamp для данных прогресса
+            return safeLocalStorageSet(PREFIX + key, value, true);
+        }
+
+        function getFromLocalStorage(key, defaultValue = null) {
+            // ✅ Используем безопасное чтение
+            const result = safeLocalStorageGet(PREFIX + key);
+            
+            // ✅ Очищаем timestamp из данных (он нужен только для сравнения)
+            if (result && typeof result === 'object' && 'timestamp' in result && !Array.isArray(result)) {
+                const { timestamp, ...cleanData } = result;
+                // Если после удаления timestamp остались другие ключи, возвращаем их
+                if (Object.keys(cleanData).length > 0) {
+                    // Распаковываем _data, если это была примитивная обёртка
+                    if ('_data' in cleanData && Object.keys(cleanData).length === 1) {
+                        return cleanData._data;
+                    }
+                    if ('_data' in cleanData) {
+                        return cleanData._data;
+                    }
+                    return cleanData;
+                }
+            }
+
+            // Если safeLocalStorageGet вернул обёртку только с _data без timestamp
+            if (result && typeof result === 'object' && '_data' in result && Object.keys(result).length === 1) {
+                return result._data;
+            }
+            
+            return result !== null ? result : defaultValue;
+        }
+
+        function removeFromLocalStorage(key) {
+            localStorage.removeItem(PREFIX + key);
+        }
+
+        function generateCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        function showSyncStatus(message, type = 'syncing') {
+            syncStatus.textContent = message;
+            syncStatus.className = `sync-status show ${type}`;
+            
+            setTimeout(() => {
+                syncStatus.classList.remove('show');
+            }, 2000);
+        }
+
+
+        // ✅ СИНХРОНИЗАЦИЯ С FIREBASE (ПОДКОЛЛЕКЦИЯ)
+        async function syncToFirebase() {
+            if (!userCode) return;
+            
+            try {
+                // ✅ ЗАЩИТА: Если данные из Firebase НЕ загружены - отправляем только базовые поля
+                // Это предотвращает перезапись существующих данных в Firebase
+                // (merge: true НЕ делает глубокое слияние для вложенных объектов!)
+                
+                if (!firebaseDataLoaded) {
+                    console.log('⚠️ Firebase данные не были загружены - синхронизация ограничена');
+                    console.log('   Обновляем timestamp/lastSync/lastUpdated + текущую страницу');
+                    
+                    const lastSyncedReset = getFromLocalStorage('resetVersionSynced', 0);
+                    const resetUnsynced = resetVersion > lastSyncedReset;
+
+                    // Минимальные данные — обновляем метки времени и страницу,
+                    // а при несинхронизированном сбросе ещё и очищаем прогресс.
+                    const minimalData = {
+                        code: userCode,
+                        trainerId: TRAINER_ID,
+                        timestamp: Date.now(),
+                        lastSync: new Date().toISOString(),
+                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+                        resetVersion,
+                        currentPage
+                    };
+                    
+                    const updateData = { ...minimalData };
+                    
+                    if (resetUnsynced) {
+                        // После свежего сброса явно очищаем прогресс в облаке
+                        updateData.openedWords = {};
+                        updateData.errors = [];
+                        updateData.pageWordCounts = {};
+                        updateData.nextWordId = 0;
+                        console.log('   ↳ Очистка прогресса в облаке после сброса');
+                    } else if (Object.keys(openedWordsMap).length > 0) {
+                        // Если есть прогресс — добавляем его через dot notation, чтобы не затирать чужие поля
+                        Object.keys(openedWordsMap).forEach(wordId => {
+                            updateData[`openedWords.${wordId}`] = openedWordsMap[wordId];
+                        });
+                        console.log(`   + Добавлено ${Object.keys(openedWordsMap).length} слов через dot notation`);
+                    }
+                    
+                    const success = await safeFirebaseSave(
+                        async () => {
+                            return await db.collection('users')
+                                   .doc(userCode)
+                                   .collection('trainers')
+                                   .doc(TRAINER_ID)
+                                   .set(updateData, { merge: true });
+                        },
+                        PREFIX + 'firebase_backup',
+                        updateData
+                    );
+                    
+                    if (success) {
+                        saveToLocalStorage('lastSync', new Date().toISOString());
+                        if (resetUnsynced) {
+                            saveToLocalStorage('resetVersionSynced', resetVersion);
+                        }
+                        console.log('✓ Ограниченная синхронизация выполнена');
+                        showSyncStatus('✓ Синхронизировано', 'synced');
+                    }
+                    return;
+                }
+                
+                // ✅ ПОЛНАЯ синхронизация - данные из Firebase были загружены
+                console.log('✓ Полная синхронизация (Firebase данные были загружены)');
+                
+                const data = {
+                    code: userCode,
+                    trainerId: TRAINER_ID,
+                    initialWordCount: getFromLocalStorage('initialWordCount', 0),
+                    openedWords: openedWordsMap,
+                    errors: errorWords,
+                    wordsOrder: words,
+                    currentPage: currentPage,
+                    pageWordCounts: pageWordCounts,
+                    nextWordId: nextWordId,
+                    resetVersion,
+                    timestamp: Date.now(),
+                    lastSync: new Date().toISOString(),
+                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                };
+
+                // ✅ Используем безопасное сохранение в Firebase
+                const success = await safeFirebaseSave(
+                    async () => {
+                        // ✅ ПУТЬ: users/{code}/trainers/phases
+                        return await db.collection('users')
+                               .doc(userCode)
+                               .collection('trainers')
+                               .doc(TRAINER_ID)
+                               .set(data, { merge: true });
+                    },
+                    PREFIX + 'firebase_backup',
+                    data
+                );
+                
+                if (success) {
+                    saveToLocalStorage('lastSync', new Date().toISOString());
+                    saveToLocalStorage('resetVersionSynced', resetVersion);
+                    console.log('✓ Синхронизировано с Firebase (phases)');
+                    showSyncStatus('✓ Синхронизировано', 'synced');
+                } else {
+                    showSyncStatus('❌ Ошибка синхронизации', 'error');
+                }
+            } catch (error) {
+                console.error('Ошибка синхронизации с Firebase:', error);
+                showSyncStatus('❌ Ошибка синхронизации', 'error');
+            }
+        }
+
+        function scheduleSyncToFirebase() {
+            // Более частый фоновой sync, без блокировки UI
+            if (syncTimeout) {
+                clearTimeout(syncTimeout);
+            }
+            
+            pendingSync = true;
+            
+            syncTimeout = setTimeout(() => {
+                if (pendingSync) {
+                    syncToFirebase();
+                    pendingSync = false;
+                }
+            }, 18000);
+        }
+
+        // ✅ ЗАГРУЗКА ИЗ FIREBASE (ПОДКОЛЛЕКЦИЯ)
+        async function loadFromFirebase(code) {
+            try {
+                showSyncStatus('⏳ Загрузка из облака...', 'syncing');
+                
+                // ✅ Используем безопасную загрузку из Firebase
+                const data = await safeFirebaseLoad(
+                    async () => {
+                        // ✅ ПУТЬ: users/{code}/trainers/phases
+                        const doc = await db.collection('users')
+                                           .doc(code)
+                                           .collection('trainers')
+                                           .doc(TRAINER_ID)
+                                           .get();
+                        
+                        if (doc.exists) {
+                            console.log('✓ Загружено из Firebase (phases)');
+                            return doc.data();
+                        }
+                        return null;
+                    },
+                    PREFIX + 'firebase_backup'
+                );
+                
+                if (data) {
+                    let useFirebaseData = true;
+
+                    const firebaseReset = data.resetVersion || 0;
+                    const localReset = getFromLocalStorage('resetVersion', 0);
+                    if (localReset > firebaseReset) {
+                        // Локальный сброс новее – не затираем свежие данные облаком
+                        resetVersion = localReset;
+                        saveToLocalStorage('resetVersion', resetVersion);
+                        useFirebaseData = false;
+                        await syncToFirebase();
+                        showSyncStatus('✓ Синхронизировано (после сброса)', 'synced');
+                    } else if (firebaseReset > localReset) {
+                        resetVersion = firebaseReset;
+                        saveToLocalStorage('resetVersion', resetVersion);
+                    }
+                    // ✅ СРАВНИВАЕМ TIMESTAMP: локальные VS Firebase
+                    const firebaseTimestamp = data.timestamp || 0;
+                    
+                    // Получаем timestamp из localStorage (используем прямое чтение чтобы получить обёртку с timestamp)
+                    let localTimestamp = 0;
+                    try {
+                        const rawData = localStorage.getItem(PREFIX + 'openedWords');
+                        if (rawData) {
+                            const parsed = JSON.parse(rawData);
+                            if (parsed && parsed.timestamp) {
+                                localTimestamp = parsed.timestamp;
+                            }
+                        }
+                    } catch(e) {
+                        console.warn('Не удалось прочитать локальный timestamp:', e);
+                    }
+                    
+                    if (localTimestamp > 0 && firebaseTimestamp > 0) {
+                        // Если локальные данные НОВЕЕ - не перезаписываем
+                        if (localTimestamp > firebaseTimestamp) {
+                            console.log(`📱 Локальные данные новее (${new Date(localTimestamp).toLocaleString()} > ${new Date(firebaseTimestamp).toLocaleString()}), синхронизируем в Firebase...`);
+                            useFirebaseData = false;
+                            await syncToFirebase();
+                        } else {
+                            console.log(`☁️ Firebase данные новее (${new Date(firebaseTimestamp).toLocaleString()} >= ${new Date(localTimestamp).toLocaleString()}), загружаем...`);
+                        }
+                    } else if (firebaseTimestamp > 0) {
+                        console.log('☁️ Загружаем данные из Firebase (нет локальных данных)');
+                    } else if (localTimestamp > 0) {
+                        console.log('📱 Используем локальные данные (нет данных в Firebase)');
+                        useFirebaseData = false;
+                        await syncToFirebase();
+                    }
+                    
+                    if (useFirebaseData) {
+                        const firebaseOpened = data.openedWords || {};
+                        // 🛡️ Не теряем локальный прогресс, если timestamps равны/близки
+                        const localOpened = getFromLocalStorage('openedWords', {});
+                        const mergedOpened = { ...firebaseOpened, ...localOpened };
+                        const mergedAdded = Object.keys(mergedOpened).length > Object.keys(firebaseOpened).length;
+                        
+                        openedWordsMap = mergedOpened;
+                        
+                        // 🛡️ MERGE ошибок вместо перезаписи (сравниваем по содержимому ru+ar)
+                        const firebaseErrors = data.errors || [];
+                        const localErrors = getFromLocalStorage('errors', []);
+                        const mergedErrorsMap = new Map();
+                        
+                        // Добавляем ошибки из Firebase
+                        firebaseErrors.forEach(error => {
+                            const key = `${error.word.ru}|||${error.word.ar}`;
+                            mergedErrorsMap.set(key, error);
+                        });
+                        
+                        // Добавляем локальные ошибки (приоритет локальным)
+                        localErrors.forEach(error => {
+                            const key = `${error.word.ru}|||${error.word.ar}`;
+                            if (!mergedErrorsMap.has(key)) {
+                                mergedErrorsMap.set(key, error);
+                            }
+                        });
+                        
+                        errorWords = Array.from(mergedErrorsMap.values());
+                        
+                        pageWordCounts = data.pageWordCounts || {};
+                        nextWordId = data.nextWordId || 0;
+                        
+                        // ✅ ВАЖНО: Сравниваем initialWordCount из Firebase с текущим количеством слов
+                        const firebaseWordCount = data.initialWordCount || 0;
+                        const currentLocalWordCount = getFromLocalStorage('initialWordCount', 0);
+                        const fileWordCount = getFromLocalStorage('fileWordCount', 0);
+                        
+                        // Используем МАКСИМАЛЬНОЕ значение (если в words.txt добавили слова)
+                        const actualWordCount = Math.max(firebaseWordCount, currentLocalWordCount, words.length, fileWordCount);
+                        saveToLocalStorage('initialWordCount', actualWordCount);
+                        
+                        if (data.wordsOrder && data.wordsOrder.length > 0) {
+                            // ⚖️ Получаем актуальное количество слов в файле
+                            const currentFileWordCount = getFromLocalStorage('fileWordCount', 0);
+                            const localWordsCount = words.length;
+                            const maxExpectedCount = Math.max(actualWordCount, localWordsCount, currentFileWordCount);
+                            
+                            // Берем порядок слов из облака только если он не короче файла
+                            if (data.wordsOrder.length >= maxExpectedCount) {
+                                words = data.wordsOrder;
+                                saveToLocalStorage('wordsOrder', words);
+                            } else {
+                                console.warn(`⚠️ Пропускаем cloud wordsOrder (${data.wordsOrder.length}) — в файле/локально больше (${maxExpectedCount})`);
+                                
+                                // 🔧 Добавляем недостающие слова из локального списка в облачный
+                                if (localWordsCount > data.wordsOrder.length) {
+                                    console.log(`📈 Сохраняем локальный список слов (${localWordsCount}), он полнее облачного`);
+                                    // words уже содержит правильный список из loadWords()
+                                } else {
+                                    // Берём облачный, но потом добавим недостающие
+                                    words = data.wordsOrder;
+                                    saveToLocalStorage('wordsOrder', words);
+                                }
+                                
+                                // Отправим актуальный объём назад в облако
+                                scheduleSyncToFirebase();
+                            }
+                        }
+                        
+                        if (data.currentPage !== undefined) {
+                            saveToLocalStorage('currentPage', data.currentPage);
+                        }
+                        
+                        saveToLocalStorage('openedWords', openedWordsMap);
+                        saveToLocalStorage('errors', errorWords);
+                        saveToLocalStorage('pageWordCounts', pageWordCounts);
+                        saveToLocalStorage('nextWordId', nextWordId);
+                        saveToLocalStorage('lastSync', data.lastSync || new Date().toISOString());
+                        saveToLocalStorage('resetVersion', resetVersion);
+                        
+                        if (mergedAdded) {
+                            console.log('📈 Объединены локальные открытые слова с Firebase, инициируем синхронизацию');
+                            scheduleSyncToFirebase();
+                        }
+                        
+                        showSyncStatus('✓ Загружено из облака', 'synced');
+                        
+                        console.log('✅ Данные из Firebase применены:', {
+                            openedWordsCount: Object.keys(openedWordsMap).length,
+                            errorsCount: errorWords.length,
+                            currentPage: data.currentPage
+                        });
+                        
+                        // ✅ НЕ синхронизируем обратно сразу после загрузки!
+                        // Это предотвращает перезапись данных пустыми значениями
+                        // Синхронизация произойдёт автоматически при изменении прогресса
+                        
+                        firebaseDataLoaded = true; // ✅ Данные загружены из Firebase
+                        console.log('✅ Firebase данные загружены, синхронизация разрешена');
+                        
+                        // 🔧 ФИНАЛЬНАЯ ПРОВЕРКА: если в файле больше слов - добавляем недостающие
+                        const finalFileCount = getFromLocalStorage('fileWordCount', 0);
+                        if (finalFileCount > 0 && words.length < finalFileCount) {
+                            console.log(`⚠️ После Firebase: words=${words.length}, file=${finalFileCount}. Нужно добавить слова!`);
+                            // Помечаем что нужно проверить и добавить слова
+                            // checkAndApplyFileChanges() будет вызван в initialize() после loadFromFirebase()
+                        }
+                        
+                        // ✅ Обновляем UI после загрузки данных
+                        updateStats();
+                        renderWords();
+                        renderErrors();
+                    }
+                    
+                    return true;
+                } else {
+                    // ⚠️ Данных нет в Firebase — это нормально для нового пользователя
+                    // ВАЖНО: Устанавливаем флаг чтобы разрешить ПОЛНУЮ синхронизацию!
+                    // Иначе wordsOrder, currentPage и т.д. никогда не сохранятся в Firebase
+                    firebaseDataLoaded = true;
+                    console.log('📭 Данные не загружены (новый пользователь) — полная синхронизация разрешена');
+                    return false;
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки из Firebase:', error);
+                showSyncStatus('❌ Ошибка загрузки', 'error');
+                return false;
+            }
+        }
+
+        function shuffleArray(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        }
+
+        function findSeparator(line) {
+            const allSeparators = [' — ', '—', ' – ', '–', ' - ', '-'];
+            
+            let firstSeparator = null;
+            let firstPosition = Infinity;
+            
+            allSeparators.forEach(sep => {
+                const pos = line.indexOf(sep);
+                if (pos !== -1 && pos < firstPosition) {
+                    firstPosition = pos;
+                    firstSeparator = sep;
+                }
+            });
+            
+            return firstSeparator;
+        }
+
+        function parseWordsFromText(text) {
+            const lines = text.split('\n');
+            const parsedWords = [];
+            
+            lines.forEach((line, index) => {
+                line = line.trim().replace(/\r/g, '');
+                // Нормализуем все варианты тире: любые → дефис, затем пробелы вокруг
+                line = line.replace(/[\u2010-\u2015–—−]+/g, '-');
+                line = line.replace(/\s*-\s*/g, ' - ');
+                
+                if (!line || line.length < 3) return;
+                
+                const separator = findSeparator(line);
+                if (!separator) {
+                    return;
+                }
+                
+                const parts = line.split(separator);
+                if (parts.length < 2) return;
+                
+                const ru = parts[0].trim();
+                const ar = parts.slice(1).join(separator).trim();
+                
+                if (ru && ar) {
+                    parsedWords.push({ 
+                        ru, 
+                        ar, 
+                        id: generateWordId()
+                    });
+                }
+            });
+            
+            return parsedWords;
+        }
+
+        function detectChangesAndDeletes(newWordsFromFile, savedWords) {
+            const changedWords = [];
+            const wordsToRemove = [];
+            const newWords = [];
+            
+            // 🔧 Используем составной ключ ru|||ar для корректной работы с дубликатами
+            const fileWordsSet = new Set();
+            newWordsFromFile.forEach(word => {
+                fileWordsSet.add(`${word.ru}|||${word.ar}`);
+            });
+            
+            // Также храним все арабские варианты для каждого русского слова
+            const fileWordsByRu = new Map();
+            newWordsFromFile.forEach(word => {
+                if (!fileWordsByRu.has(word.ru)) {
+                    fileWordsByRu.set(word.ru, []);
+                }
+                fileWordsByRu.get(word.ru).push(word.ar);
+            });
+            
+            const savedWordsSet = new Set();
+            savedWords.forEach(word => {
+                savedWordsSet.add(`${word.ru}|||${word.ar}`);
+            });
+            
+            // Проверяем сохранённые слова
+            savedWords.forEach(savedWord => {
+                const key = `${savedWord.ru}|||${savedWord.ar}`;
+                
+                if (fileWordsSet.has(key)) {
+                    // Слово существует в файле с той же парой ru-ar - ничего не делаем
+                    return;
+                }
+                
+                // Слово не найдено с таким же арабским переводом
+                const fileArVariants = fileWordsByRu.get(savedWord.ru);
+                
+                if (!fileArVariants || fileArVariants.length === 0) {
+                    // Русское слово полностью удалено из файла
+                    console.log(`🗑️ Удалено: "${savedWord.ru} — ${savedWord.ar}"`);
+                    wordsToRemove.push(savedWord.id);
+                } else {
+                    // Русское слово есть, но с другим арабским переводом
+                    // Проверяем, не было ли уже добавлено это изменение
+                    const newAr = fileArVariants[0]; // Берём первый вариант
+                    const newKey = `${savedWord.ru}|||${newAr}`;
+                    
+                    // Проверяем, существует ли уже такая пара в saved (может быть другое слово с таким же ru и новым ar)
+                    if (!savedWordsSet.has(newKey)) {
+                        console.log(`📝 Изменено: "${savedWord.ru} — ${savedWord.ar}" → "${savedWord.ru} — ${newAr}"`);
+                        wordsToRemove.push(savedWord.id);
+                        
+                        // Добавляем новую версию только если её ещё нет в changedWords
+                        const existingChanged = changedWords.find(w => w.ru === savedWord.ru && w.ar === newAr);
+                        if (!existingChanged) {
+                            changedWords.push({
+                                ru: savedWord.ru,
+                                ar: newAr,
+                                id: generateWordId()
+                            });
+                        }
+                    } else {
+                        // Новая пара уже есть в saved - просто удаляем старую версию
+                        console.log(`🔄 Дубликат удалён: "${savedWord.ru} — ${savedWord.ar}" (новая версия уже есть)`);
+                        wordsToRemove.push(savedWord.id);
+                    }
+                }
+            });
+
+            // Новые слова: всё, что есть в файле, но отсутствует в сохранённом наборе
+            newWordsFromFile.forEach(word => {
+                const key = `${word.ru}|||${word.ar}`;
+                if (!savedWordsSet.has(key)) {
+                    newWords.push({
+                        ru: word.ru,
+                        ar: word.ar,
+                        id: generateWordId()
+                    });
+                }
+            });
+            
+            return { changedWords, wordsToRemove, newWords };
+        }
+
+        function recalcPageWordCounts(total) {
+            const counts = {};
+            let remaining = total;
+            let page = 0;
+            while (remaining > 0) {
+                const size = Math.min(wordsPerPage, remaining);
+                counts[page] = size;
+                remaining -= size;
+                page++;
+            }
+            return counts;
+        }
+
+        function applyChangesToWords(changedWords, wordsToRemove, newWords) {
+            if (wordsToRemove.length === 0 && changedWords.length === 0 && newWords.length === 0) {
+                return false;
+            }
+            
+            const pageIndices = {};
+            
+            words = words.filter((word, index) => {
+                const shouldRemove = wordsToRemove.includes(word.id);
+                if (shouldRemove) {
+                    const pageNum = getPageNumberForIndex(index);
+                    pageIndices[pageNum] = (pageIndices[pageNum] || 0) + 1;
+                    
+                    delete openedWordsMap[word.id];
+                    errorWords = errorWords.filter(e => e.word.id !== word.id);
+                }
+                return !shouldRemove;
+            });
+            
+            for (const [pageNum, removedCount] of Object.entries(pageIndices)) {
+                const page = parseInt(pageNum);
+                const currentCount = pageWordCounts[page] || wordsPerPage;
+                pageWordCounts[page] = Math.max(wordsPerPage, currentCount - removedCount);
+                console.log(`📄 Страница ${page + 1}: удалено ${removedCount} слов`);
+            }
+            
+            if (changedWords.length > 0) {
+                const nextPageStartIndex = getPageStartIndex(currentPage + 1);
+                words.splice(nextPageStartIndex, 0, ...changedWords);
+                console.log(`✓ ${changedWords.length} измененных слов добавлены в начало страницы ${currentPage + 2}`);
+            }
+
+            if (newWords.length > 0) {
+                words.push(...newWords);
+                console.log(`➕ Добавлено новых слов: ${newWords.length}`);
+            }
+
+            pageWordCounts = recalcPageWordCounts(words.length);
+            
+            saveToLocalStorage('wordsOrder', words);
+            saveToLocalStorage('pageWordCounts', pageWordCounts);
+            saveToLocalStorage('openedWords', openedWordsMap);
+            saveToLocalStorage('errors', errorWords);
+            
+            return true;
+        }
+
+        function validateProgress(currentWords) {
+            let changesDetected = false;
+            let removedCount = 0;
+            let changedCount = 0;
+            
+            const currentWordsIds = new Set(currentWords.map(w => w.id));
+            
+            // Создаём Map для поиска по содержимому (ru|||ar)
+            const currentWordsContent = new Map();
+            currentWords.forEach(w => {
+                const key = `${w.ru}|||${w.ar}`;
+                currentWordsContent.set(key, w);
+            });
+            
+            const newOpenedWordsMap = {};
+            for (const [id, isOpened] of Object.entries(openedWordsMap)) {
+                if (currentWordsIds.has(id)) {
+                    newOpenedWordsMap[id] = isOpened;
+                } else {
+                    changedCount++;
+                    changesDetected = true;
+                }
+            }
+            
+            // 🛡️ Проверяем ошибки по содержимому (ru+ar), а не только по ID
+            const newErrorWords = errorWords.filter(error => {
+                // Сначала проверяем по ID
+                if (currentWordsIds.has(error.word.id)) {
+                    return true;
+                }
+                
+                // Если ID не найден, проверяем по содержимому
+                const key = `${error.word.ru}|||${error.word.ar}`;
+                const existsByContent = currentWordsContent.has(key);
+                
+                if (!existsByContent) {
+                    removedCount++;
+                    changesDetected = true;
+                    console.log(`🗑️ Удалена ошибка (слово не найдено): ${error.word.ru} — ${error.word.ar}`);
+                    return false;
+                }
+                
+                // Слово найдено по содержимому - обновляем ID
+                const matchedWord = currentWordsContent.get(key);
+                error.word.id = matchedWord.id;
+                console.log(`🔄 Обновлен ID ошибки: ${error.word.ru} — ${error.word.ar}`);
+                return true;
+            });
+            
+            if (changesDetected) {
+                openedWordsMap = newOpenedWordsMap;
+                errorWords = newErrorWords;
+                
+                saveToLocalStorage('openedWords', openedWordsMap);
+                saveToLocalStorage('errors', errorWords);
+                
+                console.log(`🔄 Очищена статистика: ${changedCount} из прогресса, ${removedCount} из ошибок`);
+                
+                scheduleSyncToFirebase();
+            }
+            
+            return changesDetected;
+        }
+
+        async function loadWords() {
+            try {
+                // ✅ Используем безопасную загрузку с retry
+                const text = await safeLoadWordsFile('words.txt', 3);
+                
+                if (!text) {
+                    throw new Error('Не удалось загрузить файл');
+                }
+                const allWordsFromFile = parseWordsFromText(text);
+                const fileWordCount = allWordsFromFile.length;
+                saveToLocalStorage('fileWordCount', fileWordCount);
+                
+                const savedWordsOrder = getFromLocalStorage('wordsOrder', null);
+                const isFirstLoad = !Array.isArray(savedWordsOrder) || savedWordsOrder.length === 0;
+                nextWordId = getFromLocalStorage('nextWordId', 0);
+                
+                if (isFirstLoad) {
+                    console.log('🆕 Первый запуск тренажера - перемешиваем слова');
+                    originalWords = allWordsFromFile;
+                    words = shuffleArray(originalWords);
+                    pageWordCounts = recalcPageWordCounts(words.length);
+                    saveToLocalStorage('wordsOrder', words);
+                    saveToLocalStorage('pageWordCounts', pageWordCounts);
+                    saveToLocalStorage('nextWordId', nextWordId);
+                    saveToLocalStorage('currentPage', 0);
+                    // initialWordCount = сколько слов "разблокировано" у пользователя
+                    // При первом запуске = все слова из файла
+                    saveToLocalStorage('initialWordCount', fileWordCount);
+                } else {
+                    console.log('📂 Загружаем сохраненный порядок слов');
+                    words = savedWordsOrder.map(w => {
+                        if (!w.id) {
+                            w.id = generateWordId();
+                        }
+                        return w;
+                    });
+                    pageWordCounts = getFromLocalStorage('pageWordCounts', {});
+                }
+                
+                validateProgress(words);
+                
+                if (words.length === 0) {
+                    throw new Error('Не удалось загрузить ни одного слова');
+                }
+                
+                updateStats();
+                currentPage = getFromLocalStorage('currentPage', 0);
+                renderWords();
+                
+            } catch (error) {
+                console.error('Ошибка загрузки слов:', error);
+                wordsList.innerHTML = '<div class="loading">❌ Ошибка загрузки слов: ' + error.message + '</div>';
+            }
+        }
+
+        async function checkAndApplyFileChanges(preloadedText = null) {
+            try {
+                // ✅ Используем безопасную загрузку с retry (или готовый текст)
+                const text = preloadedText !== null ? preloadedText : await safeLoadWordsFile('words.txt', 3);
+                if (!text) return;
+                const allWordsFromFile = parseWordsFromText(text);
+                
+                // Обновляем fileWordCount при каждой проверке файла
+                saveToLocalStorage('fileWordCount', allWordsFromFile.length);
+                
+                const { changedWords, wordsToRemove, newWords } = detectChangesAndDeletes(allWordsFromFile, words);
+                
+                const hasChanges = applyChangesToWords(changedWords, wordsToRemove, newWords);
+                
+                if (hasChanges) {
+                    validateProgress(words);
+                    updateStats();
+                    renderWords();
+                    scheduleSyncToFirebase();
+                    console.log('✅ Изменения и удаления применены');
+                } else {
+                    console.log('✓ Изменений и удалений не обнаружено');
+                }
+            } catch (error) {
+                console.error('Ошибка проверки изменений:', error);
+            }
+        }
+
+        function getPageNumberForIndex(index) {
+            let currentIndex = 0;
+            let pageNum = 0;
+            
+            while (currentIndex <= index) {
+                const pageSize = pageWordCounts[pageNum] || wordsPerPage;
+                
+                if (index < currentIndex + pageSize) {
+                    return pageNum;
+                }
+                
+                currentIndex += pageSize;
+                pageNum++;
+            }
+            
+            return pageNum;
+        }
+
+        // ✅ ИНИЦИАЛИЗАЦИЯ БЕЗ МОДАЛКИ
+        async function initialize() {
+            userCode = getUserCode();
+            
+            if (!userCode) {
+                // Генерируем код, но НЕ показываем модалку
+                userCode = generateCode();
+                saveUserCode(userCode);
+                console.log('🆕 Создан новый код:', userCode);
+                
+                await loadWords();
+                await checkAndApplyFileChanges();
+                await syncToFirebase();
+            } else {
+                console.log('👤 Код пользователя:', userCode);
+                
+                openedWordsMap = getFromLocalStorage('openedWords', {});
+                errorWords = getFromLocalStorage('errors', []);
+                pageWordCounts = getFromLocalStorage('pageWordCounts', {});
+                nextWordId = getFromLocalStorage('nextWordId', 0);
+                
+                renderErrors();
+                
+                await loadWords();
+                
+                await loadFromFirebase(userCode);
+                await checkAndApplyFileChanges();
+                
+                validateProgress(words);
+                
+                renderErrors();
+                updateStats();
+                currentPage = getFromLocalStorage('currentPage', 0);
+                renderWords();
+            }
+        }
+
+        resetProgressBtn.addEventListener('click', function() {
+            document.getElementById('reset-modal').classList.add('show');
+        });
+
+        document.getElementById('cancel-reset-btn').addEventListener('click', function() {
+            document.getElementById('reset-modal').classList.remove('show');
+        });
+
+        document.getElementById('confirm-reset-btn').addEventListener('click', async function() {
+            try {
+                // ✅ Используем безопасную загрузку с retry
+                const text = await safeLoadWordsFile('words.txt', 3);
+                if (!text) throw new Error('Не удалось загрузить файл');
+                const allWords = parseWordsFromText(text);
+                
+                // При сбросе тянем все актуальные слова целиком (включая новые/изменённые)
+                originalWords = allWords;
+                words = shuffleArray(allWords);
+                
+                saveToLocalStorage('wordsOrder', words);
+                saveToLocalStorage('currentPage', 0);
+                // Обновляем счётчики на полный актуальный объём
+                saveToLocalStorage('initialWordCount', allWords.length);
+                saveToLocalStorage('fileWordCount', allWords.length);
+                resetVersion = Date.now();
+                saveToLocalStorage('resetVersion', resetVersion);
+                
+                openedWordsMap = {};
+                errorWords = [];
+                currentPage = 0;
+                pageWordCounts = {};
+                nextWordId = 0;
+                
+                saveToLocalStorage('openedWords', openedWordsMap);
+                saveToLocalStorage('errors', errorWords);
+                saveToLocalStorage('pageWordCounts', pageWordCounts);
+                saveToLocalStorage('nextWordId', nextWordId);
+                
+                // ✅ СНАЧАЛА закрываем модалку
+                document.getElementById('reset-modal').classList.remove('show');
+                
+                // ✅ СРАЗУ обновляем UI
+                renderErrors();
+                updateStats();
+                renderWords();
+                
+                console.log('✓ Прогресс сброшен');
+                
+                // ✅ СРАЗУ отправляем событие для показа дуа с кодом
+                console.log('📤 Отправляем событие progressReset через 500мс...');
+                setTimeout(() => {
+                    console.log('📤 Отправляем событие progressReset сейчас!');
+                    window.dispatchEvent(new CustomEvent('progressReset'));
+                }, 500);
+                
+                // ✅ Firebase синхронизация В ФОНЕ (не блокируем UI)
+                syncToFirebase().catch(e => console.warn('Ошибка синхронизации Firebase:', e));
+                
+            } catch (error) {
+                console.error('Ошибка при сбросе:', error);
+                alert('Ошибка при сбросе прогресса');
+                document.getElementById('reset-modal').classList.remove('show');
+            }
+        });
+
+        function updateStats() {
+            const fileTotal = getFromLocalStorage('fileWordCount', words.length);
+            const completed = Object.keys(openedWordsMap).length;
+            const remaining = words.length - completed;
+            statsEl.textContent = `ВСЕГО: ${fileTotal}, ОСТАЛОСЬ ПРОЙТИ: ${remaining}`;
+        }
+
+        function addError(word) {
+            const errorEntry = {
+                word: { ru: word.ru, ar: word.ar, id: word.id },
+                text: `${word.ru} — ${word.ar}`
+            };
+            
+            if (!errorWords.find(e => e.word.id === word.id)) {
+                errorWords.push(errorEntry);
+                saveToLocalStorage('errors', errorWords);
+                renderErrors();
+                scheduleSyncToFirebase();
+            }
+        }
+
+        function renderErrors() {
+            const errorsCount = document.getElementById('errors-count');
+            
+            if (errorWords.length === 0) {
+                errorsList.innerHTML = '<div class="no-errors">Ошибок пока нет</div>';
+                if (errorsCount) errorsCount.textContent = '0';
+            } else {
+                errorsList.innerHTML = errorWords.map(error => 
+                    `<div class="error-item">${error.text}</div>`
+                ).join('');
+                if (errorsCount) errorsCount.textContent = errorWords.length;
+            }
+        }
+
+        copyErrorsBtn.addEventListener('click', function() {
+            if (errorWords.length === 0) {
+                alert('Нет ошибок для копирования');
+                return;
+            }
+            
+            const text = errorWords.map(e => e.text).join('\n');
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = this.textContent;
+                this.textContent = '✓ Скопировано!';
+                setTimeout(() => {
+                    this.textContent = originalText;
+                }, 2000);
+            });
+        });
+
+        restoreWordsBtn.addEventListener('click', function() {
+            if (errorWords.length === 0) {
+                alert('Нет ошибок для возврата');
+                return;
+            }
+            
+            console.log(`Возвращаем ${errorWords.length} слов в конец текущей страницы ${currentPage}`);
+            
+            const pageEndIndex = getPageEndIndex(currentPage);
+            
+            console.log(`Вставляем слова после позиции ${pageEndIndex}`);
+            
+            const wordsToRestore = errorWords.map(e => {
+                return {
+                    ru: e.word.ru,
+                    ar: e.word.ar,
+                    id: generateWordId()
+                };
+            });
+            
+            words.splice(pageEndIndex + 1, 0, ...wordsToRestore);
+            
+            const currentCount = pageWordCounts[currentPage] || wordsPerPage;
+            pageWordCounts[currentPage] = currentCount + wordsToRestore.length;
+            
+            errorWords = [];
+            
+            saveToLocalStorage('errors', errorWords);
+            saveToLocalStorage('wordsOrder', words);
+            saveToLocalStorage('pageWordCounts', pageWordCounts);
+            
+            renderErrors();
+            updateStats();
+            renderWords();
+            scheduleSyncToFirebase();
+            
+            setTimeout(() => {
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            }, 100);
+            
+            const originalText = this.textContent;
+            this.textContent = '✓ Возвращено!';
+            setTimeout(() => {
+                this.textContent = originalText;
+            }, 2000);
+        });
+
+        function getPageEndIndex(pageNum) {
+            let startIndex = 0;
+            
+            for (let i = 0; i < pageNum; i++) {
+                const pageSize = pageWordCounts[i] || wordsPerPage;
+                startIndex += pageSize;
+            }
+            
+            const currentPageSize = pageWordCounts[pageNum] || wordsPerPage;
+            
+            const endIndex = startIndex + currentPageSize - 1;
+            
+            return Math.min(endIndex, words.length - 1);
+        }
+
+        function getPageStartIndex(pageNum) {
+            let startIndex = 0;
+            
+            for (let i = 0; i < pageNum; i++) {
+                const pageSize = pageWordCounts[i] || wordsPerPage;
+                startIndex += pageSize;
+            }
+            
+            return startIndex;
+        }
+
+        function formatRussian(text) {
+            if (formattedCache.has(text)) {
+                return formattedCache.get(text);
+            }
+            
+            const separator = findSeparator(text);
+            let result;
+            
+            if (separator) {
+                const parts = text.split(separator);
+                result = parts.join('<br>');
+            } else {
+                result = text;
+            }
+            
+            formattedCache.set(text, result);
+            return result;
+        }
+
+        function formatArabicWithLineBreaks(text) {
+            const allSeparators = [' — ', '—', ' – ', '–', ' - ', '-'];
+            let separator = null;
+            
+            for (const sep of allSeparators) {
+                if (text.includes(sep)) {
+                    separator = sep;
+                    break;
+                }
+            }
+            
+            if (!separator) return text;
+            
+            const parts = text.split(separator);
+            const separatorCount = parts.length - 1;
+            
+            if (separatorCount <= 2) {
+                return text;
+            }
+            
+            if (separatorCount === 3) {
+                return parts[0] + separator + parts[1] + '<br>' + 
+                       parts[2] + separator + parts[3];
+            }
+            
+            if (separatorCount === 4) {
+                return parts[0] + separator + parts[1] + separator + parts[2] + '<br>' + 
+                       parts[3] + separator + parts[4];
+            }
+            
+            if (separatorCount === 5) {
+                return parts[0] + separator + parts[1] + separator + parts[2] + '<br>' + 
+                       parts[3] + separator + parts[4] + separator + parts[5];
+            }
+            
+            if (separatorCount >= 6) {
+                const firstLine = parts.slice(0, 3).join(separator);
+                const secondLine = parts.slice(3, 6).join(separator);
+                const remaining = parts.slice(6).join(separator);
+                
+                if (remaining) {
+                    return firstLine + '<br>' + secondLine + '<br>' + remaining;
+                } else {
+                    return firstLine + '<br>' + secondLine;
+                }
+            }
+            
+            return text;
+        }
+
+        function getArabicSizeClass(text) {
+            const length = text.length;
+            
+            if (length > 45) {
+                return 'arabic-very-small';
+            } else if (length > 30) {
+                return 'arabic-small';
+            } else if (length > 17) {
+                return 'arabic-medium';
+            }
+            
+            return '';
+        }
+
+        function isWordOpened(word) {
+            return openedWordsMap[word.id] === true;
+        }
+
+        function markWordAsOpened(word) {
+            openedWordsMap[word.id] = true;
+            saveToLocalStorage('openedWords', openedWordsMap);
+            scheduleSyncToFirebase();
+        }
+
+        function isWordInErrors(word) {
+            return errorWords.some(error => error.word.id === word.id);
+        }
+
+        function getVisibleWords() {
+            const visibleWords = [];
+            
+            for (let i = 0; i < words.length; i++) {
+                const word = words[i];
+                
+                if (!isWordInErrors(word)) {
+                    visibleWords.push({ word, originalIndex: i });
+                }
+            }
+            
+            return visibleWords;
+        }
+
+        function renderWords() {
+            wordsList.innerHTML = '';
+            
+            if (words.length === 0) {
+                wordsList.innerHTML = '<div class="loading">Нет слов для отображения</div>';
+                return;
+            }
+
+            const startIndex = getPageStartIndex(currentPage);
+            const endIndex = getPageEndIndex(currentPage) + 1;
+            
+            console.log(`Страница ${currentPage}: индексы ${startIndex}-${endIndex-1}, слов: ${endIndex - startIndex}`);
+            
+            const currentWords = [];
+            
+            for (let i = startIndex; i < endIndex && i < words.length; i++) {
+                const word = words[i];
+                
+                if (!isWordInErrors(word)) {
+                    currentWords.push({ word, originalIndex: i });
+                }
+            }
+
+            const table = document.createElement('table');
+            table.className = 'words-table';
+            
+            currentWords.forEach((item) => {
+                const word = item.word;
+                const row = document.createElement('tr');
+                row.className = 'word-row';
+                const isOpened = isWordOpened(word);
+                
+                if (isOpened) {
+                    row.classList.add('revealed');
+                }
+                
+                const formattedRu = formatRussian(word.ru);
+                const formattedAr = formatArabicWithLineBreaks(word.ar);
+                const hasMultiline = formattedAr.includes('<br>');
+                const sizeClass = getArabicSizeClass(word.ar);
+                
+                row.dataset.wordIndex = item.originalIndex;
+                
+                // Формируем rawLine для избранного
+                const rawLine = `${word.ru} - ${word.ar}`;
+                const isFav = typeof isFavorite === 'function' && (
+                    isFavorite(rawLine) ||
+                    (typeof isFavoriteByArabic === 'function' && isFavoriteByArabic(word.ar))
+                );
+                
+                const starCell = `<td class="fav-cell"><button class="fav-star-btn ${isFav ? 'active' : ''}" onclick="toggleWordFavorite(event, ${item.originalIndex})" title="${isFav ? 'Убрать из избранного' : 'В избранное'}">${isFav ? '⭐' : '☆'}</button></td>`;
+                
+                if (mode === 'ar-ru') {
+                    row.innerHTML = `
+                        ${starCell}
+                        <td class="word-cell russian ${isOpened ? '' : 'hidden'}" data-ru="${word.ru}">${isOpened ? formattedRu : ''}</td>
+                        <td class="word-cell arabic ${sizeClass} ${hasMultiline ? 'has-multiline' : ''}">${formattedAr}</td>
+                    `;
+                } else {
+                    row.innerHTML = `
+                        ${starCell}
+                        <td class="word-cell russian">${formattedRu}</td>
+                        <td class="word-cell arabic ${sizeClass} ${hasMultiline ? 'has-multiline' : ''} ${isOpened ? '' : 'hidden'}" data-ar="${word.ar}">${isOpened ? formattedAr : ''}</td>
+                    `;
+                }
+
+                table.appendChild(row);
+            });
+
+            wordsList.appendChild(table);
+            updatePagination();
+        }
+
+        function updatePagination() {
+            let totalPages = 0;
+            let accumulatedWords = 0;
+            let pageNum = 0;
+            
+            while (accumulatedWords < words.length) {
+                const pageSize = pageWordCounts[pageNum] || wordsPerPage;
+                accumulatedWords += pageSize;
+                totalPages++;
+                pageNum++;
+            }
+            
+            prevPageBtn.disabled = currentPage === 0;
+            nextPageBtn.disabled = (currentPage + 1) >= totalPages;
+
+            const startIndex = getPageStartIndex(currentPage);
+            const endIndex = getPageEndIndex(currentPage) + 1;
+            const wordsOnPage = Math.min(endIndex - startIndex, words.length - startIndex);
+            
+            pageInfo.textContent = `Страница ${currentPage + 1} из ${totalPages} (слов: ${wordsOnPage})`;
+        }
+
+        nextPageBtn.addEventListener('click', function() {
+            currentPage++;
+            saveToLocalStorage('currentPage', currentPage);
+            renderWords();
+            scheduleSyncToFirebase();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        prevPageBtn.addEventListener('click', function() {
+            if (currentPage > 0) {
+                currentPage--;
+                saveToLocalStorage('currentPage', currentPage);
+                renderWords();
+                scheduleSyncToFirebase();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        });
+
+        wordsList.addEventListener('click', function(e) {
+            if (isSwiping) return;
+            
+            const row = e.target.closest('.word-row');
+            if (!row) return;
+            
+            const wordIndex = parseInt(row.dataset.wordIndex);
+            const word = words[wordIndex];
+            if (!word) return;
+            
+            const hiddenCell = row.querySelector('.hidden');
+            
+            if (hiddenCell) {
+                let text;
+                const sizeClass = getArabicSizeClass(word.ar);
+                
+                if (hiddenCell.classList.contains('russian')) {
+                    text = hiddenCell.dataset.ru;
+                    hiddenCell.innerHTML = formatRussian(text);
+                } else {
+                    text = hiddenCell.dataset.ar;
+                    hiddenCell.innerHTML = formatArabicWithLineBreaks(text);
+                    
+                    if (formatArabicWithLineBreaks(text).includes('<br>')) {
+                        hiddenCell.classList.add('has-multiline');
+                    }
+                }
+                
+                hiddenCell.classList.remove('hidden');
+                row.classList.add('revealed');
+                
+                markWordAsOpened(word);
+                if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
+                updateStats();
+            }
+        });
+
+        wordsList.addEventListener('touchstart', function(e) {
+            const row = e.target.closest('.word-row');
+            if (!row) return;
+            
+            currentSwipeRow = row;
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            
+            const rowRect = row.getBoundingClientRect();
+            const touchRelativeX = touchStartX - rowRect.left;
+            const rowWidth = rowRect.width;
+            
+            isValidSwipeStart = (touchRelativeX / rowWidth) <= 0.25;
+            
+            isSwiping = false;
+        }, { passive: true });
+
+        wordsList.addEventListener('touchmove', function(e) {
+            if (!currentSwipeRow || !touchStartX || !isValidSwipeStart) return;
+            
+            touchCurrentX = e.touches[0].clientX;
+            touchCurrentY = e.touches[0].clientY;
+            
+            const diffX = touchCurrentX - touchStartX;
+            const diffY = touchCurrentY - touchStartY;
+            
+            const isHorizontal = Math.abs(diffX) > Math.abs(diffY) * 2;
+            
+            if (Math.abs(diffX) > 10 && isHorizontal) {
+                isSwiping = true;
+                currentSwipeRow.classList.add('swiping');
+                
+                if (rafId) cancelAnimationFrame(rafId);
+                
+                rafId = requestAnimationFrame(() => {
+                    if (diffX > 0) {
+                        currentSwipeRow.style.transform = `translateX(${diffX}px)`;
+                        currentSwipeRow.style.opacity = 1 - (diffX / 200);
+                        
+                        if (diffX > 50) {
+                            currentSwipeRow.classList.add('error-swipe');
+                        } else {
+                            currentSwipeRow.classList.remove('error-swipe');
+                        }
+                    }
+                });
+            }
+        }, { passive: true });
+
+        wordsList.addEventListener('touchend', function(e) {
+            if (!currentSwipeRow) return;
+            
+            if (!isSwiping || !isValidSwipeStart) {
+                currentSwipeRow = null;
+                touchStartX = 0;
+                touchStartY = 0;
+                isValidSwipeStart = false;
+                return;
+            }
+            
+            const diffX = touchCurrentX - touchStartX;
+            const diffY = touchCurrentY - touchStartY;
+            const isHorizontal = Math.abs(diffX) > Math.abs(diffY) * 2;
+            
+            if (diffX > 120 && isHorizontal && isValidSwipeStart) {
+                const wordIndex = parseInt(currentSwipeRow.dataset.wordIndex);
+                const word = words[wordIndex];
+                if (word) {
+                    addError(word);
+                }
+                
+                if (currentSwipeRow) {
+                    currentSwipeRow.style.transform = '';
+                    currentSwipeRow.style.opacity = '';
+                    currentSwipeRow.style.transition = '';
+                    currentSwipeRow.classList.remove('swiping', 'error-swipe');
+                }
+            } else {
+                currentSwipeRow.style.transform = '';
+                currentSwipeRow.style.opacity = '';
+                currentSwipeRow.classList.remove('swiping', 'error-swipe');
+            }
+            
+            currentSwipeRow = null;
+            touchStartX = 0;
+            touchStartY = 0;
+            touchCurrentX = 0;
+            touchCurrentY = 0;
+            isValidSwipeStart = false;
+            
+            setTimeout(() => {
+                isSwiping = false;
+            }, 100);
+        }, { passive: true });
+
+        modeToggle.addEventListener('change', function() {
+            mode = this.checked ? 'ru-ar' : 'ar-ru';
+            
+            if (mode === 'ar-ru') {
+                modeText.textContent = 'Формат: АРБ → РУС';
+            } else {
+                modeText.textContent = 'Формат: РУС → АРБ';
+            }
+            
+            renderWords();
+        });
+
+        // Функция для переключения избранного
+        function toggleWordFavorite(event, wordIndex) {
+            event.stopPropagation();
+            const word = words[wordIndex];
+            if (!word) return;
+            
+            const rawLine = `${word.ru} - ${word.ar}`;
+            const isNowFav = typeof toggleFavorite === 'function' && toggleFavorite(rawLine);
+            
+            // Обновляем кнопку
+            const btn = event.target;
+            btn.classList.toggle('active', isNowFav);
+            btn.innerHTML = isNowFav ? '⭐' : '☆';
+            btn.title = isNowFav ? 'Убрать из избранного' : 'В избранное';
+        }
+
+        initialize();
+    </script>
+</body>
+</html>

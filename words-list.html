@@ -1,0 +1,2872 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Список слов - Арабские слова</title>
+  <script src="dua.js"></script>
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="theme.css">
+  <script src="service-worker-register.js"></script>
+  <script src="sidebar-menu.js"></script>
+  <script src="favorites.js"></script>
+  
+  <!-- Yandex.Metrika counter -->
+<script type="text/javascript">
+    (function(m,e,t,r,i,k,a){
+        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();
+        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=106501066', 'ym');
+
+    ym(106501066, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/106501066" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<!-- /Yandex.Metrika counter -->
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #f5f7fa;
+      color: #1f2937;
+      line-height: 1.6;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      padding: 20px 25px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .header h1 {
+      font-size: 24px;
+      color: #333;
+    }
+
+    .header-info {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .clear-fav-btn {
+      padding: 8px 10px;
+      background: #fff5f5;
+      color: #d14343;
+      border: 1px solid #f8caca;
+      border-radius: 50%;
+      width: 38px;
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .clear-fav-btn:hover {
+      background: #ffecec;
+      box-shadow: 0 2px 8px rgba(209, 67, 67, 0.25);
+    }
+
+    .word-count {
+      font-size: 14px;
+      color: #6b7280;
+      background: #f3f4f6;
+      padding: 6px 12px;
+      border-radius: 20px;
+    }
+
+    .copy-all-btn {
+      padding: 10px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .copy-all-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .copy-all-btn:active {
+      transform: translateY(0);
+    }
+
+    /* Табы */
+    .tabs {
+      display: flex;
+      gap: 10px;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 15px;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      border: none;
+      background: #f3f4f6;
+      color: #6b7280;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tab-btn:hover {
+      background: #e5e7eb;
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .tab-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+    }
+
+    .tab-btn:not(.active) .tab-badge {
+      background: #d1d5db;
+      color: #374151;
+    }
+
+    .words-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+
+    .word-item {
+      padding: 14px 20px;
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .word-item:hover {
+      background: #f8f9ff;
+    }
+
+    .word-item:last-child {
+      border-bottom: none;
+    }
+
+    .word-item.copied {
+      background: #e8f5e9;
+    }
+
+    .word-text {
+      flex: 1;
+      font-size: 16px;
+      line-height: 1.8;
+      word-break: break-word;
+    }
+
+    .word-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .star-btn {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px;
+      opacity: 0.4;
+      transition: all 0.2s;
+    }
+
+    .star-btn:hover {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+
+    .star-btn.active {
+      opacity: 1;
+    }
+
+    .copy-icon {
+      opacity: 0;
+      color: #667eea;
+      font-size: 14px;
+      padding: 4px 8px;
+      transition: opacity 0.2s;
+    }
+
+    .word-item:hover .copy-icon {
+      opacity: 1;
+    }
+
+    /* Кружочек для выбора */
+    .select-circle {
+      width: 22px;
+      height: 22px;
+      border: 2px solid #d1d5db;
+      border-radius: 50%;
+      flex-shrink: 0;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .select-circle:hover {
+      border-color: #667eea;
+    }
+
+    .select-circle.selected {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-color: #667eea;
+    }
+
+    .select-circle.selected::after {
+      content: '✓';
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .word-item.selected {
+      background: #f0f4ff;
+    }
+
+    /* Панель выбранных - плавающая внизу */
+    .selection-bar {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 12px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 15px;
+      box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+      z-index: 1000;
+      animation: slideUp 0.2s ease;
+      max-width: 90%;
+    }
+
+    .selection-bar.visible {
+      display: flex;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+
+    .selection-info {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .selection-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .selection-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .selection-btn-copy {
+      background: white;
+      color: #667eea;
+    }
+
+    .selection-btn-copy:hover {
+      background: #f0f4ff;
+    }
+
+    .selection-btn-clear {
+      background: rgba(255,255,255,0.2);
+      color: white;
+    }
+
+    .selection-btn-clear:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #1f2937;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 9999;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 60px 20px;
+      color: #6b7280;
+      font-size: 16px;
+    }
+
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #e5e7eb;
+      border-top-color: #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error {
+      text-align: center;
+      padding: 40px 20px;
+      color: #ef4444;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #9ca3af;
+    }
+
+    .empty-state .icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+
+    .empty-state p {
+      font-size: 16px;
+    }
+
+    /* ========== ПО ГЛАВАМ СТИЛИ ========== */
+    
+    .chapters-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+
+    .volumes-list {
+      padding: 10px;
+    }
+
+    .volume-item {
+      margin-bottom: 8px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+      transition: all 0.2s;
+    }
+
+    .volume-header {
+      padding: 15px 20px;
+      background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+      transition: all 0.2s;
+    }
+
+    .volume-header:hover {
+      background: linear-gradient(135deg, #e5e7eb 0%, #e0e4ff 100%);
+    }
+
+    .volume-arrow {
+      transition: transform 0.3s;
+      font-size: 14px;
+      color: #667eea;
+    }
+
+    .volume-item.expanded .volume-arrow {
+      transform: rotate(90deg);
+    }
+
+    .chapters-list {
+      background: white;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+
+    .volume-item.expanded .chapters-list {
+      max-height: 1000px;
+    }
+
+    .chapter-item {
+      padding: 12px 20px 12px 40px;
+      border-top: 1px solid #f0f0f0;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chapter-item:hover {
+      background: #f8f9ff;
+    }
+
+    .chapter-item.active {
+      background: linear-gradient(135deg, #f0f4ff 0%, #e8f0ff 100%);
+      border-left: 3px solid #667eea;
+    }
+
+    .chapter-word-count {
+      font-size: 13px;
+      color: #6b7280;
+      background: #f3f4f6;
+      padding: 3px 10px;
+      border-radius: 12px;
+    }
+
+    .chapter-words-section {
+      margin-top: 15px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+
+    .chapter-words-header {
+      padding: 15px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .chapter-words-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0;
+      flex: 1;
+    }
+
+    .chapter-words-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .copy-chapter-btn {
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .copy-chapter-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    .close-chapter-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.3);
+      background: rgba(255,255,255,0.15);
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .close-chapter-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    .chapter-words-container {
+      /* Переиспользуем стили word-item */
+    }
+
+    /* Темная тема для вкладки "По главам" */
+    body.dark-theme .chapters-container {
+      background: #1f2937;
+    }
+
+    body.dark-theme .volume-item {
+      border-color: #374151;
+    }
+
+    body.dark-theme .volume-header {
+      background: linear-gradient(135deg, #2d3748 0%, #374151 100%);
+      color: #e5e7eb;
+    }
+
+    body.dark-theme .volume-header:hover {
+      background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+    }
+
+    body.dark-theme .volume-arrow {
+      color: #818cf8;
+    }
+
+    body.dark-theme .chapters-list {
+      background: #1f2937;
+    }
+
+    body.dark-theme .chapter-item {
+      border-top-color: #374151;
+      color: #e5e7eb;
+    }
+
+    body.dark-theme .chapter-item:hover {
+      background: #2d3748;
+    }
+
+    body.dark-theme .chapter-item.active {
+      background: linear-gradient(135deg, #2d3748 0%, #374151 100%);
+      border-left-color: #818cf8;
+    }
+
+    body.dark-theme .chapter-word-count {
+      background: #374151;
+      color: #9ca3af;
+    }
+
+    body.dark-theme .chapter-words-section {
+      background: #1f2937;
+    }
+
+    body.dark-theme .chapter-words-header {
+      background: linear-gradient(135deg, #4338ca 0%, #6b21a8 100%);
+    }
+
+    /* ========== ЗАУЧИВАНИЕ СТИЛИ ========== */
+    
+    /* Контейнер заучивания */
+    .learn-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      padding: 30px;
+    }
+
+    /* Начальный экран */
+    .learn-input-section {
+      text-align: center;
+    }
+
+    .learn-input-section h2 {
+      font-size: 20px;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .learn-input-section p {
+      color: #6b7280;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+
+    .learn-textarea {
+      width: 100%;
+      min-height: 200px;
+      padding: 15px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      font-size: 16px;
+      font-family: 'Amiri', 'Segoe UI', Arial, sans-serif;
+      line-height: 2;
+      resize: vertical;
+      transition: border-color 0.2s;
+    }
+
+    .learn-textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .learn-textarea::placeholder {
+      color: #9ca3af;
+    }
+
+    .learn-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .learn-btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .learn-btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .learn-btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .learn-btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .learn-btn-secondary {
+      background: #f3f4f6;
+      color: #374151;
+    }
+
+    .learn-btn-secondary:hover {
+      background: #e5e7eb;
+    }
+
+    /* Таймер scroll-picker */
+    .timer-section {
+      margin: 25px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .timer-label {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 15px;
+    }
+
+    .picker-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .picker-container {
+      position: relative;
+      width: 90px;
+      height: 150px;
+    }
+
+    .picker-highlight {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80px;
+      height: 50px;
+      background: linear-gradient(135deg, rgba(102,126,234,0.1), rgba(118,75,162,0.1));
+      border: 2px solid #667eea;
+      border-radius: 12px;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .picker-scroll {
+      height: 100%;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      -webkit-overflow-scrolling: touch;
+      padding: 50px 0;
+      mask-image: linear-gradient(transparent 0%, black 35%, black 65%, transparent 100%);
+      -webkit-mask-image: linear-gradient(transparent 0%, black 35%, black 65%, transparent 100%);
+    }
+
+    .picker-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .picker-item {
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      scroll-snap-align: center;
+      font-size: 22px;
+      color: #9ca3af;
+      user-select: none;
+      transition: color 0.15s, font-size 0.15s, font-weight 0.15s;
+    }
+
+    .picker-item.selected {
+      font-size: 32px;
+      font-weight: bold;
+      color: #667eea;
+    }
+
+    .picker-unit {
+      font-size: 18px;
+      color: #6b7280;
+      font-weight: 500;
+    }
+
+    /* Режим заучивания/проверки */
+    .learn-mode {
+      text-align: center;
+    }
+
+    .learn-progress-bar {
+      width: 100%;
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 3px;
+      margin-bottom: 25px;
+      overflow: hidden;
+    }
+
+    .learn-progress-fill {
+      height: 100%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    .learn-progress-text {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 10px;
+    }
+
+    /* Круглый таймер */
+    .circle-timer {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 25px;
+    }
+
+    .circle-timer svg {
+      transform: rotate(-90deg);
+      width: 100px;
+      height: 100px;
+    }
+
+    .circle-timer-bg {
+      fill: none;
+      stroke: #e5e7eb;
+      stroke-width: 6;
+    }
+
+    .circle-timer-progress {
+      fill: none;
+      stroke: url(#timerGradient);
+      stroke-width: 6;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.1s linear;
+    }
+
+    .circle-timer-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 28px;
+      font-weight: bold;
+      color: #667eea;
+    }
+
+    /* Карточка слова */
+    .word-card {
+      background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+      border: 2px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 35px 25px;
+      margin: 20px 0;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      animation: fadeIn 0.4s ease;
+      overflow: visible;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .word-card-arabic {
+      font-size: 32px;
+      font-family: 'Amiri', 'Traditional Arabic', serif;
+      color: #1a1a2e;
+      line-height: 2.4;
+      margin-bottom: 15px;
+      direction: rtl;
+      text-align: center;
+      word-spacing: 8px;
+      padding: 18px 10px 8px 10px;
+      overflow: visible;
+      display: inline-block;
+    }
+
+    .word-card-translation {
+      font-size: 18px;
+      color: #4b5563;
+      line-height: 1.6;
+    }
+
+    .word-card-hidden .word-card-translation {
+      display: none;
+    }
+
+    /* Кнопки управления */
+    .learn-controls {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    .control-btn {
+      padding: 14px 28px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-pause {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .btn-pause:hover {
+      background: #fde68a;
+    }
+
+    .btn-next {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-next:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-know {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .btn-know:hover {
+      background: #a7f3d0;
+    }
+
+    .btn-forgot {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .btn-forgot:hover {
+      background: #fecaca;
+    }
+
+    .btn-later {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+
+    .btn-later:hover {
+      background: #e5e7eb;
+    }
+
+    /* Модальное окно */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      padding: 20px;
+      animation: fadeInOverlay 0.2s ease;
+    }
+
+    @keyframes fadeInOverlay {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .modal-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+
+    .modal-title {
+      font-size: 20px;
+      color: #1f2937;
+      margin-bottom: 10px;
+    }
+
+    .modal-text {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 25px;
+      line-height: 1.6;
+    }
+
+    .modal-stats {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin-bottom: 25px;
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    .stat-value.green { color: #059669; }
+    .stat-value.red { color: #dc2626; }
+
+    .stat-label {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    .modal-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .modal-btn {
+      padding: 14px 20px;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .modal-btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .modal-btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .modal-btn-secondary {
+      background: #f3f4f6;
+      color: #374151;
+    }
+
+    .modal-btn-secondary:hover {
+      background: #e5e7eb;
+    }
+
+    .modal-btn-danger {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .modal-btn-danger:hover {
+      background: #fecaca;
+    }
+
+    /* Кнопка показать перевод (глазок) */
+    .show-translation-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: rgba(102, 126, 234, 0.1);
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      z-index: 10;
+    }
+
+    .show-translation-btn:hover {
+      background: rgba(102, 126, 234, 0.2);
+      transform: scale(1.1);
+    }
+
+    .show-translation-btn:active {
+      transform: scale(0.95);
+    }
+
+    .show-translation-btn.active {
+      background: rgba(102, 126, 234, 0.3);
+    }
+
+    .word-card {
+      position: relative;
+    }
+
+    /* Статус пауза */
+    .paused-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255,255,255,0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 16px;
+      z-index: 5;
+    }
+
+    .paused-text {
+      font-size: 24px;
+      color: #6b7280;
+      margin-bottom: 15px;
+    }
+
+    /* Адаптив */
+    @media (max-width: 600px) {
+      body {
+        padding: 15px;
+      }
+
+      .header {
+        padding: 15px;
+      }
+
+      .header h1 {
+        font-size: 20px;
+      }
+
+      .word-item {
+        padding: 12px 15px;
+      }
+
+      .word-text {
+        font-size: 15px;
+      }
+
+      .tabs {
+        flex-wrap: wrap;
+      }
+
+      .tab-btn {
+        flex: 1;
+        justify-content: center;
+        min-width: 100px;
+        padding: 10px 12px;
+        font-size: 13px;
+      }
+
+      /* Адаптив для глав */
+      .volume-header {
+        padding: 12px 15px;
+        font-size: 15px;
+      }
+
+      .chapter-item {
+        padding: 10px 15px 10px 30px;
+        font-size: 14px;
+      }
+
+      .chapter-words-header {
+        padding: 12px 15px;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .chapter-words-title {
+        font-size: 16px;
+        flex: 1 1 100%;
+      }
+
+      .chapter-words-header-actions {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .copy-chapter-btn {
+        flex: 1;
+        justify-content: center;
+      }
+
+      .learn-container {
+        padding: 20px 15px;
+      }
+
+      .word-card {
+        padding: 28px 16px;
+        min-height: 190px;
+        overflow: visible;
+      }
+      
+      .word-card-arabic {
+        font-size: 26px;
+        line-height: 2.5;
+        padding: 16px 12px 8px 12px;
+        overflow: visible;
+        display: inline-block;
+      }
+
+      .word-card-translation {
+        font-size: 16px;
+      }
+
+      .learn-controls {
+        flex-direction: column;
+      }
+
+      .control-btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .modal-stats {
+        gap: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-top">
+        <h1>📋 Список слов</h1>
+        <div class="header-info">
+          <span class="word-count" id="wordCount">Загрузка...</span>
+          <button class="copy-all-btn" id="copyAllBtn" disabled>
+            <span>📋</span> Копировать всё
+          </button>
+          <button class="clear-fav-btn" id="clearFavBtn" title="Очистить избранное">🗑️</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab-btn active" id="tabAll" onclick="showTab('all')">
+          📚 Все слова <span class="tab-badge" id="allCount">0</span>
+        </button>
+        <button class="tab-btn" id="tabFavorites" onclick="showTab('favorites')">
+          ⭐ Избранное <span class="tab-badge" id="favCount">0</span>
+        </button>
+        <button class="tab-btn" id="tabChapters" onclick="showTab('chapters')">
+          📖 По главам
+        </button>
+        <button class="tab-btn" id="tabLearn" onclick="showTab('learn')">
+          🎯 Заучивание
+        </button>
+      </div>
+    </div>
+
+    <!-- Панель выбранных слов -->
+    <div class="selection-bar" id="selectionBar">
+      <span class="selection-info" id="selectionInfo">Выбрано: 0</span>
+      <div class="selection-actions">
+        <button class="selection-btn selection-btn-copy" onclick="copySelected()">
+          📋 Копировать
+        </button>
+        <button class="selection-btn selection-btn-clear" onclick="clearSelection()">
+          ✕ Снять
+        </button>
+      </div>
+    </div>
+
+    <div class="words-container" id="wordsContainer">
+      <div class="loading">
+        <div class="loading-spinner"></div>
+        Загрузка слов...
+      </div>
+    </div>
+
+    <!-- Контейнер для глав -->
+    <div class="chapters-container" id="chaptersContainer" style="display: none;">
+      <!-- Слова выбранной главы (сверху) -->
+      <div class="chapter-words-section" id="chapterWordsSection" style="display: none;">
+        <div class="chapter-words-header">
+          <h3 class="chapter-words-title" id="chapterWordsTitle">Глава 1 - Том 1</h3>
+          <div class="chapter-words-header-actions">
+            <button class="copy-chapter-btn" id="copyChapterBtn" onclick="copyChapterWords()">
+              📋 Копировать всё
+            </button>
+            <button class="close-chapter-btn" onclick="closeChapterWords()" title="Закрыть">✕</button>
+          </div>
+        </div>
+        <div class="chapter-words-container" id="chapterWordsContainer">
+          <!-- Слова отобразятся здесь -->
+        </div>
+      </div>
+
+      <div class="volumes-list" id="volumesList">
+        <div class="loading">
+          <div class="loading-spinner"></div>
+          Загрузка глав...
+        </div>
+      </div>
+    </div>
+
+    <!-- Контейнер заучивания -->
+    <div class="learn-container" id="learnContainer" style="display: none;">
+      <!-- Начальный экран -->
+      <div class="learn-input-section" id="learnInputSection">
+        <h2>🎯 Заучивание слов</h2>
+        <p>Вставьте слова в формате: <strong>перевод — арабский</strong></p>
+        
+        <textarea class="learn-textarea" id="learnTextarea" placeholder="экземпляр, книга — مُصْحَفٌ - مَصَاحِفُ&#10;вода — مَاءٌ&#10;книга — كِتَابٌ - كُتُبٌ"></textarea>
+        
+        <div class="timer-section">
+          <span class="timer-label">⏱️ Интервал между словами</span>
+          <div class="picker-wrapper">
+            <div class="picker-container">
+              <div class="picker-highlight"></div>
+              <div class="picker-scroll" id="pickerScroll">
+                <!-- Элементы 0-60 генерируются JavaScript -->
+              </div>
+            </div>
+            <span class="picker-unit">сек</span>
+          </div>
+        </div>
+        
+        <div class="learn-actions">
+          <button class="learn-btn learn-btn-secondary" onclick="pasteFromClipboard()">
+            📋 Вставить из буфера
+          </button>
+          <button class="learn-btn learn-btn-secondary" onclick="addFromFavorites()" style="background:#fff8e1;border-color:#ffc107;color:#6d5c00">
+            ⭐ Добавить из избранного
+          </button>
+          <button class="learn-btn learn-btn-primary" id="startLearnBtn" onclick="startLearning()">
+            ▶️ Начать заучивание
+          </button>
+        </div>
+      </div>
+
+      <!-- Режим заучивания -->
+      <div class="learn-mode" id="learnModeSection" style="display: none;">
+        <div class="learn-progress-text" id="learnProgressText">Слово 1 из 10</div>
+        <div class="learn-progress-bar">
+          <div class="learn-progress-fill" id="learnProgressFill" style="width: 0%"></div>
+        </div>
+        
+        <div class="circle-timer" id="circleTimer">
+          <svg viewBox="0 0 100 100">
+            <defs>
+              <linearGradient id="timerGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#667eea"/>
+                <stop offset="100%" style="stop-color:#764ba2"/>
+              </linearGradient>
+            </defs>
+            <circle class="circle-timer-bg" cx="50" cy="50" r="45"/>
+            <circle class="circle-timer-progress" id="timerProgress" cx="50" cy="50" r="45" 
+              stroke-dasharray="283" stroke-dashoffset="0"/>
+          </svg>
+          <div class="circle-timer-text" id="timerText">15</div>
+        </div>
+        
+        <div class="word-card" id="wordCard">
+          <div class="word-card-arabic" id="cardArabic">مُصْحَفٌ - مَصَاحِفُ</div>
+          <div class="word-card-translation" id="cardTranslation">экземпляр, книга</div>
+        </div>
+        
+        <div class="learn-controls">
+          <button class="control-btn btn-pause" id="pauseBtn" onclick="togglePause()">
+            ⏸️ Пауза
+          </button>
+          <button class="control-btn btn-next" onclick="nextWord()">
+            ▶️ Далее
+          </button>
+        </div>
+      </div>
+
+      <!-- Режим проверки -->
+      <div class="learn-mode" id="testModeSection" style="display: none;">
+        <div class="learn-progress-text" id="testProgressText">Проверка 1 из 10</div>
+        <div class="learn-progress-bar">
+          <div class="learn-progress-fill" id="testProgressFill" style="width: 0%"></div>
+        </div>
+        
+        <div class="circle-timer" id="testCircleTimer">
+          <svg viewBox="0 0 100 100">
+            <defs>
+              <linearGradient id="timerGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#667eea"/>
+                <stop offset="100%" style="stop-color:#764ba2"/>
+              </linearGradient>
+            </defs>
+            <circle class="circle-timer-bg" cx="50" cy="50" r="45"/>
+            <circle class="circle-timer-progress" id="testTimerProgress" cx="50" cy="50" r="45" 
+              stroke-dasharray="283" stroke-dashoffset="0" style="stroke: url(#timerGradient2)"/>
+          </svg>
+          <div class="circle-timer-text" id="testTimerText">15</div>
+        </div>
+        
+        <div class="word-card word-card-hidden" id="testWordCard">
+          <button class="show-translation-btn" id="showTranslationBtn" onclick="toggleTranslation()" title="Показать перевод">
+            👁️
+          </button>
+          <div class="word-card-arabic" id="testCardArabic">مُصْحَفٌ - مَصَاحِفُ</div>
+          <div class="word-card-translation" id="testCardTranslation">экземпляр, книга</div>
+        </div>
+        
+        <div class="learn-controls">
+          <button class="control-btn btn-pause" id="testPauseBtn" onclick="toggleTestPause()">
+            ⏸️ Пауза
+          </button>
+          <button class="control-btn btn-forgot" onclick="markForgot()">
+            ✗ Я забыл
+          </button>
+          <button class="control-btn btn-know" onclick="markKnow()">
+            ✓ Я знаю
+          </button>
+          <button class="control-btn btn-later" onclick="exitLearnLater()">
+            ⏰ Продолжить потом
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальные окна -->
+  <div class="modal-overlay" id="modalOverlay" style="display: none;">
+    <div class="modal-content" id="modalContent">
+      <!-- Контент модального окна динамически -->
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Скопировано!</div>
+
+  <script>
+    let allWordsText = '';
+    let allWords = [];
+    let currentTab = 'all';
+    let selectedWords = new Set(); // Выбранные слова для копирования
+
+    // ========== ПО ГЛАВАМ - Переменные ==========
+    let chaptersData = null;
+    let currentChapterWords = [];
+    let currentChapterTitle = '';
+
+    // ========== ЗАУЧИВАНИЕ - Переменные ==========
+    let learnWords = [];           // Слова для заучивания [{arabic: '...', translation: '...'}, ...]
+    let currentWordIndex = 0;      // Текущий индекс слова
+    let selectedTime = 15;         // Выбранное время (сек)
+    let timerInterval = null;      // Интервал таймера
+    let timeLeft = 15;             // Оставшееся время
+    let isPaused = false;          // Флаг паузы
+    let learnMode = 'learn';       // Режим: 'learn' или 'test'
+    let forgottenWords = [];       // Забытые слова
+    let knownCount = 0;            // Счётчик "знаю"
+    let forgotCount = 0;           // Счётчик "забыл"
+    const TIMER_STORAGE_KEY = 'arabTimerSeconds';
+    const SESSION_STORAGE_KEY = 'arabLearnSession';
+    let audioContext = null;
+    let skipSessionCheck = false;  // Флаг для пропуска проверки сессии при переходе из resumeSession
+
+    // Получить или создать AudioContext
+    function getAudioContext() {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      return audioContext;
+    }
+
+    // Активировать AudioContext (нужно вызвать при взаимодействии пользователя)
+    function unlockAudio() {
+      const ctx = getAudioContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      // Воспроизвести тихий звук для разблокировки на iOS
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      gainNode.gain.value = 0.001; // Почти беззвучно
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.01);
+    }
+
+    // Звук окончания таймера (Успех - восходящая мелодия)
+    function playTimerSound() {
+      try {
+        const ctx = getAudioContext();
+        
+        // Убедиться что контекст активен
+        if (ctx.state === 'suspended') {
+          ctx.resume();
+        }
+        
+        const notes = [392, 494, 587, 784]; // G4, B4, D5, G5
+        
+        notes.forEach((freq, i) => {
+          const oscillator = ctx.createOscillator();
+          const gainNode = ctx.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(ctx.destination);
+          
+          oscillator.frequency.value = freq;
+          oscillator.type = 'sine';
+          
+          const startTime = ctx.currentTime + i * 0.1;
+          gainNode.gain.setValueAtTime(0.2, startTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.25);
+          
+          oscillator.start(startTime);
+          oscillator.stop(startTime + 0.25);
+        });
+      } catch (e) {
+        console.warn('Не удалось воспроизвести звук:', e);
+      }
+    }
+
+    // Показать уведомление
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2000);
+    }
+
+    // ========== ПО ГЛАВАМ - Функции ==========
+
+    // Загрузка и парсинг chapters.txt
+    async function loadChapters() {
+      const volumesList = document.getElementById('volumesList');
+      
+      try {
+        const response = await fetch('chapters.txt');
+        if (!response.ok) throw new Error('Файл chapters.txt не найден');
+        
+        const text = await response.text();
+        chaptersData = parseChaptersTxt(text);
+        
+        renderVolumes();
+      } catch (error) {
+        console.error('Ошибка загрузки глав:', error);
+        volumesList.innerHTML = '<div class="error">❌ Не удалось загрузить список глав</div>';
+      }
+    }
+
+    // Парсинг chapters.txt
+    function parseChaptersTxt(text) {
+      const lines = text.split('\n');
+      const result = { томы: [] };
+      
+      let currentTom = null;
+      let currentGlava = null;
+      
+      for (const line of lines) {
+        const trimmed = line.trim();
+        
+        if (!trimmed) continue; // Пропускаем пустые строки
+        
+        // Том: начинается с "# ТОМ"
+        if (trimmed.startsWith('# ТОМ')) {
+          const tomNumber = parseInt(trimmed.match(/\d+/)[0]);
+          currentTom = {
+            id: `том${tomNumber}`,
+            название: `Том ${tomNumber}`,
+            иконка: ['📕', '📗', '📘', '📙'][tomNumber - 1] || '📕',
+            главы: []
+          };
+          result.томы.push(currentTom);
+          currentGlava = null;
+        }
+        // Глава: начинается с "## ГЛАВА"
+        else if (trimmed.startsWith('## ГЛАВА')) {
+          const glavaNumber = parseInt(trimmed.match(/\d+/)[0]);
+          currentGlava = {
+            номер: glavaNumber,
+            название: `Глава ${glavaNumber}`,
+            слова: []
+          };
+          if (currentTom) {
+            currentTom.главы.push(currentGlava);
+          }
+        }
+        // Слово: содержит любое тире (-, –, —)
+        else if (/[-–—]/.test(trimmed) && currentGlava) {
+          currentGlava.слова.push(trimmed);
+        }
+      }
+      
+      return result;
+    }
+
+    // Отрисовка томов
+    function renderVolumes() {
+      const volumesList = document.getElementById('volumesList');
+      
+      if (!chaptersData || chaptersData.томы.length === 0) {
+        volumesList.innerHTML = '<div class="empty-state"><div class="icon">📚</div><p>Нет данных о главах</p></div>';
+        return;
+      }
+      
+      let html = '';
+      
+      chaptersData.томы.forEach((том, volumeIndex) => {
+        html += `
+          <div class="volume-item" id="volume-${том.id}">
+            <div class="volume-header" onclick="toggleVolume('${том.id}')">
+              <span>${том.иконка} ${том.название}</span>
+              <span class="volume-arrow">▶</span>
+            </div>
+            <div class="chapters-list" id="chapters-${том.id}">
+        `;
+        
+        том.главы.forEach((глава, chapterIndex) => {
+          const count = глава.слова.length;
+          html += `
+            <div class="chapter-item" id="chapter-${том.id}-${глава.номер}" 
+                 onclick="showChapterWords('${том.id}', ${глава.номер})">
+              <span>${глава.название}</span>
+              <span class="chapter-word-count">${count} слов</span>
+            </div>
+          `;
+        });
+        
+        html += `
+            </div>
+          </div>
+        `;
+      });
+      
+      volumesList.innerHTML = html;
+    }
+
+    // Переключить раскрытие тома
+    function toggleVolume(volumeId) {
+      const volumeItem = document.getElementById(`volume-${volumeId}`);
+      volumeItem.classList.toggle('expanded');
+    }
+
+    // Показать слова главы
+    function showChapterWords(volumeId, chapterNumber) {
+      // Найти нужную главу
+      const том = chaptersData.томы.find(t => t.id === volumeId);
+      if (!том) return;
+      
+      const глава = том.главы.find(г => г.номер === chapterNumber);
+      if (!глава) return;
+      
+      // Сохранить текущие слова
+      currentChapterWords = глава.слова;
+      currentChapterTitle = `${глава.название} - ${том.название}`;
+      
+      // Обновить заголовок
+      document.getElementById('chapterWordsTitle').textContent = currentChapterTitle;
+      
+      // Убрать active со всех глав
+      document.querySelectorAll('.chapter-item').forEach(item => {
+        item.classList.remove('active');
+      });
+      
+      // Добавить active к текущей главе
+      document.getElementById(`chapter-${volumeId}-${chapterNumber}`).classList.add('active');
+      
+      // Показать секцию слов
+      document.getElementById('chapterWordsSection').style.display = 'block';
+      
+      // Отрендерить слова
+      renderChapterWords(глава.слова);
+      
+      // Плавная прокрутка к словам (теперь сверху)
+      setTimeout(() => {
+        document.getElementById('chapterWordsSection').scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+      }, 100);
+    }
+
+    // Закрыть секцию слов главы
+    function closeChapterWords() {
+      document.getElementById('chapterWordsSection').style.display = 'none';
+      document.querySelectorAll('.chapter-item').forEach(item => {
+        item.classList.remove('active');
+      });
+      currentChapterWords = [];
+      currentChapterTitle = '';
+      selectedWords.clear();
+      updateSelectionBar();
+    }
+
+    // Отрисовка слов главы
+    function renderChapterWords(words) {
+      const container = document.getElementById('chapterWordsContainer');
+      
+      // Очистить выбор
+      selectedWords.clear();
+      updateSelectionBar();
+      
+      if (words.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="icon">📝</div><p>Нет слов в этой главе</p></div>';
+        return;
+      }
+      
+      let html = '';
+      words.forEach((word) => {
+        const cleanWord = word.trim();
+        if (cleanWord) {
+          const isFav = isFavorite(cleanWord);
+          const isSelected = selectedWords.has(cleanWord);
+          html += `
+            <div class="word-item ${isSelected ? 'selected' : ''}" data-text="${escapeHtml(cleanWord).replace(/"/g, '&quot;')}">
+              <div class="select-circle ${isSelected ? 'selected' : ''}" onclick="toggleWordSelection(event, this)"></div>
+              <span class="word-text">${escapeHtml(cleanWord)}</span>
+              <div class="word-actions">
+                <button class="star-btn ${isFav ? 'active' : ''}" onclick="toggleStar(event, this)" title="${isFav ? 'Убрать из избранного' : 'В избранное'}">
+                  ${isFav ? '⭐' : '☆'}
+                </button>
+                <span class="copy-icon" onclick="copyWord(event, this.parentElement.parentElement)">📋</span>
+              </div>
+            </div>
+          `;
+        }
+      });
+      
+      container.innerHTML = html;
+    }
+
+    // Копировать все слова главы
+    async function copyChapterWords() {
+      if (currentChapterWords.length === 0) return;
+      
+      const text = currentChapterWords.join('\n');
+      await copyText(text);
+      showToast(`Скопировано ${currentChapterWords.length} слов из главы!`);
+    }
+
+    // Копировать текст
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (e) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        return true;
+      }
+    }
+
+    // Экранирование HTML
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Сохранить/загрузить выбранный таймер
+    function saveTimerPreference(seconds) {
+      try {
+        localStorage.setItem(TIMER_STORAGE_KEY, String(seconds));
+      } catch (e) {
+        console.warn('Не удалось сохранить таймер', e);
+      }
+    }
+
+    function loadTimerPreference() {
+      try {
+        const saved = localStorage.getItem(TIMER_STORAGE_KEY);
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed)) {
+          return Math.max(1, Math.min(60, parsed));
+        }
+      } catch (e) {
+        console.warn('Не удалось загрузить таймер', e);
+      }
+      return 15;
+    }
+
+    // ========== СОХРАНЕНИЕ ПРОГРЕССА ==========
+    
+    function saveSession() {
+      if (learnWords.length === 0) return;
+      
+      try {
+        const sessionData = {
+          learnWords: learnWords,
+          currentWordIndex: currentWordIndex,
+          learnMode: learnMode,
+          forgottenWords: forgottenWords,
+          knownCount: knownCount,
+          forgotCount: forgotCount,
+          selectedTime: selectedTime,
+          textareaContent: document.getElementById('learnTextarea')?.value || '',
+          timestamp: Date.now()
+        };
+        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionData));
+      } catch (e) {
+        console.warn('Не удалось сохранить сессию', e);
+      }
+    }
+
+    function loadSession() {
+      try {
+        const saved = localStorage.getItem(SESSION_STORAGE_KEY);
+        if (saved) {
+          return JSON.parse(saved);
+        }
+      } catch (e) {
+        console.warn('Не удалось загрузить сессию', e);
+      }
+      return null;
+    }
+
+    function clearSession() {
+      try {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+      } catch (e) {
+        console.warn('Не удалось очистить сессию', e);
+      }
+    }
+
+    // Проверить сохранённую сессию при загрузке страницы
+    function checkSavedSession() {
+      const session = loadSession();
+      if (session && session.learnWords && session.learnWords.length > 0) {
+        showResumeModal(session, true); // true = показать кнопку "Продолжить позже"
+      }
+    }
+
+    // Проверить сохранённую сессию при входе в заучивание
+    function checkSavedSessionOnLearnTab() {
+      const session = loadSession();
+      if (session && session.learnWords && session.learnWords.length > 0) {
+        showResumeModal(session, true);
+      }
+    }
+
+    function showResumeModal(session, showPostponeButton) {
+      const overlay = document.getElementById('modalOverlay');
+      const content = document.getElementById('modalContent');
+      
+      const modeText = session.learnMode === 'learn' ? 'заучивание' : 'проверка';
+      const progressText = `${session.currentWordIndex + 1} из ${session.learnWords.length}`;
+      
+      const postponeButtonHtml = showPostponeButton 
+        ? `<button class="modal-btn modal-btn-secondary" onclick="postponeSession()">
+            ⏰ Продолжить позже
+          </button>`
+        : '';
+      
+      content.innerHTML = `
+        <div class="modal-icon">📚</div>
+        <div class="modal-title">Продолжить сессию?</div>
+        <div class="modal-text">
+          Найдена незавершённая сессия:<br>
+          <strong>${modeText}</strong> — слово ${progressText}
+        </div>
+        <div class="modal-buttons">
+          <button class="modal-btn modal-btn-primary" onclick="resumeSession()">
+            ▶️ Продолжить
+          </button>
+          <button class="modal-btn modal-btn-danger" onclick="startFresh()">
+            🔄 Начать заново
+          </button>
+          ${postponeButtonHtml}
+        </div>
+      `;
+      overlay.style.display = 'flex';
+    }
+
+    // Отложить сессию — просто закрыть окно, сессия остаётся в localStorage
+    function postponeSession() {
+      closeModal();
+    }
+
+    function resumeSession() {
+      const session = loadSession();
+      if (!session) {
+        closeModal();
+        return;
+      }
+      
+      // Восстанавливаем состояние
+      learnWords = session.learnWords;
+      currentWordIndex = session.currentWordIndex;
+      learnMode = session.learnMode;
+      forgottenWords = session.forgottenWords || [];
+      knownCount = session.knownCount || 0;
+      forgotCount = session.forgotCount || 0;
+      selectedTime = session.selectedTime || 15;
+      isPaused = false;
+      
+      // Восстанавливаем текст в textarea
+      if (session.textareaContent) {
+        document.getElementById('learnTextarea').value = session.textareaContent;
+      }
+      
+      closeModal();
+      
+      // Активируем звук
+      unlockAudio();
+      
+      // Устанавливаем флаг чтобы не показывать модальное окно повторно
+      skipSessionCheck = true;
+      
+      // Переключаемся на вкладку заучивания
+      showTab('learn');
+      
+      // Показываем нужный режим
+      document.getElementById('learnInputSection').style.display = 'none';
+      
+      if (learnMode === 'learn') {
+        document.getElementById('learnModeSection').style.display = 'block';
+        document.getElementById('testModeSection').style.display = 'none';
+        showCurrentWord();
+      } else {
+        document.getElementById('learnModeSection').style.display = 'none';
+        document.getElementById('testModeSection').style.display = 'block';
+        showTestWord();
+      }
+      
+      startTimer();
+    }
+
+    function startFresh() {
+      clearSession();
+      closeModal();
+      showTab('learn');
+    }
+
+    function highlightPickerValue(value) {
+      const picker = document.getElementById('pickerScroll');
+      if (!picker) return;
+      picker.querySelectorAll('.picker-item').forEach(el => {
+        el.classList.toggle('selected', parseInt(el.dataset.value, 10) === value);
+      });
+    }
+
+    // Переключение табов
+    function showTab(tab) {
+      currentTab = tab;
+      
+      document.getElementById('tabAll').classList.toggle('active', tab === 'all');
+      document.getElementById('tabFavorites').classList.toggle('active', tab === 'favorites');
+      document.getElementById('tabChapters').classList.toggle('active', tab === 'chapters');
+      document.getElementById('tabLearn').classList.toggle('active', tab === 'learn');
+      
+      // Показать/скрыть контейнеры
+      document.getElementById('wordsContainer').style.display = (tab === 'all' || tab === 'favorites') ? 'block' : 'none';
+      document.getElementById('chaptersContainer').style.display = tab === 'chapters' ? 'block' : 'none';
+      document.getElementById('learnContainer').style.display = tab === 'learn' ? 'block' : 'none';
+      
+      // Скрыть header-info на вкладках заучивания и глав
+      document.querySelector('.header-info').style.display = (tab === 'learn' || tab === 'chapters') ? 'none' : 'flex';
+      
+      // При переходе на другую вкладку — сброс заучивания (но не localStorage)
+      if (tab !== 'learn') {
+        resetLearning();
+      }
+      
+      // При переходе на вкладку заучивания — проверить сохранённую сессию (без кнопки "позже")
+      // Но только если не пришли из resumeSession (где уже выбрали "Продолжить")
+      if (tab === 'learn') {
+        if (skipSessionCheck) {
+          skipSessionCheck = false; // Сбрасываем флаг
+        } else {
+          checkSavedSessionOnLearnTab();
+        }
+      }
+      
+      // При переходе на вкладку глав - загрузить данные
+      if (tab === 'chapters' && !chaptersData) {
+        loadChapters();
+      }
+      
+      if (tab === 'all' || tab === 'favorites') {
+        // Очищаем выбор при переключении вкладок
+        selectedWords.clear();
+        updateSelectionBar();
+        renderWords();
+        updateCounts();
+      }
+    }
+
+    // Обновить счётчики
+    function updateCounts() {
+      document.getElementById('allCount').textContent = allWords.length;
+      document.getElementById('favCount').textContent = getFavoritesCount();
+      
+      if (currentTab === 'all') {
+        document.getElementById('wordCount').textContent = `${allWords.length} слов`;
+      } else {
+        document.getElementById('wordCount').textContent = `${getFavoritesCount()} избранных`;
+      }
+    }
+
+    // Отрисовка слов
+    function renderWords() {
+      const container = document.getElementById('wordsContainer');
+      let wordsToShow = currentTab === 'all' ? allWords : getFavorites();
+      
+      if (wordsToShow.length === 0) {
+        if (currentTab === 'favorites') {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="icon">⭐</div>
+              <p>Нет избранных слов</p>
+              <p style="font-size: 14px; margin-top: 8px;">Добавляйте слова в избранное из тренажеров</p>
+            </div>
+          `;
+        } else {
+          container.innerHTML = '<div class="error">Нет слов для отображения</div>';
+        }
+        return;
+      }
+
+      let html = '';
+      wordsToShow.forEach((line) => {
+        const cleanLine = typeof line === 'string' ? line.trim() : line;
+        if (cleanLine) {
+          const isFav = isFavorite(cleanLine);
+          const isSelected = selectedWords.has(cleanLine);
+          html += `
+            <div class="word-item ${isSelected ? 'selected' : ''}" data-text="${escapeHtml(cleanLine).replace(/"/g, '&quot;')}">
+              <div class="select-circle ${isSelected ? 'selected' : ''}" onclick="toggleWordSelection(event, this)"></div>
+              <span class="word-text">${escapeHtml(cleanLine)}</span>
+              <div class="word-actions">
+                <button class="star-btn ${isFav ? 'active' : ''}" onclick="toggleStar(event, this)" title="${isFav ? 'Убрать из избранного' : 'В избранное'}">
+                  ${isFav ? '⭐' : '☆'}
+                </button>
+                <span class="copy-icon" onclick="copyWord(event, this.parentElement.parentElement)">📋</span>
+              </div>
+            </div>
+          `;
+        }
+      });
+
+      container.innerHTML = html;
+      updateSelectionBar();
+    }
+
+    // Переключить избранное
+    function toggleStar(event, btn) {
+      event.stopPropagation();
+      const wordItem = btn.closest('.word-item');
+      const text = wordItem.getAttribute('data-text');
+      
+      const isNowFavorite = toggleFavorite(text);
+      
+      btn.classList.toggle('active', isNowFavorite);
+      btn.innerHTML = isNowFavorite ? '⭐' : '☆';
+      btn.title = isNowFavorite ? 'Убрать из избранного' : 'В избранное';
+      
+      showToast(isNowFavorite ? 'Добавлено в избранное' : 'Удалено из избранного');
+      
+      // Если мы в табе избранного и удалили слово - перерисовать
+      if (currentTab === 'favorites' && !isNowFavorite) {
+        setTimeout(() => renderWords(), 300);
+      }
+      
+      updateCounts();
+    }
+
+    // Переключить выбор слова
+    function toggleWordSelection(event, circle) {
+      event.stopPropagation();
+      const wordItem = circle.closest('.word-item');
+      const text = wordItem.getAttribute('data-text');
+      
+      if (selectedWords.has(text)) {
+        selectedWords.delete(text);
+        circle.classList.remove('selected');
+        wordItem.classList.remove('selected');
+      } else {
+        selectedWords.add(text);
+        circle.classList.add('selected');
+        wordItem.classList.add('selected');
+      }
+      
+      updateSelectionBar();
+    }
+
+    // Обновить панель выбранных
+    function updateSelectionBar() {
+      const bar = document.getElementById('selectionBar');
+      const info = document.getElementById('selectionInfo');
+      
+      if (selectedWords.size > 0) {
+        bar.classList.add('visible');
+        info.textContent = `Выбрано: ${selectedWords.size}`;
+      } else {
+        bar.classList.remove('visible');
+      }
+    }
+
+    // Копировать выбранные
+    async function copySelected() {
+      if (selectedWords.size === 0) return;
+      
+      const text = Array.from(selectedWords).join('\n');
+      await copyText(text);
+      showToast(`Скопировано ${selectedWords.size} слов!`);
+    }
+
+    // Снять выделение
+    function clearSelection() {
+      selectedWords.clear();
+      updateSelectionBar();
+      renderWords();
+    }
+
+    // Копировать слово
+    async function copyWord(event, element) {
+      event.stopPropagation();
+      const text = element.getAttribute('data-text');
+      await copyText(text);
+      
+      element.classList.add('copied');
+      setTimeout(() => {
+        element.classList.remove('copied');
+      }, 500);
+      
+      showToast('Скопировано!');
+    }
+
+    // Загрузка слов
+    async function loadWords() {
+      const container = document.getElementById('wordsContainer');
+      const copyAllBtn = document.getElementById('copyAllBtn');
+
+      try {
+        const response = await fetch('words.txt');
+        if (!response.ok) throw new Error('Файл не найден');
+        
+        const text = await response.text();
+        allWordsText = text;
+        
+        allWords = text.split('\n').filter(line => line.trim() && !line.trim().startsWith('#'));
+        
+        copyAllBtn.disabled = false;
+        
+        renderWords();
+        updateCounts();
+
+      } catch (error) {
+        console.error('Ошибка загрузки:', error);
+        container.innerHTML = '<div class="error">❌ Не удалось загрузить список слов</div>';
+        document.getElementById('wordCount').textContent = 'Ошибка';
+      }
+    }
+
+    // Копировать всё
+    document.getElementById('copyAllBtn').addEventListener('click', async () => {
+      let textToCopy;
+      if (currentTab === 'all') {
+        textToCopy = allWordsText;
+      } else {
+        textToCopy = getFavoritesAsText();
+      }
+      
+      if (textToCopy) {
+        await copyText(textToCopy);
+        showToast(currentTab === 'all' ? 'Весь список скопирован!' : 'Избранное скопировано!');
+      }
+    });
+
+    // Очистить избранное
+    document.getElementById('clearFavBtn').addEventListener('click', () => {
+      localStorage.removeItem('arabFavorites');
+      window.dispatchEvent(new CustomEvent('favoritesChanged', { detail: { action: 'clear' } }));
+      showToast('Избранное очищено');
+      if (currentTab === 'favorites') {
+        renderWords();
+      }
+      updateCounts();
+    });
+
+    // Слушаем изменения избранного
+    window.addEventListener('favoritesChanged', () => {
+      if (currentTab === 'favorites') {
+        renderWords();
+      }
+      updateCounts();
+    });
+
+    // Клик на строку - копировать (но не на кружочек, звезду или иконку копирования)
+    document.getElementById('wordsContainer').addEventListener('click', async (e) => {
+      const wordItem = e.target.closest('.word-item');
+      if (wordItem && !e.target.closest('.star-btn') && !e.target.closest('.copy-icon') && !e.target.closest('.select-circle')) {
+        const text = wordItem.getAttribute('data-text');
+        await copyText(text);
+        wordItem.classList.add('copied');
+        setTimeout(() => wordItem.classList.remove('copied'), 500);
+        showToast('Скопировано!');
+      }
+    });
+
+    // Клик на строку в контейнере глав - копировать
+    document.addEventListener('click', async (e) => {
+      const chapterWordsContainer = document.getElementById('chapterWordsContainer');
+      if (!chapterWordsContainer.contains(e.target)) return;
+      
+      const wordItem = e.target.closest('.word-item');
+      if (wordItem && !e.target.closest('.star-btn') && !e.target.closest('.copy-icon') && !e.target.closest('.select-circle')) {
+        const text = wordItem.getAttribute('data-text');
+        await copyText(text);
+        wordItem.classList.add('copied');
+        setTimeout(() => wordItem.classList.remove('copied'), 500);
+        showToast('Скопировано!');
+      }
+    });
+
+    // Загружаем при старте
+    loadWords();
+
+    // ========== ЗАУЧИВАНИЕ - Функции ==========
+
+    // Парсинг слов из текста
+    function parseWords(text) {
+      const lines = text.split('\n').filter(line => line.trim());
+      const parsed = [];
+      
+      for (const line of lines) {
+        // Разделяем по любому тире: -, –, —
+        const parts = line.split(/\s*[-–—]\s*/);
+        
+        if (parts.length >= 2) {
+          // Первая часть - перевод, остальное - арабский
+          const translation = parts[0].trim();
+          const arabic = parts.slice(1).join(' - ').trim();
+          
+          if (translation && arabic) {
+            parsed.push({ translation, arabic });
+          }
+        }
+      }
+      
+      return parsed;
+    }
+
+    // Вставить из буфера обмена
+    async function pasteFromClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();
+        document.getElementById('learnTextarea').value = text;
+        showToast('Вставлено из буфера!');
+      } catch (e) {
+        showToast('Не удалось получить доступ к буферу');
+      }
+    }
+
+    // Добавить слова из избранного
+    function addFromFavorites() {
+      const favorites = getFavorites();
+      if (!favorites || favorites.length === 0) {
+        showToast('Избранное пусто');
+        return;
+      }
+      
+      const textarea = document.getElementById('learnTextarea');
+      const currentText = textarea.value.trim();
+      const favoritesText = favorites.join('\n');
+      
+      // Если textarea пустой - просто вставляем, иначе добавляем с новой строки
+      if (currentText) {
+        textarea.value = currentText + '\n' + favoritesText;
+      } else {
+        textarea.value = favoritesText;
+      }
+      
+      showToast(`Добавлено ${favorites.length} слов из избранного!`);
+    }
+
+    // Инициализация scroll-picker
+    function initPicker() {
+      const picker = document.getElementById('pickerScroll');
+      picker.innerHTML = '';
+      const savedTime = loadTimerPreference();
+      selectedTime = savedTime;
+      
+      // Создаём элементы 1-60
+      for (let i = 1; i <= 60; i++) {
+        const item = document.createElement('div');
+        item.className = 'picker-item';
+        item.dataset.value = i;
+        item.textContent = i;
+        item.addEventListener('click', () => {
+          setTime(i);
+        });
+        picker.appendChild(item);
+      }
+      
+      // IntersectionObserver для определения центрального элемента
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+            const value = parseInt(entry.target.dataset.value);
+            if (value !== selectedTime) {
+              selectedTime = value;
+              // Обновить стили
+              picker.querySelectorAll('.picker-item').forEach(item => {
+                item.classList.toggle('selected', parseInt(item.dataset.value) === value);
+              });
+              saveTimerPreference(selectedTime);
+            }
+          }
+        });
+      }, {
+        root: picker,
+        rootMargin: '-50px 0px -50px 0px',
+        threshold: 0.5
+      });
+      
+      // Наблюдаем за всеми элементами
+      picker.querySelectorAll('.picker-item').forEach(item => {
+        observer.observe(item);
+      });
+      
+      // Прокрутить к начальному значению (15)
+      setTimeout(() => {
+        setTime(savedTime);
+      }, 50);
+    }
+
+    // Установить время и прокрутить к нему
+    function setTime(seconds) {
+      seconds = Math.max(1, Math.min(60, seconds));
+      selectedTime = seconds;
+      saveTimerPreference(seconds);
+      
+      const picker = document.getElementById('pickerScroll');
+      const item = picker.querySelector(`[data-value="${seconds}"]`);
+      if (item) {
+        item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Обновить стили
+        picker.querySelectorAll('.picker-item').forEach(el => {
+          el.classList.toggle('selected', parseInt(el.dataset.value) === seconds);
+        });
+      }
+    }
+
+    // Определить текущее выбранное значение по центру пикера
+    function getPickerSelectedValue() {
+      const picker = document.getElementById('pickerScroll');
+      if (!picker) return selectedTime;
+      
+      const rect = picker.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const element = document.elementFromPoint(centerX, centerY);
+      
+      if (element && element.classList.contains('picker-item')) {
+        const value = parseInt(element.dataset.value, 10);
+        if (!isNaN(value)) return value;
+      }
+      
+      const selectedEl = picker.querySelector('.picker-item.selected');
+      if (selectedEl) {
+        const value = parseInt(selectedEl.dataset.value, 10);
+        if (!isNaN(value)) return value;
+      }
+      
+      return selectedTime;
+    }
+
+    // Начать заучивание
+    function startLearning() {
+      const text = document.getElementById('learnTextarea').value;
+      learnWords = parseWords(text);
+      
+      if (learnWords.length === 0) {
+        showToast('Введите слова для заучивания');
+        return;
+      }
+      
+      // Активировать звук при нажатии кнопки (важно для iOS/Android)
+      unlockAudio();
+      
+      // ВАЖНО: Получаем значение таймера ДО скрытия picker!
+      let currentValue = getPickerSelectedValue();
+      if (isNaN(currentValue)) currentValue = selectedTime;
+      currentValue = Math.max(1, Math.min(60, currentValue));
+      selectedTime = currentValue;
+      saveTimerPreference(selectedTime);
+      
+      currentWordIndex = 0;
+      learnMode = 'learn';
+      isPaused = false;
+      
+      // Показать режим заучивания (после получения значения таймера)
+      document.getElementById('learnInputSection').style.display = 'none';
+      document.getElementById('learnModeSection').style.display = 'block';
+      document.getElementById('testModeSection').style.display = 'none';
+      
+      showCurrentWord();
+      startTimer();
+      saveSession();
+    }
+
+    // Показать текущее слово (режим заучивания)
+    function showCurrentWord() {
+      if (currentWordIndex >= learnWords.length) {
+        finishLearning();
+        return;
+      }
+      
+      const word = learnWords[currentWordIndex];
+      document.getElementById('cardArabic').textContent = word.arabic;
+      document.getElementById('cardTranslation').textContent = word.translation;
+      
+      // Обновить прогресс
+      const progress = ((currentWordIndex + 1) / learnWords.length) * 100;
+      document.getElementById('learnProgressFill').style.width = progress + '%';
+      document.getElementById('learnProgressText').textContent = 
+        `Слово ${currentWordIndex + 1} из ${learnWords.length}`;
+      
+      // Анимация карточки
+      const card = document.getElementById('wordCard');
+      card.style.animation = 'none';
+      card.offsetHeight; // Trigger reflow
+      card.style.animation = 'fadeIn 0.4s ease';
+    }
+
+    // Запустить таймер
+    function startTimer() {
+      // Используем уже установленный selectedTime (он должен быть задан до вызова этой функции)
+      timeLeft = selectedTime;
+      updateTimerDisplay();
+      
+      if (timerInterval) clearInterval(timerInterval);
+      
+      timerInterval = setInterval(() => {
+        if (!isPaused) {
+          timeLeft--;
+          updateTimerDisplay();
+          
+          if (timeLeft <= 0) {
+            playTimerSound();
+            if (learnMode === 'learn') {
+              nextWord();
+            } else {
+              nextTestWord();
+            }
+          }
+        }
+      }, 1000);
+    }
+
+    // Обновить отображение таймера
+    function updateTimerDisplay() {
+      const progressId = learnMode === 'learn' ? 'timerProgress' : 'testTimerProgress';
+      const textId = learnMode === 'learn' ? 'timerText' : 'testTimerText';
+      
+      document.getElementById(textId).textContent = timeLeft;
+      
+      // Обновить круговой прогресс
+      const circumference = 2 * Math.PI * 45; // r=45
+      const ratio = selectedTime > 0 ? (1 - timeLeft / selectedTime) : 0;
+      const offset = circumference * Math.min(Math.max(ratio, 0), 1);
+      document.getElementById(progressId).style.strokeDashoffset = offset;
+    }
+
+    // Следующее слово (заучивание)
+    function nextWord() {
+      currentWordIndex++;
+      saveSession();
+      
+      if (currentWordIndex >= learnWords.length) {
+        finishLearning();
+      } else {
+        showCurrentWord();
+        // Перезапускаем таймер с учётом актуального выбранного значения
+        startTimer();
+      }
+    }
+
+    // Пауза/продолжить
+    function togglePause() {
+      isPaused = !isPaused;
+      const btn = document.getElementById('pauseBtn');
+      btn.innerHTML = isPaused ? '▶️ Продолжить' : '⏸️ Пауза';
+      saveSession();
+    }
+
+    // Завершить заучивание
+    function finishLearning() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      
+      showModal('learnFinished');
+    }
+
+    // ========== РЕЖИМ ПРОВЕРКИ ==========
+
+    // Начать проверку
+    function startTest(words = null) {
+      if (words) {
+        learnWords = words;
+      }
+      
+      // Активировать звук (важно для iOS/Android)
+      unlockAudio();
+      
+      currentWordIndex = 0;
+      learnMode = 'test';
+      isPaused = false;
+      forgottenWords = [];
+      knownCount = 0;
+      forgotCount = 0;
+      
+      // Показать режим проверки
+      document.getElementById('learnInputSection').style.display = 'none';
+      document.getElementById('learnModeSection').style.display = 'none';
+      document.getElementById('testModeSection').style.display = 'block';
+      
+      showTestWord();
+      startTimer();
+      saveSession();
+    }
+
+    // Показать текущее слово (режим проверки)
+    function showTestWord() {
+      if (currentWordIndex >= learnWords.length) {
+        finishTest();
+        return;
+      }
+      
+      const word = learnWords[currentWordIndex];
+      document.getElementById('testCardArabic').textContent = word.arabic;
+      document.getElementById('testCardTranslation').textContent = word.translation;
+      
+      // Сбросить состояние показа перевода (скрыть перевод)
+      resetTranslationButton();
+      
+      // Обновить прогресс
+      const progress = ((currentWordIndex + 1) / learnWords.length) * 100;
+      document.getElementById('testProgressFill').style.width = progress + '%';
+      document.getElementById('testProgressText').textContent = 
+        `Проверка ${currentWordIndex + 1} из ${learnWords.length}`;
+      
+      // Анимация карточки
+      const card = document.getElementById('testWordCard');
+      card.style.animation = 'none';
+      card.offsetHeight;
+      card.style.animation = 'fadeIn 0.4s ease';
+    }
+
+    // Пауза в тесте
+    function toggleTestPause() {
+      isPaused = !isPaused;
+      const btn = document.getElementById('testPauseBtn');
+      btn.innerHTML = isPaused ? '▶️ Продолжить' : '⏸️ Пауза';
+      saveSession();
+    }
+
+    // Показать/скрыть перевод в режиме проверки
+    function toggleTranslation() {
+      const card = document.getElementById('testWordCard');
+      const btn = document.getElementById('showTranslationBtn');
+      
+      if (card.classList.contains('word-card-hidden')) {
+        card.classList.remove('word-card-hidden');
+        btn.classList.add('active');
+        btn.title = 'Скрыть перевод';
+      } else {
+        card.classList.add('word-card-hidden');
+        btn.classList.remove('active');
+        btn.title = 'Показать перевод';
+      }
+    }
+
+    // Сбросить состояние кнопки показа перевода
+    function resetTranslationButton() {
+      const card = document.getElementById('testWordCard');
+      const btn = document.getElementById('showTranslationBtn');
+      card.classList.add('word-card-hidden');
+      btn.classList.remove('active');
+      btn.title = 'Показать перевод';
+    }
+
+    // Я знаю
+    function markKnow() {
+      knownCount++;
+      nextTestWord();
+    }
+
+    // Я забыл
+    function markForgot() {
+      forgotCount++;
+      forgottenWords.push(learnWords[currentWordIndex]);
+      nextTestWord();
+    }
+
+    // Следующее слово (проверка)
+    function nextTestWord() {
+      currentWordIndex++;
+      saveSession();
+      
+      if (currentWordIndex >= learnWords.length) {
+        finishTest();
+      } else {
+        showTestWord();
+        // Перезапускаем таймер
+        startTimer();
+      }
+    }
+
+    // Завершить проверку
+    function finishTest() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      
+      showModal('testFinished');
+    }
+
+    // ========== МОДАЛЬНЫЕ ОКНА ==========
+
+    function showModal(type) {
+      const overlay = document.getElementById('modalOverlay');
+      const content = document.getElementById('modalContent');
+      
+      let html = '';
+      
+      if (type === 'learnFinished') {
+        html = `
+          <div class="modal-icon">🎉</div>
+          <div class="modal-title">Заучивание завершено!</div>
+          <div class="modal-text">Вы просмотрели все ${learnWords.length} слов</div>
+          <div class="modal-buttons">
+            <button class="modal-btn modal-btn-primary" onclick="showRepeatOptions()">
+              🔄 Повторить заучивание
+            </button>
+            <button class="modal-btn modal-btn-secondary" onclick="closeModalAndStartTest()">
+              ✅ Проверить заученное
+            </button>
+            <button class="modal-btn modal-btn-danger" onclick="closeModalAndReset()">
+              ❌ Не проверять
+            </button>
+          </div>
+        `;
+      } else if (type === 'repeatOptions') {
+        html = `
+          <div class="modal-icon">⏱️</div>
+          <div class="modal-title">Настройка повтора</div>
+          <div class="modal-text">Оставить текущий таймер (${selectedTime} сек) или изменить?</div>
+          <div class="modal-buttons">
+            <button class="modal-btn modal-btn-primary" onclick="repeatWithSameTimer()">
+              ✓ Оставить ${selectedTime} сек
+            </button>
+            <button class="modal-btn modal-btn-secondary" onclick="repeatWithNewTimer()">
+              ⚙️ Изменить таймер
+            </button>
+          </div>
+        `;
+      } else if (type === 'testFinished') {
+        html = `
+          <div class="modal-icon">📊</div>
+          <div class="modal-title">Проверка завершена!</div>
+          <div class="modal-stats">
+            <div class="stat-item">
+              <div class="stat-value green">${knownCount}</div>
+              <div class="stat-label">Знаю</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value red">${forgotCount}</div>
+              <div class="stat-label">Забыл</div>
+            </div>
+          </div>
+          ${forgottenWords.length > 0 ? `
+            <div class="modal-text">Забытые слова будут отправлены на повторное заучивание</div>
+            <div class="modal-buttons">
+              <button class="modal-btn modal-btn-primary" onclick="learnForgottenWords()">
+                📚 Заучить забытые (${forgottenWords.length})
+              </button>
+              <button class="modal-btn modal-btn-danger" onclick="closeModalAndReset()">
+                ❌ Завершить
+              </button>
+            </div>
+          ` : `
+            <div class="modal-text">Отлично! Вы знаете все слова!</div>
+            <div class="modal-buttons">
+              <button class="modal-btn modal-btn-primary" onclick="closeModalAndReset()">
+                ✓ Завершить
+              </button>
+            </div>
+          `}
+        `;
+      }
+      
+      content.innerHTML = html;
+      overlay.style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
+    }
+
+    function showRepeatOptions() {
+      showModal('repeatOptions');
+    }
+
+    function repeatWithSameTimer() {
+      closeModal();
+      unlockAudio();
+      currentWordIndex = 0;
+      learnMode = 'learn';
+      document.getElementById('learnModeSection').style.display = 'block';
+      document.getElementById('testModeSection').style.display = 'none';
+      showCurrentWord();
+      startTimer();
+      saveSession();
+    }
+
+    function repeatWithNewTimer() {
+      closeModal();
+      // Вернуться к начальному экрану для выбора таймера
+      document.getElementById('learnInputSection').style.display = 'block';
+      document.getElementById('learnModeSection').style.display = 'none';
+      document.getElementById('testModeSection').style.display = 'none';
+      // Текст в textarea уже есть
+    }
+
+    function closeModalAndStartTest() {
+      closeModal();
+      startTest();
+    }
+
+    function exitLearnLater() {
+      saveSession();
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      showTab('all');
+    }
+
+    function closeModalAndReset() {
+      closeModal();
+      clearSession();
+      resetLearning();
+    }
+
+    function learnForgottenWords() {
+      closeModal();
+      unlockAudio();
+      learnWords = [...forgottenWords];
+      forgottenWords = [];
+      currentWordIndex = 0;
+      learnMode = 'learn';
+      
+      document.getElementById('learnModeSection').style.display = 'block';
+      document.getElementById('testModeSection').style.display = 'none';
+      
+      showCurrentWord();
+      startTimer();
+      saveSession();
+    }
+
+    // Сброс заучивания
+    function resetLearning() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      
+      learnWords = [];
+      currentWordIndex = 0;
+      forgottenWords = [];
+      knownCount = 0;
+      forgotCount = 0;
+      isPaused = false;
+      
+      document.getElementById('learnInputSection').style.display = 'block';
+      document.getElementById('learnModeSection').style.display = 'none';
+      document.getElementById('testModeSection').style.display = 'none';
+      document.getElementById('learnTextarea').value = '';
+      
+      // Сброс кнопки паузы
+      const pauseBtn = document.getElementById('pauseBtn');
+      if (pauseBtn) pauseBtn.innerHTML = '⏸️ Пауза';
+      const testPauseBtn = document.getElementById('testPauseBtn');
+      if (testPauseBtn) testPauseBtn.innerHTML = '⏸️ Пауза';
+    }
+
+    // Инициализация picker при загрузке
+    initPicker();
+    
+    // Проверяем сохранённую сессию при загрузке страницы
+    checkSavedSession();
+
+    // Приём ошибок из другого тренажёра (simple.html → заучивание)
+    function checkIncomingMistakes() {
+      if (window.location.hash !== '#learn') return;
+      try {
+        const raw = localStorage.getItem('arabLearnMistakes');
+        if (!raw) return;
+        const lines = JSON.parse(raw);
+        if (!Array.isArray(lines) || lines.length === 0) return;
+        localStorage.removeItem('arabLearnMistakes');
+        showTab('learn');
+        document.getElementById('learnTextarea').value = lines.join('\n');
+      } catch (e) {}
+    }
+    checkIncomingMistakes();
+  </script>
+</body>
+</html>

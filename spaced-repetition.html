@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Интервальное повторение - Арабские слова</title>
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="theme.css">
+  <script src="dua.js"></script>
+  <script src="service-worker-register.js"></script>
+  <script src="sidebar-menu.js"></script>
+  <script src="favorites.js"></script>
+  <script src="streak.js"></script>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script>
+    (async function initFirebase() {
+      try {
+        if (!firebase.apps.length) {
+          firebase.initializeApp({
+            apiKey: "AIzaSyC2yC_BlLuP3dEzWUlWe57hhI4CezNZCy0",
+            authDomain: "arab-learning-hub.firebaseapp.com",
+            projectId: "arab-learning-hub",
+            storageBucket: "arab-learning-hub.firebasestorage.app",
+            messagingSenderId: "377334822830",
+            appId: "1:377334822830:web:7cb045a81824741f427a3f"
+          });
+        }
+        window.firestore = firebase.firestore();
+        window.firebaseEnabled = true;
+        window.dispatchEvent(new CustomEvent('firebaseReady'));
+      } catch(e) {
+        console.warn('Firebase init error:', e);
+        window.firebaseEnabled = false;
+      }
+    })();
+  </script>
+  <script src="fsrs.js"></script>
+  <script src="auth.js"></script>
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #f5f7fa; color: #1f2937;
+    min-height: 100vh; display: flex; flex-direction: column;
+  }
+  .dark-theme body { background: #1a1a2e; color: #e0e0e0; }
+
+  /* Stats bar */
+  .stats-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    padding: 8px 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.8rem; color: #fff; gap: 8px;
+    padding-left: 68px;
+  }
+  .stats-bar .stat { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+
+  /* Main card area */
+  .main-area {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    flex: 1; padding: 60px 20px 100px; min-height: 100vh;
+  }
+  .card-container {
+    width: 100%; max-width: 500px; perspective: 1000px;
+  }
+  .flashcard {
+    position: relative; width: 100%;
+    background: #fff; border-radius: 20px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    padding: 40px 24px;
+    text-align: center; cursor: pointer;
+    min-height: 280px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transition: box-shadow 0.3s;
+    user-select: none;
+  }
+  .dark-theme .flashcard { background: #1e293b; box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+  .flashcard:hover { box-shadow: 0 12px 40px rgba(0,0,0,0.15); }
+  .dark-theme .flashcard:hover { box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+
+  .flashcard .front-text {
+    font-size: 2rem; font-weight: 600; line-height: 1.4;
+    word-break: break-word; width: 100%;
+  }
+  .flashcard .front-text.arabic { direction: rtl; font-size: 2.5rem; }
+  .dark-theme .flashcard .front-text { color: #e0e0e0; }
+
+  .flashcard .back-text {
+    font-size: 2rem; font-weight: 600; line-height: 1.4;
+    word-break: break-word; width: 100%;
+    margin-top: 20px; padding-top: 20px;
+    border-top: 2px solid #e0e0e0;
+  }
+  .dark-theme .flashcard .back-text { border-top-color: #334155; color: #e0e0e0; }
+  .flashcard .back-text.arabic { direction: rtl; font-size: 2.5rem; }
+
+  .flashcard .tap-hint {
+    position: absolute; bottom: 16px;
+    font-size: 0.8rem; color: #999;
+  }
+  .dark-theme .flashcard .tap-hint { color: #64748b; }
+
+  .flashcard .word-index {
+    position: absolute; top: 12px; right: 16px;
+    font-size: 0.75rem; color: #bbb;
+  }
+  .dark-theme .flashcard .word-index { color: #475569; }
+
+  .flashcard .fav-star {
+    position: absolute; top: 8px; left: 16px;
+    background: none; border: none;
+    font-size: 1.5rem; cursor: pointer; opacity: 0.4;
+    transition: opacity 0.2s;
+  }
+  .flashcard .fav-star:hover { opacity: 1; }
+  .flashcard .fav-star.active { opacity: 1; }
+
+  /* Rating buttons */
+  .ratings {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 8px; max-width: 500px; width: 100%; margin-top: 20px;
+  }
+  .rating-btn {
+    padding: 14px 6px; border: none; border-radius: 12px;
+    font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    text-align: center; line-height: 1.2;
+  }
+  .rating-btn:hover { transform: translateY(-2px); }
+  .rating-btn:active { transform: translateY(0); }
+  .rating-btn .sub { font-size: 0.7rem; font-weight: 400; opacity: 0.8; display: block; margin-top: 2px; }
+
+  .rating-again { background: #fee2e2; color: #dc2626; }
+  .rating-again:hover { box-shadow: 0 4px 12px rgba(220,38,38,0.3); }
+  .dark-theme .rating-again { background: #451a1a; color: #fca5a5; }
+
+  .rating-hard { background: #fed7aa; color: #ea580c; }
+  .rating-hard:hover { box-shadow: 0 4px 12px rgba(234,88,12,0.3); }
+  .dark-theme .rating-hard { background: #431407; color: #fdba74; }
+
+  .rating-good { background: #bbf7d0; color: #16a34a; }
+  .rating-good:hover { box-shadow: 0 4px 12px rgba(22,163,74,0.3); }
+  .dark-theme .rating-good { background: #052e16; color: #86efac; }
+
+  .rating-easy { background: #bfdbfe; color: #2563eb; }
+  .rating-easy:hover { box-shadow: 0 4px 12px rgba(37,99,235,0.3); }
+  .dark-theme .rating-easy { background: #172554; color: #93c5fd; }
+
+  .ratings.hidden { display: none; }
+
+  /* Mode toggle */
+  .mode-toggle {
+    max-width: 500px; width: 100%; margin-bottom: 16px;
+    display: flex; gap: 6px; background: #e2e8f0;
+    border-radius: 10px; padding: 3px;
+  }
+  .dark-theme .mode-toggle { background: #1e293b; }
+  .mode-btn {
+    flex: 1; padding: 8px; border: none; border-radius: 8px;
+    font-size: 0.8rem; cursor: pointer; background: transparent;
+    color: #64748b; font-weight: 500; transition: all 0.2s;
+  }
+  .mode-btn.active { background: #fff; color: #1f2937; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  .dark-theme .mode-btn.active { background: #334155; color: #e0e0e0; }
+  .dark-theme .mode-btn { color: #94a3b8; }
+
+  /* Done state */
+  .done-state {
+    text-align: center; padding: 60px 20px;
+  }
+  .done-state .icon { font-size: 4rem; margin-bottom: 16px; }
+  .done-state h2 { font-size: 1.5rem; margin-bottom: 8px; }
+  .done-state p { color: #666; margin-bottom: 20px; }
+  .dark-theme .done-state p { color: #94a3b8; }
+
+  /* Queue info */
+  .queue-info {
+    max-width: 500px; width: 100%; margin-top: 12px;
+    font-size: 0.8rem; color: #94a3b8; text-align: center;
+  }
+
+  /* Loading */
+  .loading-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 60vh; gap: 16px;
+  }
+  .loading-spinner {
+    width: 40px; height: 40px;
+    border: 4px solid #e2e8f0; border-top-color: #667eea;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .dark-theme .loading-spinner { border-color: #334155; border-top-color: #667eea; }
+
+  /* Progress bar */
+  .progress-track {
+    max-width: 500px; width: 100%; height: 4px;
+    background: #e2e8f0; border-radius: 2px; margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .dark-theme .progress-track { background: #334155; }
+  .progress-fill {
+    height: 100%; background: linear-gradient(90deg, #667eea, #764ba2);
+    border-radius: 2px; transition: width 0.3s;
+  }
+
+  /* Responsive */
+  @media (max-width: 560px) {
+    .stats-bar { font-size: 0.7rem; padding: 6px 10px; padding-left: 56px; }
+    .flashcard { padding: 28px 16px; min-height: 220px; }
+    .flashcard .front-text { font-size: 1.5rem; }
+    .flashcard .front-text.arabic { font-size: 2rem; }
+    .flashcard .back-text { font-size: 1.5rem; }
+    .flashcard .back-text.arabic { font-size: 2rem; }
+    .rating-btn { padding: 12px 4px; font-size: 0.78rem; }
+    .main-area { padding: 56px 12px 80px; }
+    .ratings { gap: 6px; }
+  }
+
+  /* Auth prompt overlay */
+  .auth-prompt {
+    text-align: center; padding: 40px 20px;
+  }
+  .auth-prompt h2 { margin-bottom: 12px; }
+  .auth-prompt .big-btn {
+    display: inline-block; padding: 14px 32px; border: none;
+    border-radius: 12px; background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer;
+    margin: 8px;
+  }
+  .auth-prompt p { color: #666; margin-bottom: 20px; }
+  .dark-theme .auth-prompt p { color: #94a3b8; }
+</style>
+</head>
+<body>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat" id="statNew">🆕 0</div>
+  <div class="stat" id="statDue">📅 0</div>
+  <div class="stat" id="statDone">✅ 0</div>
+  <div class="stat" id="statTotal">📊 0</div>
+</div>
+
+<div class="main-area" id="mainArea">
+  <div class="loading-state" id="loadingState">
+    <div class="loading-spinner"></div>
+    <div>Загрузка слов...</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const CARD_STORE_KEY = 'arabSrCards';
+  const SETTINGS_KEY = 'arabSrSettings';
+  const TODAY_KEY = 'arabSrToday';
+
+  let allWords = [];
+  let cards = [];
+  let queue = [];
+  let currentIndex = 0;
+  let isFlipped = false;
+  let mode = 'ru-ar'; // 'ru-ar' or 'ar-ru'
+  let todayCount = 0;
+  let fsrs;
+
+  // Load settings
+  function loadSettings() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+      if (s && s.mode) mode = s.mode;
+    } catch(e) {}
+  }
+  function saveSettings() {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ mode }));
+  }
+
+  // Load today count
+  function loadTodayCount() {
+    try {
+      const d = JSON.parse(localStorage.getItem(TODAY_KEY));
+      if (d && d.date === new Date().toDateString()) {
+        todayCount = d.count || 0;
+      } else {
+        todayCount = 0;
+      }
+    } catch(e) { todayCount = 0; }
+  }
+  function saveTodayCount() {
+    localStorage.setItem(TODAY_KEY, JSON.stringify({ date: new Date().toDateString(), count: todayCount }));
+  }
+
+  // Load cards from localStorage
+  function loadCardsLocal() {
+    try {
+      const d = JSON.parse(localStorage.getItem(CARD_STORE_KEY));
+      if (d && Array.isArray(d)) return d;
+    } catch(e) {}
+    return [];
+  }
+
+  function saveCardsLocal(data) {
+    localStorage.setItem(CARD_STORE_KEY, JSON.stringify(data));
+  }
+
+  // Simple hash for word -> id
+  function wordToId(wordLine) {
+    let hash = 0;
+    const s = wordLine.trim().toLowerCase();
+    for (let i = 0; i < s.length; i++) {
+      const ch = s.charCodeAt(i);
+      hash = ((hash << 5) - hash) + ch;
+      hash = hash & hash;
+    }
+    return 'w_' + Math.abs(hash).toString(36);
+  }
+
+  // Get current user ID for Firestore path
+  function getStorageUid() {
+    if (window.auth && window.auth.getUserId) {
+      return window.auth.getUserId();
+    }
+    try { return localStorage.getItem('userProgressCode') || 'anonymous'; } catch(e) { return 'anonymous'; }
+  }
+
+  // Try to load cards from Firestore
+  async function loadCardsFromFirestore() {
+    if (!window.firestore || !window.auth || !window.authUser) return null;
+    try {
+      const uid = window.authUser.uid;
+      const compat = typeof window.firestore.collection === 'function';
+      if (compat) {
+        const snap = await window.firestore.collection('users').doc(uid).collection('sr_cards').doc('all').get();
+        if (snap.exists) {
+          const data = snap.data();
+          return data.cards || null;
+        }
+      }
+      return null;
+    } catch(e) {
+      console.warn('Firestore load error:', e);
+      return null;
+    }
+  }
+
+  // Save cards to Firestore
+  async function saveCardsToFirestore(cardsData) {
+    if (!window.firestore || !window.auth || !window.authUser) return;
+    try {
+      const uid = window.authUser.uid;
+      const compat = typeof window.firestore.collection === 'function';
+      if (compat) {
+        await window.firestore.collection('users').doc(uid).collection('sr_cards').doc('all').set({
+          cards: cardsData,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
+    } catch(e) {
+      console.warn('Firestore save error:', e);
+    }
+  }
+
+  // Init card for a word
+  function initCard(wordLine, existingCardsMap) {
+    const id = wordToId(wordLine);
+    const existing = existingCardsMap[id];
+    if (existing) return existing;
+    
+    // Parse word
+    const match = wordLine.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+    if (!match) return null;
+    
+    return {
+      id,
+      ru: match[1].trim(),
+      ar: match[2].trim(),
+      line: wordLine,
+      ...window.FSRS_defaultCard()
+    };
+  }
+
+  async function init() {
+    loadSettings();
+    loadTodayCount();
+    fsrs = new window.FSRS();
+
+    // Load words
+    try {
+      const resp = await fetch('words.txt');
+      const text = await resp.text();
+      const lines = text.split('\n')
+        .map(l => l.trim())
+        .filter(l => l && !l.startsWith('#') && l.includes('-'));
+      
+      if (lines.length === 0) throw new Error('No words');
+      allWords = lines;
+    } catch(e) {
+      document.getElementById('mainArea').innerHTML = '<div class="done-state"><div class="icon">❌</div><h2>Не удалось загрузить слова</h2><p>Проверьте файл words.txt</p></div>';
+      return;
+    }
+
+    // Load cards
+    let storedCards = loadCardsLocal();
+    
+    // Try Firestore if logged in
+    if (window.auth && window.authUser) {
+      const remote = await loadCardsFromFirestore();
+      if (remote && remote.length > 0) {
+        // Merge: remote takes precedence (most recent)
+        if (storedCards.length === 0) {
+          storedCards = remote;
+        } else {
+          // Merge by taking the one with more reps or later lastReview
+          const remoteMap = {};
+          remote.forEach(c => { remoteMap[c.id] = c; });
+          const localMap = {};
+          storedCards.forEach(c => { localMap[c.id] = c; });
+          
+          const merged = [];
+          const seen = new Set();
+          [...remote, ...storedCards].forEach(c => {
+            if (seen.has(c.id)) return;
+            seen.add(c.id);
+            const remote = remoteMap[c.id];
+            const local = localMap[c.id];
+            if (remote && local) {
+              // Take whichever has more recent lastReview
+              merged.push((remote.lastReview || 0) > (local.lastReview || 0) ? remote : local);
+            } else {
+              merged.push(remote || local);
+            }
+          });
+          storedCards = merged;
+        }
+      }
+      saveCardsLocal(storedCards);
+    }
+
+    // Build card map from stored
+    const cardMap = {};
+    storedCards.forEach(c => { cardMap[c.id] = c; });
+
+    // Init cards for all words
+    cards = [];
+    allWords.forEach(line => {
+      const card = initCard(line, cardMap);
+      if (card) cards.push(card);
+    });
+
+    // Flush back to storage
+    saveCardsLocal(cards);
+    if (window.auth && window.authUser) {
+      saveCardsToFirestore(cards);
+    }
+
+    // Build review queue
+    buildQueue();
+    render();
+  }
+
+  function buildQueue() {
+    const now = Date.now();
+    // Due cards: cards whose due is null (new) or due <= now
+    const due = cards.filter(c => !c.due || c.due <= now);
+    // Shuffle due for variety, but prioritize overdue
+    due.sort((a, b) => {
+      // Cards with due === null (new) come first, then by due date (most overdue first)
+      if (!a.due && !b.due) return 0;
+      if (!a.due) return -1;
+      if (!b.due) return 1;
+      return a.due - b.due;
+    });
+    queue = due;
+    currentIndex = 0;
+  }
+
+  function getStats() {
+    const now = Date.now();
+    const total = cards.length;
+    const newCards = cards.filter(c => c.state === 0).length;
+    const due = cards.filter(c => !c.due || c.due <= now).length;
+    return { total, new: newCards, due, today: todayCount };
+  }
+
+  function render() {
+    const area = document.getElementById('mainArea');
+
+    // Update stats
+    const stats = getStats();
+    document.getElementById('statNew').textContent = '🆕 ' + stats.new;
+    document.getElementById('statDue').textContent = '📅 ' + stats.due;
+    document.getElementById('statDone').textContent = '✅ ' + stats.today;
+    document.getElementById('statTotal').textContent = '📊 ' + stats.total;
+
+    // No cards left to review
+    if (queue.length === 0) {
+      // Check if there are still new or due cards
+      if (stats.due === 0 && stats.new === 0) {
+        area.innerHTML = `
+          <div class="done-state">
+            <div class="icon">🎉</div>
+            <h2>Все слова повторены!</h2>
+            <p>На сегодня всё. Возвращайтесь завтра.</p>
+            <div style="font-size:0.9rem;color:#94a3b8;margin-top:12px">
+              Повторено сегодня: ${stats.today}
+            </div>
+          </div>
+        `;
+      } else {
+        buildQueue();
+        if (queue.length === 0) {
+          // Edge case: cards may have been filtered
+          setTimeout(render, 1000);
+          return;
+        }
+        renderCard();
+      }
+      return;
+    }
+
+    renderCard();
+  }
+
+  function renderCard() {
+    const area = document.getElementById('mainArea');
+    const card = queue[currentIndex];
+    if (!card) { render(); return; }
+    isFlipped = false;
+
+    const front = mode === 'ru-ar' ? card.ru : card.ar;
+    const frontClass = mode === 'ar-ru' ? 'arabic' : '';
+    const total = queue.length;
+    const pct = total > 0 ? ((currentIndex / total) * 100) : 0;
+
+    // Get retrieval probability
+    const r = fsrs.getRetrievability(card, Date.now());
+
+    area.innerHTML = `
+      <div class="mode-toggle">
+        <button class="mode-btn ${mode === 'ru-ar' ? 'active' : ''}" data-mode="ru-ar">РУС → ARB</button>
+        <button class="mode-btn ${mode === 'ar-ru' ? 'active' : ''}" data-mode="ar-ru">ARB → РУС</button>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="card-container">
+        <div class="flashcard" id="flashcard">
+          <button class="fav-star ${window.isFavorite ? (window.isFavorite(card.line) ? 'active' : '') : ''}" id="favStar">${window.isFavorite && window.isFavorite(card.line) ? '⭐' : '☆'}</button>
+          <div class="word-index">${currentIndex + 1}/${total}</div>
+          <div class="front-text ${frontClass}" id="frontText">${front}</div>
+          <div class="tap-hint">👆 нажмите, чтобы увидеть перевод</div>
+        </div>
+      </div>
+      <div class="ratings hidden" id="ratings">
+        <button class="rating-btn rating-again" data-rating="0">Again<span class="sub">&lt; 15 мин</span></button>
+        <button class="rating-btn rating-hard" data-rating="1">Hard<span class="sub">~2-3 ч</span></button>
+        <button class="rating-btn rating-good" data-rating="2">Good<span class="sub">~1 д</span></button>
+        <button class="rating-btn rating-easy" data-rating="3">Easy<span class="sub">~3 д</span></button>
+      </div>
+      ${r !== null ? `<div class="queue-info">Вероятность вспомнить: ${Math.round(r * 100)}%</div>` : ''}
+    `;
+
+    // Mode toggle handlers
+    area.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        mode = btn.dataset.mode;
+        saveSettings();
+        renderCard();
+      });
+    });
+
+    // Flashcard click to flip
+    document.getElementById('flashcard').addEventListener('click', (e) => {
+      if (e.target.closest('.fav-star')) return;
+      flipCard(card);
+    });
+
+    // Favorites
+    const favStar = document.getElementById('favStar');
+    if (favStar) {
+      favStar.addEventListener('click', () => {
+        if (window.toggleFavorite) {
+          const val = window.toggleFavorite(card.line);
+          favStar.textContent = val ? '⭐' : '☆';
+          favStar.classList.toggle('active', val);
+        }
+      });
+    }
+
+    // Rating buttons
+    area.querySelectorAll('.rating-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const rating = parseInt(btn.dataset.rating);
+        handleRating(card, rating);
+      });
+    });
+  }
+
+  function flipCard(card) {
+    if (isFlipped) return;
+    isFlipped = true;
+
+    const back = mode === 'ru-ar' ? card.ar : card.ru;
+    const backClass = mode === 'ru-ar' ? 'arabic' : '';
+
+    const frontText = document.getElementById('frontText');
+    frontText.insertAdjacentHTML('afterend', `<div class="back-text ${backClass}">${back}</div>`);
+
+    document.querySelector('.tap-hint').textContent = '';
+    document.getElementById('ratings').classList.remove('hidden');
+  }
+
+  function handleRating(card, rating) {
+    const now = Date.now();
+    const results = fsrs.repeat(card, now);
+    const updated = results[rating];
+    
+    // Update card in cards array
+    const idx = cards.findIndex(c => c.id === card.id);
+    if (idx !== -1) {
+      cards[idx] = updated;
+    }
+
+    // Save
+    saveCardsLocal(cards);
+    if (window.auth && window.authUser) {
+      saveCardsToFirestore(cards);
+    }
+
+    // Update today count
+    todayCount++;
+    saveTodayCount();
+
+    // Remove current card from queue and move on
+    queue.splice(currentIndex, 1);
+    
+    // Next card
+    render();
+  }
+
+  // Listen for auth changes - sync cards without full reload
+  window.addEventListener('authChanged', async () => {
+    if (window.authUser && cards.length > 0) {
+      const remote = await loadCardsFromFirestore();
+      if (remote && remote.length > 0) {
+        const remoteMap = {};
+        remote.forEach(c => { remoteMap[c.id] = c; });
+        let changed = false;
+        cards.forEach((c, i) => {
+          if (remoteMap[c.id]) {
+            const r = remoteMap[c.id];
+            if ((r.lastReview || 0) > (c.lastReview || 0)) {
+              cards[i] = r;
+              changed = true;
+            }
+          }
+        });
+        if (changed) {
+          saveCardsLocal(cards);
+          buildQueue();
+          render();
+        }
+      }
+      // Also save local cards to Firestore
+      saveCardsToFirestore(cards);
+    } else if (!window.authUser && cards.length === 0) {
+      // No user and no cards - do full init (first load)
+      init();
+    }
+  });
+
+  // Start when DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
+</script>
+</body>
+</html>
