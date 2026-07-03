@@ -77,6 +77,8 @@
   let bootstrapDone = false;
   let syncTimer = null;
   let syncInProgress = false;
+  let snapListener = null;
+  let snapSkipNext = false;
 
   function ensureCacheLoaded() {
     if (favoritesCache !== null && favoritesNormalizedCache !== null) return;
@@ -101,11 +103,14 @@
     return [...favoritesCache];
   };
 
-  // Сохранить избранные
+  // Сохранить избранные (с защитой от лишних записей)
   function saveFavorites(favorites, { skipSync = false } = {}) {
+    const newRaw = JSON.stringify(favorites);
+    const currentRaw = localStorage.getItem(FAVORITES_KEY);
+    if (currentRaw === newRaw) return;  // Не изменилось — не пишем
     updateCaches(favorites);
     try {
-      localStorage.setItem(FAVORITES_KEY, JSON.stringify(favoritesCache));
+      localStorage.setItem(FAVORITES_KEY, newRaw);
       localStorage.setItem(FAVORITES_TS_KEY, Date.now().toString());
     } catch (e) {
       console.warn('Ошибка сохранения избранного:', e);
@@ -274,6 +279,8 @@
     const ctx = getFirebaseContext();
     if (!ctx) return;
 
+    snapSkipNext = true;  // Don't react to our own write
+
     if (ctx.mode === 'compat') {
       await ctx.ref.set({
         items,
@@ -354,27 +361,68 @@
     syncTimer = setTimeout(syncToFirebase, 800);
   }
 
-  window.addEventListener('firebaseReady', bootstrapFirebaseSync);
+  // ===== REALTIME SNAPSHOT LISTENER =====
+  function startFavoritesListener() {
+    stopFavoritesListener();
+    const ctx = getFirebaseContext();
+    if (!ctx) return;
+    try {
+      if (ctx.mode === 'compat') {
+        snapListener = ctx.ref.onSnapshot((snap) => {
+          if (snapSkipNext) { snapSkipNext = false; return; }
+          if (snap.exists) {
+            const data = snap.data();
+            if (data && Array.isArray(data.items)) {
+              const current = getFavorites();
+              if (JSON.stringify(current) !== JSON.stringify(data.items)) {
+                saveFavorites(data.items, { skipSync: true });
+                console.log('⭐ Realtime: избранное обновлено (', data.items.length, 'слов)');
+              }
+            }
+          }
+        }, (err) => {
+          console.warn('⭐ Realtime listener error:', err);
+          // Auto-restart on failure
+          setTimeout(startFavoritesListener, 5000);
+        });
+        console.log('⭐ Realtime listener запущен');
+      }
+    } catch(e) {
+      console.warn('⭐ Realtime listener start error:', e);
+    }
+  }
+
+  function stopFavoritesListener() {
+    if (snapListener) {
+      try { snapListener(); } catch(e) {}
+      snapListener = null;
+    }
+  }
+
+  // Wire up listeners
+  window.addEventListener('firebaseReady', () => {
+    bootstrapFirebaseSync();
+    startFavoritesListener();
+  });
+
   window.addEventListener('online', () => {
     if (canUseFirebase()) scheduleSyncToFirebase();
   });
-  // Re-sync when auth changes (login/logout) — force sync from ALL sources
+
+  // On auth change: restart listener + force sync
   window.addEventListener('authChanged', async () => {
+    stopFavoritesListener();
     bootstrapDone = false;
     if (!canUseFirebase()) return;
     try {
-      // Try loading from uid path (current user)
       let remote = await loadFavoritesFromFirebase();
       let gotFromFallback = false;
 
-      // If empty, try loading from old deviceCode path (migration fallback)
       if (!remote || !remote.items || !remote.items.length) {
         try {
           const oldCode = localStorage.getItem('userProgressCode');
           if (window.firestore && typeof window.firestore.collection === 'function') {
-            // Try local deviceCode first
             let fallbackCode = oldCode;
-            // Also try migratedFrom from user doc (data from another device)
             if (window.authUser) {
               try {
                 const userDoc = await window.firestore.collection('users').doc(window.authUser.uid).get();
@@ -411,10 +459,12 @@
       console.warn('⭐ Ошибка форс-синка избранного:', e);
     }
     bootstrapDone = true;
+    startFavoritesListener();
   });
-  // Если Firebase уже доступен на момент загрузки
+
   if (window.firebaseEnabled && window.firestore) {
     bootstrapFirebaseSync();
+    startFavoritesListener();
   }
 
   /**
