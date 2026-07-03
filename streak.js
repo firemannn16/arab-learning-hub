@@ -396,6 +396,12 @@
     setTimeout(initWithFirebase, 500);
   });
 
+  // Re-sync when auth changes (login/logout)
+  window.addEventListener('authChanged', () => {
+    firebaseLoaded = false;
+    setTimeout(initWithFirebase, 500);
+  });
+
   // Также пробуем инициализировать через некоторое время после загрузки
   // (на случай если firebaseReady уже был вызван)
   setTimeout(() => {

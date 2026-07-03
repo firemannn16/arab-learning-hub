@@ -356,8 +356,12 @@
 
   window.addEventListener('firebaseReady', bootstrapFirebaseSync);
   window.addEventListener('online', () => {
-    // при появлении сети — пробуем синкнуть, если есть что
     if (canUseFirebase()) scheduleSyncToFirebase();
+  });
+  // Re-sync when auth changes (login/logout)
+  window.addEventListener('authChanged', () => {
+    bootstrapDone = false;
+    bootstrapFirebaseSync();
   });
   // Если Firebase уже доступен на момент загрузки
   if (window.firebaseEnabled && window.firestore) {
