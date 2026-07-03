@@ -116,7 +116,28 @@
       console.warn('Ошибка сохранения избранного:', e);
     }
     window.dispatchEvent(new CustomEvent('favoritesChanged', { detail: { action: 'sync' } }));
-    if (!skipSync) scheduleSyncToFirebase();
+    if (!skipSync) {
+      // Direct write to Firebase (no debounce)
+      doFirebaseWrite(favorites);
+    }
+  }
+
+  async function doFirebaseWrite(items) {
+    const ctx = getFirebaseContext();
+    if (!ctx) { console.log('⭐ Нет контекста для записи'); return; }
+    try {
+      snapSkipNext = true;
+      console.log('⭐ Пишу в Firebase:', items.length, 'слов, путь:', ctx.mode);
+      if (ctx.mode === 'compat') {
+        await ctx.ref.set({ items, updatedAt: ctx.serverTimestamp }, { merge: true });
+        console.log('⭐ Запись успешна');
+      } else if (ctx.setDoc) {
+        await ctx.setDoc(ctx.ref, { items, updatedAt: ctx.serverTimestamp() }, { merge: true });
+        console.log('⭐ Запись успешна (modular)');
+      }
+    } catch(e) {
+      console.warn('⭐ Ошибка записи в Firebase:', e);
+    }
   }
 
   // Проверить, есть ли слово в избранном
