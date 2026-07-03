@@ -878,7 +878,14 @@
         // ========== FIREBASE СИНХРОНИЗАЦИЯ ==========
         
         function getUserCode() {
-            return localStorage.getItem('userProgressCode') || null;
+            try {
+                if (window.auth && window.auth.isLoggedIn && window.auth.isLoggedIn()) {
+                    return window.auth.getUserId();
+                }
+                return localStorage.getItem('userProgressCode') || null;
+            } catch (e) {
+                return null;
+            }
         }
         
         async function loadProgress() {

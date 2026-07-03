@@ -792,11 +792,12 @@
 
         // ✅ ФУНКЦИИ ДЛЯ РАБОТЫ С ОБЩИМ КОДОМ
         function getUserCode() {
-            // ✅ Читаем напрямую (код хранится как простая строка)
             try {
-                return localStorage.getItem(SHARED_CODE_KEY) || '';
-            } catch(e) {
-                console.warn('Ошибка чтения кода:', e);
+                if (window.auth && window.auth.isLoggedIn && window.auth.isLoggedIn()) {
+                    return window.auth.getUserId();
+                }
+                return localStorage.getItem('userProgressCode') || '';
+            } catch (e) {
                 return '';
             }
         }

@@ -85,25 +85,15 @@ function generateCode() {
 }
 
 function getUserCode() {
-  // ✅ Читаем напрямую (код хранится как простая строка в index.html)
-  let code = null;
-  try {
-    code = localStorage.getItem(SHARED_CODE_KEY);
-  } catch(e) {
-    console.warn('Ошибка чтения кода:', e);
-  }
-  
-  if (!code) {
-    code = generateCode();
     try {
-      localStorage.setItem(SHARED_CODE_KEY, code);
-    } catch(e) {
-      console.warn('Ошибка сохранения кода:', e);
+      if (window.auth && window.auth.isLoggedIn && window.auth.isLoggedIn()) {
+        return window.auth.getUserId();
+      }
+      return localStorage.getItem('userProgressCode') || '';
+    } catch (e) {
+      return '';
     }
-    console.log('🆕 Создан новый код:', code);
   }
-  return code;
-}
 
 const USER_CODE = getUserCode();
 

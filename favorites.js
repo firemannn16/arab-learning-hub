@@ -115,6 +115,7 @@
     } catch (e) {
       console.warn('Ошибка сохранения избранного:', e);
     }
+    window.dispatchEvent(new CustomEvent('favoritesChanged', { detail: { action: 'sync' } }));
     if (!skipSync) scheduleSyncToFirebase();
   }
 
@@ -160,8 +161,6 @@
     const wordStr = typeof word === 'string' ? word : `${word.ru} - ${word.ar}`;
     const updated = [...favoritesCache, wordStr];
     saveFavorites(updated);
-    
-    window.dispatchEvent(new CustomEvent('favoritesChanged', { detail: { action: 'add', word: wordStr } }));
     return true;
   };
 
@@ -178,7 +177,6 @@
     }
     
     saveFavorites(newFavorites);
-    window.dispatchEvent(new CustomEvent('favoritesChanged', { detail: { action: 'remove', word } }));
     return true;
   };
 
