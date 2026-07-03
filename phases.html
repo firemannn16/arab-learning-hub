@@ -853,9 +853,14 @@
         }
 
 
+        // Режим пропуска следующего snapshot (после собственной записи)
+        let skipNextSnapshot = false;
+
         // ✅ СИНХРОНИЗАЦИЯ С FIREBASE (ПОДКОЛЛЕКЦИЯ)
         async function syncToFirebase() {
             if (!userCode) return;
+            
+            skipNextSnapshot = true;
             
             try {
                 // ✅ ЗАЩИТА: Если данные из Firebase НЕ загружены - отправляем только базовые поля
@@ -1187,6 +1192,74 @@
                 showSyncStatus('❌ Ошибка загрузки', 'error');
                 return false;
             }
+        }
+
+        // ✅ REALTIME СЛУШАТЕЛЬ (мгновенные обновления с других устройств)
+        let snapUnsub = null;
+
+        function startRealtimeListener(code) {
+            if (snapUnsub) { snapUnsub(); snapUnsub = null; }
+            if (!code || !window.firestore) return;
+
+            const docRef = db.collection('users').doc(code).collection('trainers').doc(TRAINER_ID);
+
+            snapUnsub = docRef.onSnapshot((doc) => {
+                if (skipNextSnapshot) { skipNextSnapshot = false; return; }
+                if (!doc.exists) return;
+
+                const data = doc.data();
+                const remoteTs = data.timestamp || 0;
+                const localLastSync = getFromLocalStorage('lastSync') || '';
+                const localTs = localLastSync ? new Date(localLastSync).getTime() : 0;
+
+                if (remoteTs <= localTs) return;
+
+                console.log('🔄 Real-time из облака:', { opened: Object.keys(data.openedWords || {}).length, errors: (data.errors || []).length });
+
+                // Merge openedWords (объединение)
+                const remoteOpened = data.openedWords || {};
+                const mergedOpened = { ...remoteOpened, ...openedWordsMap };
+                openedWordsMap = mergedOpened;
+
+                // Merge errors (уникальные по ключу ru|||ar)
+                const remoteErrors = data.errors || [];
+                const mergedErrorsMap = new Map();
+                remoteErrors.forEach(e => {
+                    const key = `${e.word.ru}|||${e.word.ar}`;
+                    mergedErrorsMap.set(key, e);
+                });
+                errorWords.forEach(e => {
+                    const key = `${e.word.ru}|||${e.word.ar}`;
+                    if (!mergedErrorsMap.has(key)) mergedErrorsMap.set(key, e);
+                });
+                errorWords = Array.from(mergedErrorsMap.values());
+
+                // Обновляем остальные поля
+                if (data.pageWordCounts) pageWordCounts = data.pageWordCounts;
+                if (data.nextWordId !== undefined) nextWordId = data.nextWordId;
+                if (data.wordsOrder && data.wordsOrder.length >= words.length) {
+                    words = data.wordsOrder;
+                }
+                if (data.currentPage !== undefined) currentPage = data.currentPage;
+
+                // Сохраняем в localStorage
+                saveToLocalStorage('openedWords', openedWordsMap);
+                saveToLocalStorage('errors', errorWords);
+                saveToLocalStorage('pageWordCounts', pageWordCounts);
+                saveToLocalStorage('nextWordId', nextWordId);
+                saveToLocalStorage('currentPage', currentPage);
+                saveToLocalStorage('lastSync', data.lastSync || new Date().toISOString());
+                if (data.resetVersion) saveToLocalStorage('resetVersion', data.resetVersion);
+
+                // Обновляем UI
+                validateProgress(words);
+                renderErrors();
+                updateStats();
+                renderWords();
+                showSyncStatus('🔄 Обновлено с другого устройства', 'synced');
+            }, (error) => {
+                console.warn('❌ Ошибка real-time слушателя:', error);
+            });
         }
 
         function shuffleArray(array) {
@@ -1589,6 +1662,7 @@
                 currentPage = getFromLocalStorage('currentPage', 0);
                 renderWords();
             }
+            startRealtimeListener(userCode);
         }
 
         resetProgressBtn.addEventListener('click', function() {
@@ -2181,8 +2255,11 @@
                         updateStats();
                         currentPage = getFromLocalStorage('currentPage', 0);
                         renderWords();
+                        startRealtimeListener(userCode);
                     });
+                    return;
                 }
+                startRealtimeListener(userCode);
                 return;
             }
             window.addEventListener('authChanged', async function onAuth(e) {
@@ -2198,6 +2275,7 @@
                 updateStats();
                 currentPage = getFromLocalStorage('currentPage', 0);
                 renderWords();
+                startRealtimeListener(userCode);
             });
         })();
     </script>

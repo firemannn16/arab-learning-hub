@@ -49,12 +49,13 @@ try {
     useFetchStreams: false
   });
   window.firebaseEnabled = true;
-  window.firebaseModules = { doc: null, setDoc: null, getDoc: null, deleteDoc: null };
+  window.firebaseModules = { doc: null, setDoc: null, getDoc: null, deleteDoc: null, onSnapshot: null };
   const firestoreModule = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
   window.firebaseModules.doc = firestoreModule.doc;
   window.firebaseModules.setDoc = firestoreModule.setDoc;
   window.firebaseModules.getDoc = firestoreModule.getDoc;
   window.firebaseModules.deleteDoc = firestoreModule.deleteDoc;
+  window.firebaseModules.onSnapshot = firestoreModule.onSnapshot;
   console.log('Firebase инициализирован');
   
   // ✅ Уведомляем о готовности Firebase (для streak.js)
@@ -243,7 +244,7 @@ function getUserCode() {
     }
   }
 
-const USER_CODE = getUserCode();
+let USER_CODE = getUserCode();
 
 /* ========== Утилиты ========== */
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
@@ -350,6 +351,7 @@ const CLOUD_SAVE_INTERVAL_MS = 18000;
 let cloudSaveTimer = null;
 let cloudSavePending = false;
 let latestStateSnapshot = null;
+let skipNextSnapshot = false;
 
 async function saveState(options = {}){
   const { forceCloud = false } = options;
@@ -379,6 +381,7 @@ async function saveState(options = {}){
     }
     
     const pushToCloud = async (payload) => {
+      skipNextSnapshot = true;
       await safeFirebaseSave(
         async () => {
           const docRef = window.firebaseModules.doc(
@@ -1072,6 +1075,59 @@ workMistakesBtn.addEventListener('click', ()=> {
     console.error('Ошибка инициализации:', e);
     arabicWordDiv.textContent = 'Ошибка загрузки словаря';
   }
+})();
+
+// ✅ Realtime слушатель
+let snapUnsub = null;
+
+function startRealtimeListener(code) {
+  if (snapUnsub) { snapUnsub(); snapUnsub = null; }
+  if (!code || !window.firebaseModules || !window.firebaseModules.onSnapshot) return;
+  
+  const docRef = window.firebaseModules.doc(window.firestore, 'users', code, 'trainers', TRAINER_ID);
+  
+  snapUnsub = window.firebaseModules.onSnapshot(docRef, (doc) => {
+    if (skipNextSnapshot) { skipNextSnapshot = false; return; }
+    if (!doc.exists()) return;
+    
+    const data = doc.data();
+    const remoteTs = data.timestamp || 0;
+    const localSt = safeLocalStorageGet(PREFIX + 'state', 0);
+    const localTs = (localSt && localSt.timestamp) || 0;
+    
+    if (remoteTs <= localTs) return;
+    
+    console.log('🔄 Real-time обновление (choice) — перезагружаем');
+    document.getElementById('sync-status').textContent = '🔄 Обновлено с другого устройства';
+    document.getElementById('sync-status').className = 'sync-status show synced';
+    setTimeout(() => document.getElementById('sync-status').classList.remove('show'), 2000);
+    setTimeout(() => location.reload(), 1500);
+  }, (error) => {
+    console.warn('❌ Ошибка real-time:', error);
+  });
+}
+
+// ✅ Auth watcher
+(function watchAuth() {
+  const authUser = window.authUser;
+  if (authUser) {
+    const newCode = getUserCode();
+    if (newCode !== USER_CODE) {
+      USER_CODE = newCode;
+      // Просто перезагружаем страницу чтобы подхватить uid
+      location.reload();
+      return;
+    }
+    startRealtimeListener(USER_CODE);
+    return;
+  }
+  window.addEventListener('authChanged', function onAuth(e) {
+    if (!e.detail.user) return;
+    window.removeEventListener('authChanged', onAuth);
+    const newCode = getUserCode();
+    if (newCode === USER_CODE) { startRealtimeListener(USER_CODE); return; }
+    location.reload();
+  });
 })();
 
 window.addEventListener('beforeunload', () => { 

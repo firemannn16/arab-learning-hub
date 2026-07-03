@@ -59,12 +59,13 @@ try {
     useFetchStreams: false
   });
   window.firebaseEnabled = true;
-  window.firebaseModules = { doc: null, setDoc: null, getDoc: null, deleteDoc: null };
+  window.firebaseModules = { doc: null, setDoc: null, getDoc: null, deleteDoc: null, onSnapshot: null };
   const firestoreModule = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
   window.firebaseModules.doc = firestoreModule.doc;
   window.firebaseModules.setDoc = firestoreModule.setDoc;
   window.firebaseModules.getDoc = firestoreModule.getDoc;
   window.firebaseModules.deleteDoc = firestoreModule.deleteDoc;
+  window.firebaseModules.onSnapshot = firestoreModule.onSnapshot;
   console.log('Firebase инициализирован');
   
   // ✅ Уведомляем о готовности Firebase (для streak.js)
@@ -86,7 +87,7 @@ function getUserCode() {
     }
   }
 
-const USER_CODE = getUserCode();
+let USER_CODE = getUserCode();
 
 /* ---------- Настройки ---------- */
 const BATCH_SIZE = 33;
@@ -200,6 +201,8 @@ function canSyncFirebase(){
   return window.firebaseEnabled && window.firestore && window.firebaseModules && navigator.onLine;
 }
 
+let skipNextSnapshot = false;
+
 async function saveState(options = {}){
   const { localOnly = false, fireAndForget = false } = options;
   const st = buildStateSnapshot();
@@ -210,6 +213,8 @@ async function saveState(options = {}){
   }
   
   if(localOnly || !canSyncFirebase()) return;
+  
+  skipNextSnapshot = true;
   
   const syncPromise = safeFirebaseSave(
     async () => {
@@ -805,6 +810,59 @@ function showResetModal() {
   document.getElementById('modal-confirm').addEventListener('click', onConfirm);
 }
 btnReset.addEventListener('click', showResetModal);
+
+// ✅ Realtime слушатель
+let snapUnsub = null;
+
+function startRealtimeListener(code) {
+  if (snapUnsub) { snapUnsub(); snapUnsub = null; }
+  if (!code || !window.firebaseModules || !window.firebaseModules.onSnapshot) return;
+  
+  const docRef = window.firebaseModules.doc(window.firestore, 'users', code, 'trainers', TRAINER_ID);
+  
+  snapUnsub = window.firebaseModules.onSnapshot(docRef, (doc) => {
+    if (skipNextSnapshot) { skipNextSnapshot = false; return; }
+    if (!doc.exists()) return;
+    
+    const data = doc.data();
+    const remoteTs = data.timestamp || 0;
+    const localSt = safeLocalStorageGet(PREFIX + 'state', 0);
+    const localTs = (localSt && localSt.timestamp) || 0;
+    
+    if (remoteTs <= localTs) return;
+    
+    console.log('🔄 Real-time обновление (input) — перезагружаем');
+    showSyncStatus('🔄 Обновлено с другого устройства', 'synced');
+    // Перезагружаем страницу, чтобы подхватить актуальные данные
+    setTimeout(() => location.reload(), 1500);
+  }, (error) => {
+    console.warn('❌ Ошибка real-time:', error);
+  });
+}
+
+// ✅ Auth watcher — перезагружаем данные когда auth готов
+(function watchAuth() {
+  const authUser = window.authUser;
+  if (authUser) {
+    const newCode = getUserCode();
+    if (newCode !== USER_CODE) {
+      USER_CODE = newCode;
+      initDictionary().then(() => startRealtimeListener(USER_CODE));
+      return;
+    }
+    startRealtimeListener(USER_CODE);
+    return;
+  }
+  window.addEventListener('authChanged', async function onAuth(e) {
+    if (!e.detail.user) return;
+    window.removeEventListener('authChanged', onAuth);
+    const newCode = getUserCode();
+    if (newCode === USER_CODE) { startRealtimeListener(USER_CODE); return; }
+    USER_CODE = newCode;
+    await initDictionary();
+    startRealtimeListener(USER_CODE);
+  });
+})();
 
 /* ---------- bootstrap ---------- */
 (async function bootstrap(){
