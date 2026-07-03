@@ -18,14 +18,35 @@
 
   function initFirebase() {
     if (window.firebaseAuth) return;
-    if (!window.firebase) {
+    const needsApp = !window.firebase;
+    if (needsApp) {
       const appScript = document.createElement('script');
       appScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js';
       document.head.appendChild(appScript);
     }
+    // Also ensure Firestore SDK is loaded
+    const needsFirestore = !window.firebase || !window.firebase.firestore;
+    if (needsFirestore) {
+      const fsScript = document.createElement('script');
+      fsScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js';
+      document.head.appendChild(fsScript);
+    }
     function setupAuth() {
       if (!firebase.apps || !firebase.apps.length) {
         try { firebase.initializeApp(firebaseConfig); } catch(e) { console.warn('Auth init:', e.message); }
+      }
+      // Init Firestore globally (needed by favorites.js, streak.js)
+      try {
+        if (!window.firestore) {
+          window.firestore = firebase.firestore();
+          window.firestore.settings({
+            experimentalForceLongPolling: true,
+            useFetchStreams: false
+          });
+          window.firebaseEnabled = true;
+        }
+      } catch(e) {
+        console.warn('Firestore init error:', e);
       }
       try {
         window.firebaseAuth = firebase.auth();
@@ -34,13 +55,21 @@
       } catch(e) {
         console.warn('Auth setup error:', e);
       }
+      window.dispatchEvent(new CustomEvent('firebaseReady'));
     }
-    if (window.firebase && window.firebase.auth) {
+    const allLoaded = () => {
+      if (window.firebase && window.firebase.auth && window.firebase.firestore) {
+        setupAuth();
+      } else {
+        setTimeout(allLoaded, 100);
+      }
+    };
+    if (window.firebase && window.firebase.auth && window.firebase.firestore) {
       setupAuth();
     } else {
       const authScript = document.createElement('script');
       authScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js';
-      authScript.onload = setupAuth;
+      authScript.onload = allLoaded;
       document.head.appendChild(authScript);
     }
   }
