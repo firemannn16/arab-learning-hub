@@ -396,7 +396,7 @@
       const text = await resp.text();
       const lines = text.split('\n')
         .map(l => l.trim())
-        .filter(l => l && !l.startsWith('#') && l.includes('-'));
+        .filter(l => l && !l.startsWith('#') && /[-–—]/.test(l));
       
       if (lines.length === 0) throw new Error('No words');
       allWords = lines;
