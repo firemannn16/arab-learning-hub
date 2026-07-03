@@ -371,15 +371,28 @@
       if (!remote || !remote.items || !remote.items.length) {
         try {
           const oldCode = localStorage.getItem('userProgressCode');
-          if (oldCode && window.firestore && typeof window.firestore.collection === 'function') {
-            const oldSnap = await window.firestore.collection('users').doc(oldCode).collection('favorites').doc('data').get();
-            if (oldSnap.exists) {
-              const data = oldSnap.data();
-              if (data.items && data.items.length > 0) {
-                remote = { items: data.items, updatedAt: data.updatedAt };
-                gotFromFallback = true;
-                await writeFavoritesToFirebase(data.items);
-                console.log('⭐ Миграция из deviceCode в uid:', data.items.length, 'слов');
+          if (window.firestore && typeof window.firestore.collection === 'function') {
+            // Try local deviceCode first
+            let fallbackCode = oldCode;
+            // Also try migratedFrom from user doc (data from another device)
+            if (window.authUser) {
+              try {
+                const userDoc = await window.firestore.collection('users').doc(window.authUser.uid).get();
+                if (userDoc.exists && userDoc.data().migratedFrom) {
+                  fallbackCode = userDoc.data().migratedFrom;
+                }
+              } catch(e3) {}
+            }
+            if (fallbackCode && fallbackCode !== window.authUser?.uid) {
+              const oldSnap = await window.firestore.collection('users').doc(fallbackCode).collection('favorites').doc('data').get();
+              if (oldSnap.exists) {
+                const data = oldSnap.data();
+                if (data.items && data.items.length > 0) {
+                  remote = { items: data.items, updatedAt: data.updatedAt };
+                  gotFromFallback = true;
+                  await writeFavoritesToFirebase(data.items);
+                  console.log('⭐ Миграция из', fallbackCode, 'в uid:', data.items.length, 'слов');
+                }
               }
             }
           }
