@@ -358,10 +358,46 @@
   window.addEventListener('online', () => {
     if (canUseFirebase()) scheduleSyncToFirebase();
   });
-  // Re-sync when auth changes (login/logout)
-  window.addEventListener('authChanged', () => {
+  // Re-sync when auth changes (login/logout) — force sync from ALL sources
+  window.addEventListener('authChanged', async () => {
     bootstrapDone = false;
-    bootstrapFirebaseSync();
+    if (!canUseFirebase()) return;
+    try {
+      // Try loading from uid path (current user)
+      let remote = await loadFavoritesFromFirebase();
+      let gotFromFallback = false;
+
+      // If empty, try loading from old deviceCode path (migration fallback)
+      if (!remote || !remote.items || !remote.items.length) {
+        try {
+          const oldCode = localStorage.getItem('userProgressCode');
+          if (oldCode && window.firestore && typeof window.firestore.collection === 'function') {
+            const oldSnap = await window.firestore.collection('users').doc(oldCode).collection('favorites').doc('data').get();
+            if (oldSnap.exists) {
+              const data = oldSnap.data();
+              if (data.items && data.items.length > 0) {
+                remote = { items: data.items, updatedAt: data.updatedAt };
+                gotFromFallback = true;
+                await writeFavoritesToFirebase(data.items);
+                console.log('⭐ Миграция из deviceCode в uid:', data.items.length, 'слов');
+              }
+            }
+          }
+        } catch(e2) { console.warn('⭐ Fallback error:', e2); }
+      }
+
+      const localItems = getFavorites();
+      if (remote && remote.items && remote.items.length > 0) {
+        saveFavorites(remote.items, { skipSync: true });
+        console.log('⭐ Избранное загружено из облака:', remote.items.length, 'слов', gotFromFallback ? '(из deviceCode)' : '');
+      } else if (localItems.length > 0) {
+        await writeFavoritesToFirebase(localItems);
+        console.log('⭐ Избранное отправлено в облако:', localItems.length, 'слов');
+      }
+    } catch(e) {
+      console.warn('⭐ Ошибка форс-синка избранного:', e);
+    }
+    bootstrapDone = true;
   });
   // Если Firebase уже доступен на момент загрузки
   if (window.firebaseEnabled && window.firestore) {
