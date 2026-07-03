@@ -14,6 +14,9 @@
   // Firebase doc path: users/{code}/favorites/data
   function getUserCode() {
     try {
+      if (window.auth && window.auth.isLoggedIn && window.auth.isLoggedIn()) {
+        return window.auth.getUserId();
+      }
       return localStorage.getItem('userProgressCode') || '';
     } catch (e) {
       return '';

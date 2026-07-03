@@ -18,6 +18,9 @@
   // Получить код пользователя
   function getUserCode() {
     try {
+      if (window.auth && window.auth.isLoggedIn && window.auth.isLoggedIn()) {
+        return window.auth.getUserId();
+      }
       return localStorage.getItem(SHARED_CODE_KEY) || '';
     } catch (e) {
       return '';
