@@ -407,6 +407,8 @@
     // Показать дуа с кодом после сброса
     function showDuaWithCode() {
         const userCode = localStorage.getItem('userProgressCode');
+        const isLoggedIn = window.auth && window.auth.isLoggedIn && window.auth.isLoggedIn();
+        const userEmail = isLoggedIn ? (window.auth.getUserEmail() || '') : '';
         
         // Создаем модалку если её нет
         if (!document.getElementById('global-dua-modal')) {
@@ -419,13 +421,28 @@
         // Добавляем секцию с кодом
         const codeSection = document.createElement('div');
         codeSection.className = 'dua-code-section';
-        codeSection.innerHTML = `
-            <div class="dua-code-label">Ваш код для сохранения прогресса:</div>
-            <div class="dua-code-box">
-                <div class="dua-code-value">${userCode || 'НЕТ КОДА'}</div>
-                <button class="dua-copy-btn" onclick="copyDuaCode()">📋 Копировать</button>
-            </div>
-        `;
+        if (isLoggedIn) {
+            codeSection.innerHTML = `
+                <div class="dua-code-label">Вы вошли как:</div>
+                <div class="dua-code-box">
+                    <div class="dua-code-value" style="font-size:14px">${userEmail || 'Email не указан'}</div>
+                </div>
+                <div style="font-size:12px;color:#666;margin-top:8px">Прогресс сохраняется в облаке</div>
+            `;
+        } else if (userCode) {
+            codeSection.innerHTML = `
+                <div class="dua-code-label">Ваш код для сохранения прогресса:</div>
+                <div class="dua-code-box">
+                    <div class="dua-code-value">${userCode}</div>
+                    <button class="dua-copy-btn" onclick="copyDuaCode()">📋 Копировать</button>
+                </div>
+            `;
+        } else {
+            codeSection.innerHTML = `
+                <div class="dua-code-label">Войдите в аккаунт для сохранения прогресса</div>
+                <div style="font-size:12px;color:#666;margin-top:8px">Нажмите «Войти» в меню</div>
+            `;
+        }
         
         // Вставляем перед кнопкой
         const button = content.querySelector('.dua-button');

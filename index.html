@@ -434,10 +434,8 @@
             </div>
         </div>
         
-        <!-- Кнопки управления кодом -->
+        <!-- Статус и управление -->
         <div class="code-buttons">
-            <button class="code-btn" onclick="showMyCode()">Мой код</button>
-            <button class="code-btn" onclick="showEnterCode()">Ввести код</button>
             <div class="status-indicator status-online" id="statusIndicator">
                 <span class="status-dot online" id="statusDot"></span>
                 <span id="statusText">Онлайн</span>
@@ -497,202 +495,9 @@
         </div>
     </div>
 
-    <!-- Модальное окно для нового пользователя -->
-    <div class="modal-overlay" id="welcomeModal">
-        <div class="modal-content">
-            <div class="modal-title">🎉 Добро пожаловать!</div>
-            <div class="modal-text">
-                Ваш код для сохранения прогресса:
-            </div>
-            <div class="code-display-box">
-                <div class="code-value" id="welcomeCode"></div>
-                <button class="copy-btn" onclick="copyWelcomeCode()">📋 Копировать</button>
-            </div>
-            <div class="modal-text" style="font-size: 0.9em; color: #999;">
-                Сохраните этот код чтобы не потерять прогресс при переходе на другое устройство!
-            </div>
-            <button class="modal-btn modal-btn-primary" onclick="closeWelcomeModal()">Понятно</button>
-        </div>
-    </div>
 
-    <!-- Модальное окно "Мой код" -->
-    <div class="modal-overlay" id="myCodeModal">
-        <div class="modal-content">
-            <div class="modal-title">Ваш код</div>
-            <div class="code-display-box">
-                <div class="code-value" id="myCodeValue"></div>
-                <button class="copy-btn" onclick="copyMyCode()">📋 Копировать</button>
-            </div>
-            <div class="modal-text" style="font-size: 0.9em; color: #999;">
-                Используйте этот код для синхронизации прогресса на других устройствах
-            </div>
-            <button class="modal-btn modal-btn-primary" onclick="closeMyCodeModal()">Закрыть</button>
-        </div>
-    </div>
-
-    <!-- Модальное окно "Ввести код" -->
-    <div class="modal-overlay" id="enterCodeModal">
-        <div class="modal-content">
-            <div class="modal-title">Ввести код</div>
-            <div class="modal-text">
-                Введите код для загрузки вашего прогресса:
-            </div>
-            <input type="text" class="code-input" id="codeInput" placeholder="ABCDEF" maxlength="6">
-            <div class="modal-buttons">
-                <button class="modal-btn modal-btn-secondary" onclick="closeEnterCodeModal()">Отмена</button>
-                <button class="modal-btn modal-btn-primary" onclick="applyCode()">Применить</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Модальное окно подтверждения -->
-    <div class="modal-overlay" id="confirmModal">
-        <div class="modal-content">
-            <div class="modal-title">⚠️ Подтверждение</div>
-            <div class="modal-text">
-                Текущий прогресс будет заменён прогрессом из введённого кода.<br><br>
-                Продолжить?
-            </div>
-            <div class="modal-buttons">
-                <button class="modal-btn modal-btn-secondary" onclick="closeConfirmModal()">Отмена</button>
-                <button class="modal-btn modal-btn-primary" onclick="confirmApplyCode()">Да, применить</button>
-            </div>
-        </div>
-    </div>
 
     <script>
-        // Генерация кода
-        function generateCode() {
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-            let code = '';
-            for (let i = 0; i < 6; i++) {
-                code += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return code;
-        }
-
-        // Инициализация
-        window.addEventListener('DOMContentLoaded', () => {
-            console.log('📢 DOMContentLoaded сработал в index.html');
-            // Не показываем модалку с кодом сразу - ждём закрытия дуа
-            updateOnlineStatus();
-
-            // Initial auth button state
-            setTimeout(() => {
-                const btn = document.getElementById('authBtn');
-                if (btn && window.auth) {
-                    btn.style.display = '';
-                    btn.textContent = window.auth.isLoggedIn()
-                        ? (window.auth.getUserEmail() || 'Выйти')
-                        : 'Войти';
-                }
-            }, 500);
-            
-            // Предотвращаем закрытие модалки при клике на её содержимое
-            document.querySelectorAll('.modal-content').forEach(content => {
-                content.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                });
-            });
-        });
-        
-        // Слушаем событие закрытия дуа для показа модалки с кодом
-        window.addEventListener('duaClosed', () => {
-            console.log('📨 Получено событие duaClosed');
-            checkNewUser();
-        });
-
-        // Флаги для предотвращения раннего закрытия
-        let modalJustOpened = false;
-
-        // === Хранение кода: localStorage + куки как резерв ===
-        function setCookie(name, value, days = 365) {
-            const expires = new Date(Date.now() + days * 864e5).toUTCString();
-            document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
-        }
-
-        function getCookie(name) {
-            return document.cookie.split('; ').reduce((acc, cur) => {
-                const [k, v] = cur.split('=');
-                return k === name ? decodeURIComponent(v) : acc;
-            }, '');
-        }
-
-        function saveUserCode(code) {
-            if (!code) return;
-            localStorage.setItem('userProgressCode', code);
-            setCookie('userProgressCode', code);
-        }
-
-        function getUserCode() {
-            let code = localStorage.getItem('userProgressCode');
-            if (!code) {
-                code = getCookie('userProgressCode');
-                if (code) {
-                    console.log('✅ Код восстановлен из cookie');
-                    localStorage.setItem('userProgressCode', code);
-                }
-            }
-            return code;
-        }
-
-        // Проверка нового пользователя
-        function checkNewUser() {
-            console.log('🔍 checkNewUser() вызвана');
-            let userCode = getUserCode();
-            console.log(`🔍 Текущий код: "${userCode}"`);
-            
-            if (!userCode) {
-                // Новый пользователь - генерируем код
-                userCode = generateCode();
-                saveUserCode(userCode);
-                console.log('🎉 Новый пользователь! Сгенерирован код:', userCode);
-                
-                // Показываем welcome modal сразу (без задержки, т.к. дуа уже закрыто)
-                modalJustOpened = true;
-                document.getElementById('welcomeCode').textContent = userCode;
-                document.getElementById('welcomeModal').classList.add('show');
-                console.log('✅ Welcome modal открыт с кодом');
-                
-                // Разрешаем закрытие через 1000ms
-                setTimeout(() => {
-                    modalJustOpened = false;
-                    console.log('✅ Модалка с кодом разблокирована для закрытия');
-                }, 1000);
-            } else {
-                console.log('👋 Пользователь вернулся, код уже есть:', userCode);
-            }
-        }
-
-        // Показать "Мой код"
-        function showMyCode() {
-            const userCode = localStorage.getItem('userProgressCode');
-            if (userCode) {
-                modalJustOpened = true;
-                document.getElementById('myCodeValue').textContent = userCode;
-                document.getElementById('myCodeModal').classList.add('show');
-                console.log('✅ "Мой код" modal открыт');
-                setTimeout(() => { 
-                    modalJustOpened = false;
-                    console.log('✅ Модалка разблокирована для закрытия');
-                }, 1000);
-            } else {
-                alert('⚠️ Код не найден');
-            }
-        }
-
-        // Показать "Ввести код"
-        function showEnterCode() {
-            modalJustOpened = true;
-            document.getElementById('codeInput').value = '';
-            document.getElementById('enterCodeModal').classList.add('show');
-            console.log('✅ "Ввести код" modal открыт');
-            setTimeout(() => { 
-                modalJustOpened = false;
-                console.log('✅ Модалка разблокирована для закрытия');
-            }, 1000);
-        }
-
         // Auth button handler
         function handleAuthBtn() {
             if (window.auth && window.auth.isLoggedIn()) {
@@ -715,111 +520,18 @@
             }
         });
 
-        // Применить код
-        function applyCode() {
-            const code = document.getElementById('codeInput').value.trim().toUpperCase();
-            
-            if (!code) {
-                alert('⚠️ Введите код');
-                return;
-            }
-            
-            if (code.length !== 6) {
-                alert('⚠️ Код должен содержать 6 символов');
-                return;
-            }
-            
-            // Сохраняем код для подтверждения
-            window.pendingCode = code;
-            
-            // Закрываем модалку ввода и показываем подтверждение
-            document.getElementById('enterCodeModal').classList.remove('show');
-            document.getElementById('confirmModal').classList.add('show');
-        }
-
-        // Подтвердить применение кода
-        function confirmApplyCode() {
-            if (window.pendingCode) {
-                saveUserCode(window.pendingCode);
-                document.getElementById('confirmModal').classList.remove('show');
-                alert('✅ Код успешно применён! Перезагрузите страницу для загрузки прогресса.');
-                window.pendingCode = null;
-            }
-        }
-
-        // Копировать код (welcome)
-        function copyWelcomeCode() {
-            const code = document.getElementById('welcomeCode').textContent;
-            copyToClipboard(code);
-        }
-
-        // Копировать код (мой код)
-        function copyMyCode() {
-            const code = document.getElementById('myCodeValue').textContent;
-            copyToClipboard(code);
-        }
-
-        // Копировать в буфер обмена
-        function copyToClipboard(text) {
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(text).then(() => {
-                    alert('✅ Код скопирован в буфер обмена!');
-                }).catch(() => {
-                    alert('❌ Не удалось скопировать код');
-                });
-            } else {
-                // Fallback для старых браузеров
-                const input = document.createElement('input');
-                input.value = text;
-                document.body.appendChild(input);
-                input.select();
-                document.execCommand('copy');
-                document.body.removeChild(input);
-                alert('✅ Код скопирован!');
-            }
-        }
-
-        // Закрыть модалки
-        function closeWelcomeModal() {
-            document.getElementById('welcomeModal').classList.remove('show');
-        }
-
-        function closeMyCodeModal() {
-            document.getElementById('myCodeModal').classList.remove('show');
-        }
-
-        function closeEnterCodeModal() {
-            document.getElementById('enterCodeModal').classList.remove('show');
-        }
-
-        function closeConfirmModal() {
-            document.getElementById('confirmModal').classList.remove('show');
-            window.pendingCode = null;
-        }
-
-        // Закрытие по клику на overlay (только прямой клик на серую область)
-        document.querySelectorAll('.modal-overlay').forEach(overlay => {
-            overlay.addEventListener('click', (e) => {
-                if (modalJustOpened) {
-                    console.log('⏸️ Клик игнорируется - модалка только открылась');
-                    return;
+        // Инициализация
+        window.addEventListener('DOMContentLoaded', () => {
+            updateOnlineStatus();
+            setTimeout(() => {
+                const btn = document.getElementById('authBtn');
+                if (btn && window.auth) {
+                    btn.style.display = '';
+                    btn.textContent = window.auth.isLoggedIn()
+                        ? (window.auth.getUserEmail() || 'Выйти')
+                        : 'Войти';
                 }
-                
-                // Закрываем только если кликнули на сам overlay, а не на содержимое
-                if (e.target === overlay) {
-                    console.log('✅ Закрываем модалку по клику на overlay');
-                    overlay.classList.remove('show');
-                }
-            });
-        });
-
-        // Закрытие по ESC
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                document.querySelectorAll('.modal-overlay').forEach(modal => {
-                    modal.classList.remove('show');
-                });
-            }
+            }, 500);
         });
 
         // Обновление статуса онлайн/офлайн

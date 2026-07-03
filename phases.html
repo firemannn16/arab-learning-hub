@@ -802,15 +802,6 @@
             }
         }
 
-        function saveUserCode(code) {
-            // ✅ Сохраняем напрямую (как простая строка, совместимо с index.html)
-            try {
-                localStorage.setItem(SHARED_CODE_KEY, code);
-            } catch(e) {
-                console.warn('Ошибка сохранения кода:', e);
-            }
-        }
-
         function generateWordId() {
             return `word_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         }
@@ -850,15 +841,6 @@
 
         function removeFromLocalStorage(key) {
             localStorage.removeItem(PREFIX + key);
-        }
-
-        function generateCode() {
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-            let code = '';
-            for (let i = 0; i < 6; i++) {
-                code += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return code;
         }
 
         function showSyncStatus(message, type = 'syncing') {
@@ -1577,19 +1559,14 @@
             return pageNum;
         }
 
-        // ✅ ИНИЦИАЛИЗАЦИЯ БЕЗ МОДАЛКИ
+        // ✅ ИНИЦИАЛИЗАЦИЯ
         async function initialize() {
             userCode = getUserCode();
             
             if (!userCode) {
-                // Генерируем код, но НЕ показываем модалку
-                userCode = generateCode();
-                saveUserCode(userCode);
-                console.log('🆕 Создан новый код:', userCode);
-                
+                console.log('🆕 Новый пользователь (работает локально до входа)');
                 await loadWords();
                 await checkAndApplyFileChanges();
-                await syncToFirebase();
             } else {
                 console.log('👤 Код пользователя:', userCode);
                 

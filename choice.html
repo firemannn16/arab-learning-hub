@@ -231,16 +231,7 @@ const SHARED_CODE_KEY = 'userProgressCode';
 /* ========== Конфиг ========== */
 const AUTO_MODAL_CLOSE_MS = 17000;
 
-/* ========== ✅ Генерация и получение кода ========== */
-function generateCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
-
+/* ========== ✅ Получение кода ========== */
 function getUserCode() {
     try {
       if (window.auth && window.auth.isLoggedIn && window.auth.isLoggedIn()) {
