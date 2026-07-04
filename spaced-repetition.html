@@ -401,6 +401,7 @@
     loadTodayCount();
     loadNewTodayCount();
     fsrs = new window.FSRS();
+    fsrs.maxInterval = 180; // полгода
 
     try {
       const resp = await fetch('words.txt');

@@ -52,6 +52,11 @@
     return ratings;
   };
 
+  FSRS.prototype._capInterval = function(interval) {
+    const max = this.maxInterval || 0;
+    return max > 0 ? Math.min(interval, max) : interval;
+  };
+
   FSRS.prototype._compute = function(card, rating, now) {
     const w = this.w;
     const steps = this.steps;
@@ -135,8 +140,8 @@
       interval = Math.max(1, interval);
     }
 
-    next.scheduledDays = interval;
-    next.due = now + interval * 86400000;
+    next.scheduledDays = this._capInterval(interval);
+    next.due = now + next.scheduledDays * 86400000;
     return next;
   };
 
