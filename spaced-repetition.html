@@ -193,6 +193,63 @@
     border-radius: 2px; transition: width 0.3s;
   }
 
+  /* Deck selection card */
+  .deck-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 22px 24px;
+    width: 100%;
+    max-width: 480px;
+  }
+  .dark-theme .deck-card { background: #1e293b; border-color: #334155; }
+  .deck-card-title {
+    text-align: center;
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: #1f2937;
+  }
+  .dark-theme .deck-card-title { color: #e0e0e0; }
+  .deck-card-body {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+  }
+  .deck-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .deck-stat {
+    font-size: 0.9rem;
+    color: #1f2937;
+  }
+  .dark-theme .deck-stat { color: #e0e0e0; }
+  .deck-stat .num-blue { color: #3b82f6; font-weight: 600; }
+  .deck-stat .num-red { color: #ef4444; font-weight: 600; }
+  .deck-stat .num-green { color: #22c55e; font-weight: 600; }
+  .deck-study-btn {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: none;
+    background: #2563eb;
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+    flex-shrink: 0;
+    letter-spacing: 0.02em;
+  }
+  .deck-study-btn:hover { background: #1d4ed8; transform: scale(1.03); }
+  .deck-study-btn:active { transform: scale(0.97); }
+  .dark-theme .deck-study-btn { background: #3b82f6; }
+  .dark-theme .deck-study-btn:hover { background: #2563eb; }
+  /* end deck card */
+
   /* Responsive */
   @media (max-width: 560px) {
     .stats-bar { font-size: 0.7rem; padding: 6px 10px; padding-left: 56px; }
@@ -456,8 +513,7 @@
     saveCardsLocal(cards);
     if (window.auth && window.authUser) saveCardsToFirestore(cards);
 
-    buildQueue();
-    render();
+    renderDeckSelection();
   }
 
   // Построение очереди как в Anki:
@@ -509,6 +565,28 @@
     const learningCount = cards.filter(c => c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING).length;
     const reviewDue = cards.filter(c => c.state === window.FSRS_STATE.REVIEW && (!c.due || c.due <= now)).length;
     return { total, new: newCount, learning: learningCount, due: reviewDue, today: todayCount };
+  }
+
+  function renderDeckSelection() {
+    const area = document.getElementById('mainArea');
+    const stats = getStats();
+    area.innerHTML = `
+      <div class="deck-card">
+        <div class="deck-card-title">По умолчанию</div>
+        <div class="deck-card-body">
+          <div class="deck-stats">
+            <div class="deck-stat">Новые: <span class="num-blue">${stats.new}</span></div>
+            <div class="deck-stat">Изучаемые: <span class="num-red">${stats.learning}</span></div>
+            <div class="deck-stat">Повторяемые: <span class="num-green">${stats.due}</span></div>
+          </div>
+          <button class="deck-study-btn" id="studyBtn">Учить</button>
+        </div>
+      </div>
+    `;
+    document.getElementById('studyBtn').addEventListener('click', () => {
+      buildQueue();
+      render();
+    });
   }
 
   function render() {
