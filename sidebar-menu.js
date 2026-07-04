@@ -18,8 +18,8 @@
     { name: 'Словарь', href: 'dictionary.html', icon: '📚' },
     { name: 'Пустой Тренажер', href: 'simple.html', icon: '📝' },
     { name: 'Тренажер Правил', href: 'rules.html', icon: '📚' },
-    { name: 'Тренажер Заучка + Практика', href: 'input.html', icon: '✍️' },
-    { name: 'Тренажер Выборка', href: 'choice.html', icon: '✅' },
+    // { name: 'Тренажер Заучка + Практика', href: 'input.html', icon: '✍️' },
+    // { name: 'Тренажер Выборка', href: 'choice.html', icon: '✅' },
     { name: 'Интервальное повторение', href: 'spaced-repetition.html', icon: '🧠' },
     { name: 'Список слов', href: 'words-list.html', icon: '📋' }
   ];
