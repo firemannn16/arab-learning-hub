@@ -85,21 +85,6 @@
     window.dispatchEvent(new CustomEvent('authChanged', { detail: { user } }));
   }
 
-  function showToast(msg) {
-    const el = document.createElement('div');
-    el.textContent = msg;
-    Object.assign(el.style, {
-      position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
-      background: '#1e293b', color: '#e0e0e0', padding: '12px 24px',
-      borderRadius: '12px', fontSize: '14px', zIndex: '999999',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.3)', maxWidth: '90%',
-      textAlign: 'center', fontFamily: 'sans-serif',
-      transition: 'opacity 0.3s', opacity: '1'
-    });
-    document.body.appendChild(el);
-    setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 4000);
-  }
-
   async function migrateDeviceProgress(uid, email) {
     const deviceCode = localStorage.getItem(DEVICE_CODE_KEY);
     if (!deviceCode) return;
@@ -113,12 +98,10 @@
       }
 
       const compat = typeof db.collection === 'function';
-      if (!compat) { showToast('⚠️ Миграция: нет совместимого API'); return; }
+      if (!compat) { console.log('Migration: no compat firestore, skipping'); return; }
 
       const from = deviceCode;
       const to = uid;
-
-      let migrated = 0;
 
       const dataTypes = [
         { path: ['users', from, 'favorites', 'data'], target: ['users', to, 'favorites', 'data'] },
@@ -132,20 +115,16 @@
         const snap = await db.collection(item.path[0]).doc(item.path[1]).collection(item.path[2]).doc(item.path[3]).get();
         if (snap.exists) {
           await db.collection(item.target[0]).doc(item.target[1]).collection(item.target[2]).doc(item.target[3]).set(snap.data(), { merge: true });
-          migrated++;
         }
       }
 
       // Migrate all trainer progress (input, choice, phases, rules, etc.)
-      let trainerCount = 0;
       try {
         const trainerDocs = await db.collection('users').doc(from).collection('trainers').get();
         for (const td of trainerDocs.docs) {
           const targetSnap = await db.collection('users').doc(to).collection('trainers').doc(td.id).get();
           if (targetSnap.exists) continue;
           await db.collection('users').doc(to).collection('trainers').doc(td.id).set(td.data(), { merge: true });
-          trainerCount++;
-          migrated++;
         }
       } catch(e) {
         console.warn('Trainer migration error:', e);
@@ -154,12 +133,9 @@
       // Save mapping in favorites/migration (favorites path is covered by existing rules)
       await db.collection('users').doc(to).collection('favorites').doc('migration').set({ migratedFrom: from, email }, { merge: true });
 
-      const msg = `✅ Миграция: ${migrated} разделов перенесено (тренажёры: ${trainerCount})`;
-      console.log(msg, 'from', deviceCode, 'to', uid);
-      showToast(msg);
+      console.log('Progress migrated from', deviceCode, 'to', uid);
     } catch (e) {
       console.warn('Migration error:', e);
-      showToast('❌ Ошибка миграции: ' + e.message);
     }
   }
 
