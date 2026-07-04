@@ -645,7 +645,7 @@
           <div style="position:absolute;bottom:4px;left:16px;font-size:0.65rem;color:#94a3b8">${stateLabel}</div>
         </div>
       </div>
-      <div class="ratings hidden" id="ratings">
+      <div class="ratings" id="ratings">
         <button class="rating-btn rating-again" data-rating="0">Снова<span class="sub">&lt; 1 мин</span></button>
         <button class="rating-btn rating-hard" data-rating="1">Трудно<span class="sub">~10 мин</span></button>
         <button class="rating-btn rating-good" data-rating="2">Хорошо<span class="sub">~1 д</span></button>
@@ -680,11 +680,9 @@
     // Клавиши 1-4
     document.addEventListener('keydown', function keyHandler(e) {
       if (['1','2','3','4'].includes(e.key)) {
-        if (isFlipped) {
-          const rating = parseInt(e.key) - 1;
-          document.removeEventListener('keydown', keyHandler);
-          handleRating(card, rating);
-        }
+        const rating = parseInt(e.key) - 1;
+        document.removeEventListener('keydown', keyHandler);
+        handleRating(card, rating);
       }
     });
   }
@@ -695,7 +693,6 @@
     const back = card.ru;
     document.getElementById('frontText').insertAdjacentHTML('afterend', `<div class="back-text" id="backText">${back}</div>`);
     document.getElementById('tapHint').textContent = '';
-    document.getElementById('ratings').classList.remove('hidden');
   }
 
   function handleRating(card, rating) {
