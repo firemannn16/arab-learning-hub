@@ -835,6 +835,7 @@
       const hasLearning = cards.filter(c => c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING);
       if (stats.due === 0 && stats.new === 0 && hasLearning.length === 0) {
         area.innerHTML = `
+          <button class="study-back-btn" id="doneBackBtn" title="Назад">←</button>
           <div class="done-state">
             <div class="icon">🎉</div>
             <h2>Все слова повторены!</h2>
@@ -844,6 +845,7 @@
             </div>
           </div>
         `;
+        document.getElementById('doneBackBtn').addEventListener('click', renderDeckSelection);
       } else if (hasLearning.length > 0 && stats.due === 0 && stats.new === 0) {
         const nextDue = Math.min(...hasLearning.map(c => c.due || Infinity));
         const waitSec = Math.max(1, Math.round((nextDue - Date.now()) / 1000));
