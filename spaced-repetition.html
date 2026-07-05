@@ -606,6 +606,13 @@
     loadLogs();
     fsrs = new window.FSRS(window._savedW || undefined);
     delete window._savedW;
+    // Проверка: NEW+EASY должно давать ~3 дня, иначе битые веса — сброс на дефолт
+    const testCard = window.FSRS_defaultCard();
+    const testResult = fsrs.repeat(testCard, Date.now())[window.FSRS_RATING.EASY];
+    if (testResult.scheduledDays > 10 || testResult.scheduledDays < 0.1) {
+      console.warn('FSRS weights look corrupted, falling back to defaults', fsrs.w, testResult.scheduledDays);
+      fsrs = new window.FSRS();
+    }
     fsrs.maxInterval = 180; // полгода
 
     try {
@@ -861,7 +868,7 @@
       </div>
       <div class="queue-info">Вероятность вспомнить: ${r !== null ? Math.round(r * 100) + '%' : 'Новая карта'}</div>
       <div class="debug-info" style="font-size:0.6rem;color:#64748b;text-align:center;margin-top:4px;opacity:0.6">
-        st:${card.stability.toFixed(1)} diff:${card.difficulty.toFixed(1)} step:${card.step} state:${card.state} due:${card.due ? Math.round((card.due-now2)/1000)+'s' : 'null'} easySD:${preds[3].scheduledDays.toFixed(1)}
+        st:${card.stability.toFixed(1)} diff:${card.difficulty.toFixed(1)} step:${card.step} state:${card.state} due:${card.due ? Math.round((card.due-now2)/1000)+'s' : 'null'} easySD:${preds[3].scheduledDays.toFixed(1)} w0:${fsrs ? fsrs.w[0].toFixed(4) : '?'} w14:${fsrs ? fsrs.w[14].toFixed(4) : '?'}
       </div>
     `;
 
