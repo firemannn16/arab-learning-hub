@@ -557,11 +557,17 @@
     if (!window.firestore || !window.auth || !window.authUser) return;
     try {
       const uid = window.authUser.uid;
-      if (typeof window.firestore.collection === 'function') {
-        await window.firestore.collection('users').doc(uid).collection('sr_cards').doc('logs').set({
-          logs: logs.slice(-5000),
+      if (typeof window.firestore.collection !== 'function') return;
+      const batchSize = 400;
+      const recent = logs.slice(-2000);
+      let chunkIndex = 0;
+      for (let i = 0; i < recent.length; i += batchSize) {
+        const chunk = recent.slice(i, i + batchSize);
+        await window.firestore.collection('users').doc(uid).collection('sr_cards').doc('logs_' + chunkIndex).set({
+          logs: chunk,
           updatedAt: new Date().toISOString()
         }, { merge: true });
+        chunkIndex++;
       }
     } catch(e) {
       console.warn('Firestore logs save error:', e);
@@ -632,23 +638,25 @@
       }
       saveCardsLocal(storedCards);
 
-      // Загружаем логи из Firestore
+      // Загружаем логи из Firestore (из чанков)
       try {
         const uid = window.authUser.uid;
         if (typeof window.firestore.collection === 'function') {
-          const snap = await window.firestore.collection('users').doc(uid).collection('sr_cards').doc('logs').get();
-          if (snap.exists && Array.isArray(snap.data().logs)) {
-            const remoteLogs = snap.data().logs;
-            const localIds = new Set(logs.map(l => l.card_id + l.timestamp));
-            const merged = [...logs];
-            remoteLogs.forEach(l => {
+          const merged = [...logs];
+          const localIds = new Set(logs.map(l => l.card_id + l.timestamp));
+          let chunkIdx = 0;
+          while (true) {
+            const snap = await window.firestore.collection('users').doc(uid).collection('sr_cards').doc('logs_' + chunkIdx).get();
+            if (!snap.exists || !Array.isArray(snap.data().logs)) break;
+            snap.data().logs.forEach(l => {
               const key = l.card_id + l.timestamp;
               if (!localIds.has(key)) { merged.push(l); localIds.add(key); }
             });
-            merged.sort((a, b) => a.timestamp - b.timestamp);
-            logs = merged.slice(-10000);
-            saveLogs();
+            chunkIdx++;
           }
+          merged.sort((a, b) => a.timestamp - b.timestamp);
+          logs = merged.slice(-10000);
+          saveLogs();
         }
       } catch(e) { console.warn('Firestore logs load error:', e); }
     }
@@ -757,12 +765,6 @@
     const area = document.getElementById('mainArea');
     const stats = getStats();
 
-    // Пропускаем карты, у которых due ещё не наступил
-    const now = Date.now();
-    while (currentIndex < queue.length && queue[currentIndex].due && queue[currentIndex].due > now + 5000) {
-      queue.splice(currentIndex, 1);
-    }
-
     if (queue.length === 0) {
       const hasLearning = cards.filter(c => c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING);
       if (stats.due === 0 && stats.new === 0 && hasLearning.length === 0) {
@@ -834,7 +836,7 @@
         <button class="rating-btn rating-good" data-rating="2">Хорошо<span class="sub">~1 д</span></button>
         <button class="rating-btn rating-easy" data-rating="3">Лёгко<span class="sub">~3 д</span></button>
       </div>
-      ${r !== null ? `<div class="queue-info">Вероятность вспомнить: ${Math.round(r * 100)}%</div>` : ''}
+      <div class="queue-info">Вероятность вспомнить: ${r !== null ? Math.round(r * 100) + '%' : 'Новая карта'}</div>
     `;
 
     document.getElementById('flashcard').addEventListener('click', (e) => {
@@ -938,23 +940,28 @@
 
     queue.splice(currentIndex, 1);
 
-    // Если карта осталась в изучении с due в будущем — не вставляем обратно,
-    // buildQueue() подхватит её при перестроении очереди
-    if ((updated.state === window.FSRS_STATE.LEARNING || updated.state === window.FSRS_STATE.RELEARNING) &&
-        (updated.due || now) <= now + 5000) {
-      const newDue = updated.due || now;
-      const insertIdx = queue.findIndex(c =>
-        (c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING) &&
-        (c.due || now) > newDue
-      );
-      if (insertIdx === -1) {
-        const learningEnd = queue.findIndex(c =>
-          c.state !== window.FSRS_STATE.LEARNING && c.state !== window.FSRS_STATE.RELEARNING
+    // Если карта осталась в изучении — ставим таймер, чтобы вставить обратно по due
+    if (updated.state === window.FSRS_STATE.LEARNING || updated.state === window.FSRS_STATE.RELEARNING) {
+      const waitMs = Math.max(1000, (updated.due || now) - now);
+      setTimeout(() => {
+        if (document.getElementById('studyBackBtn') === null) return;
+        const stillLearning = cards.find(c => c.id === updated.id);
+        if (!stillLearning) return;
+        if (stillLearning.state !== window.FSRS_STATE.LEARNING && stillLearning.state !== window.FSRS_STATE.RELEARNING) return;
+        const insIdx = queue.findIndex(c =>
+          (c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING) &&
+          (c.due || now) > (stillLearning.due || now)
         );
-        queue.splice(learningEnd === -1 ? queue.length : learningEnd, 0, updated);
-      } else {
-        queue.splice(insertIdx, 0, updated);
-      }
+        if (insIdx === -1) {
+          const learnEnd = queue.findIndex(c =>
+            c.state !== window.FSRS_STATE.LEARNING && c.state !== window.FSRS_STATE.RELEARNING
+          );
+          queue.splice(learnEnd === -1 ? queue.length : learnEnd, 0, stillLearning);
+        } else {
+          queue.splice(insIdx, 0, stillLearning);
+        }
+        render();
+      }, waitMs);
     }
 
     render();
