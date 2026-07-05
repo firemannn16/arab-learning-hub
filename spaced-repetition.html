@@ -328,6 +328,23 @@
   .confirm-danger { background:#dc2626; color:#fff; }
   .confirm-danger:hover { background:#b91c1c; }
 
+  /* Stats */
+  .stat-section { margin-bottom:16px; }
+  .stat-section h3 { font-size:0.9rem; font-weight:600; margin-bottom:8px; color:#1f2937; }
+  .dark-theme .stat-section h3 { color:#e0e0e0; }
+  .stat-bar-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; font-size:0.8rem; }
+  .stat-bar-label { width:70px; flex-shrink:0; color:#6b7280; }
+  .stat-bar-track { flex:1; height:12px; background:#e5e7eb; border-radius:6px; overflow:hidden; }
+  .dark-theme .stat-bar-track { background:#374151; }
+  .stat-bar-fill { height:100%; border-radius:6px; transition:width 0.3s; }
+  .stat-bar-count { width:36px; text-align:right; font-weight:600; color:#1f2937; flex-shrink:0; }
+  .dark-theme .stat-bar-count { color:#e0e0e0; }
+  .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .stat-grid-item { background:#f9fafb; border-radius:10px; padding:12px; text-align:center; }
+  .dark-theme .stat-grid-item { background:#111827; }
+  .stat-grid-num { font-size:1.3rem; font-weight:700; }
+  .stat-grid-label { font-size:0.75rem; color:#6b7280; margin-top:2px; }
+
   /* Auth prompt overlay */
   .auth-prompt {
     text-align: center; padding: 40px 20px;
@@ -362,12 +379,27 @@
       <span>Новых карт в день:</span>
       <input type="number" id="limitNew" min="1" max="200" value="50" style="width:80px;padding:6px;border-radius:8px;border:2px solid #e0e0e0;text-align:center;font-size:1rem">
     </label>
-    <label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <span>Повторов без лимита:</span>
       <input type="checkbox" id="unlimitedReviews" checked style="width:20px;height:20px">
     </label>
+    <label id="maxReviewsRow" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <span>Макс повторений в день:</span>
+      <input type="number" id="maxReviews" min="0" max="500" value="0" style="width:80px;padding:6px;border-radius:8px;border:2px solid #e0e0e0;text-align:center;font-size:1rem">
+    </label>
     <button id="settingsSaveBtn" class="big-btn" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer">Сохранить</button>
+    <button id="statsBtn" class="reset-btn" style="color:#2563eb;border-color:#93c5fd;margin-top:16px">Статистика</button>
     <button id="resetBtn" class="reset-btn">Сбросить прогресс</button>
+  </div>
+</div>
+
+<div id="statsModal" class="modal-overlay" style="display:none">
+  <div class="modal-content" style="max-width:420px">
+    <div style="display:flex;align-items:center;margin-bottom:16px">
+      <button class="settings-back-btn" id="statsBackBtn" title="Назад">←</button>
+      <h2 style="margin:0;font-size:1.15rem">Статистика</h2>
+    </div>
+    <div id="statsContent"></div>
   </div>
 </div>
 
@@ -403,6 +435,7 @@
   let newTodayCount = 0;
   let limitNew = 50;
   let unlimitedReviews = true;
+  let maxReviews = 0;
   let fsrs;
   let newCardsLeft = 0;
   let sessionAnswered = false;
@@ -416,11 +449,12 @@
       if (s) {
         if (s.limitNew) limitNew = s.limitNew;
         if (s.unlimitedReviews !== undefined) unlimitedReviews = s.unlimitedReviews;
+        if (s.maxReviews !== undefined) maxReviews = s.maxReviews;
       }
     } catch(e) {}
   }
   function saveSettingsToStorage() {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ limitNew, unlimitedReviews }));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ limitNew, unlimitedReviews, maxReviews }));
   }
 
   // Сколько новых показано сегодня
@@ -608,6 +642,9 @@
     learningCards.sort((a, b) => (a.due || now) - (b.due || now));
     // Повторяемые — самые просроченные первые
     reviewCards.sort((a, b) => (a.due || now) - (b.due || now));
+    if (!unlimitedReviews && maxReviews > 0) {
+      reviewCards.splice(maxReviews);
+    }
     // Новые — перемешать
     for (let i = newCards.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -806,6 +843,23 @@
     saveTodayCount();
 
     queue.splice(currentIndex, 1);
+
+    if (updated.state === window.FSRS_STATE.LEARNING || updated.state === window.FSRS_STATE.RELEARNING) {
+      const newDue = updated.due || now;
+      const insertIdx = queue.findIndex(c =>
+        (c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING) &&
+        (c.due || now) > newDue
+      );
+      if (insertIdx === -1) {
+        const learningEnd = queue.findIndex(c =>
+          c.state !== window.FSRS_STATE.LEARNING && c.state !== window.FSRS_STATE.RELEARNING
+        );
+        queue.splice(learningEnd === -1 ? queue.length : learningEnd, 0, updated);
+      } else {
+        queue.splice(insertIdx, 0, updated);
+      }
+    }
+
     render();
   }
 
@@ -858,22 +912,116 @@
     renderDeckSelection();
   }
 
+  function renderStats() {
+    const now = Date.now();
+    const total = cards.length;
+
+    const intervals = cards.filter(c => c.state !== window.FSRS_STATE.NEW).map(c => {
+      const elapsed = c.lastReview ? (now - c.lastReview) / 86400000 : 0;
+      const stability = c.stability || 1;
+      return { card: c, retrievability: stability > 0 ? Math.pow(1 + Math.pow(0.9, -1 / 0.25) * elapsed / stability, -0.25) : 0 };
+    });
+
+    // Распределение retrievability
+    const rBins = [0, 0, 0, 0, 0];
+    intervals.forEach(({ retrievability: r }) => {
+      if (r <= 0.6) rBins[0]++;
+      else if (r <= 0.7) rBins[1]++;
+      else if (r <= 0.8) rBins[2]++;
+      else if (r <= 0.9) rBins[3]++;
+      else rBins[4]++;
+    });
+    const rLabels = ['<60%', '60%', '70%', '80%', '90%+'];
+    const rMax = Math.max(...rBins, 1);
+
+    // Распределение сложности
+    const dCounts = [0, 0, 0, 0, 0];
+    cards.filter(c => c.state !== window.FSRS_STATE.NEW).forEach(c => {
+      const d = c.difficulty || 5;
+      if (d <= 3) dCounts[0]++;
+      else if (d <= 5) dCounts[1]++;
+      else if (d <= 7) dCounts[2]++;
+      else if (d <= 9) dCounts[3]++;
+      else dCounts[4]++;
+    });
+    const dLabels = ['Лёгкие', 'Средние', 'Трудные', 'Сложные', 'Кошмар'];
+    const dMax = Math.max(...dCounts, 1);
+
+    const newC = cards.filter(c => c.state === window.FSRS_STATE.NEW).length;
+    const learningC = cards.filter(c => c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING).length;
+    const reviewC = cards.filter(c => c.state === window.FSRS_STATE.REVIEW).length;
+    const matureC = cards.filter(c => c.state === window.FSRS_STATE.REVIEW && c.stability >= 21).length;
+
+    document.getElementById('statsContent').innerHTML = `
+      <div class="stat-grid" style="margin-bottom:16px">
+        <div class="stat-grid-item"><div class="stat-grid-num" style="color:#3b82f6">${newC}</div><div class="stat-grid-label">Новые</div></div>
+        <div class="stat-grid-item"><div class="stat-grid-num" style="color:#ef4444">${learningC}</div><div class="stat-grid-label">Изучаемые</div></div>
+        <div class="stat-grid-item"><div class="stat-grid-num" style="color:#22c55e">${reviewC}</div><div class="stat-grid-label">Повторяемые</div></div>
+        <div class="stat-grid-item"><div class="stat-grid-num" style="color:#6b7280">${matureC}</div><div class="stat-grid-label">Зрелые (>21д)</div></div>
+      </div>
+
+      <div class="stat-section">
+        <h3>Кривая забывания (retrievability)</h3>
+        ${rLabels.map((label, i) => `
+          <div class="stat-bar-row">
+            <span class="stat-bar-label">${label}</span>
+            <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${(rBins[i] / rMax * 100)}%;background:${['#ef4444','#f97316','#eab308','#22c55e','#3b82f6'][i]}"></div></div>
+            <span class="stat-bar-count">${rBins[i]}</span>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="stat-section">
+        <h3>Сложность карт</h3>
+        ${dLabels.map((label, i) => `
+          <div class="stat-bar-row">
+            <span class="stat-bar-label">${label}</span>
+            <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${(dCounts[i] / dMax * 100)}%;background:${['#22c55e','#3b82f6','#f97316','#ef4444','#dc2626'][i]}"></div></div>
+            <span class="stat-bar-count">${dCounts[i]}</span>
+          </div>
+        `).join('')}
+      </div>
+
+      <div style="font-size:0.8rem;color:#94a3b8;text-align:center;margin-top:8px">
+        Повторено сегодня: ${todayCount}
+      </div>
+    `;
+  }
+
   // Настройки
   function openSettings() {
     const modal = document.getElementById('settingsModal');
     document.getElementById('limitNew').value = limitNew;
     document.getElementById('unlimitedReviews').checked = unlimitedReviews;
+    document.getElementById('maxReviews').value = maxReviews;
+    document.getElementById('maxReviewsRow').style.display = unlimitedReviews ? 'none' : 'flex';
     modal.style.display = 'flex';
   }
 
   document.getElementById('settingsSaveBtn').addEventListener('click', () => {
     limitNew = parseInt(document.getElementById('limitNew').value) || 50;
     unlimitedReviews = document.getElementById('unlimitedReviews').checked;
+    maxReviews = parseInt(document.getElementById('maxReviews').value) || 0;
     saveSettingsToStorage();
     document.getElementById('settingsModal').style.display = 'none';
   });
+  document.getElementById('unlimitedReviews').addEventListener('change', function() {
+    document.getElementById('maxReviewsRow').style.display = this.checked ? 'none' : 'flex';
+  });
   document.getElementById('settingsBackBtn').addEventListener('click', () => {
     document.getElementById('settingsModal').style.display = 'none';
+  });
+  document.getElementById('statsBtn').addEventListener('click', () => {
+    document.getElementById('settingsModal').style.display = 'none';
+    renderStats();
+    document.getElementById('statsModal').style.display = 'flex';
+  });
+  document.getElementById('statsBackBtn').addEventListener('click', () => {
+    document.getElementById('statsModal').style.display = 'none';
+    document.getElementById('settingsModal').style.display = 'flex';
+  });
+  document.getElementById('statsModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) e.target.style.display = 'none';
   });
   document.getElementById('resetBtn').addEventListener('click', () => {
     showConfirm(
