@@ -389,6 +389,7 @@
     </label>
     <button id="settingsSaveBtn" class="big-btn" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer">Сохранить</button>
     <button id="statsBtn" class="reset-btn" style="color:#2563eb;border-color:#93c5fd;margin-top:16px">Статистика</button>
+    <button id="optimizeBtn" class="reset-btn" style="color:#7c3aed;border-color:#c4b5fd">FSRS Оптимизатор</button>
     <button id="resetBtn" class="reset-btn">Сбросить прогресс</button>
   </div>
 </div>
@@ -425,6 +426,7 @@
   const SETTINGS_KEY = 'arabSrSettings';
   const TODAY_KEY = 'arabSrToday';
   const NEW_TODAY_KEY = 'arabSrNewToday';
+  const LOGS_KEY = 'arabSrLogs';
 
   let allWords = [];
   let cards = [];
@@ -441,6 +443,17 @@
   let sessionAnswered = false;
   let sessionTotal = 0;
   let sessionDone = 0;
+  let logs = [];
+
+  function loadLogs() {
+    try { const d = JSON.parse(localStorage.getItem(LOGS_KEY)); if (Array.isArray(d)) logs = d; } catch(e) {}
+  }
+  function saveLogs() {
+    try { localStorage.setItem(LOGS_KEY, JSON.stringify(logs)); }
+    catch(e) {
+      if (e.name === 'QuotaExceededError') { logs = logs.slice(-1000); localStorage.setItem(LOGS_KEY, JSON.stringify(logs)); }
+    }
+  }
 
   // Настройки
   function loadSettings() {
@@ -450,11 +463,15 @@
         if (s.limitNew) limitNew = s.limitNew;
         if (s.unlimitedReviews !== undefined) unlimitedReviews = s.unlimitedReviews;
         if (s.maxReviews !== undefined) maxReviews = s.maxReviews;
+        if (s.w && Array.isArray(s.w) && s.w.length === 19) {
+          if (fsrs) fsrs.w = s.w;
+          else window._savedW = s.w;
+        }
       }
     } catch(e) {}
   }
   function saveSettingsToStorage() {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ limitNew, unlimitedReviews, maxReviews }));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ limitNew, unlimitedReviews, maxReviews, w: fsrs.w }));
   }
 
   // Сколько новых показано сегодня
@@ -521,7 +538,7 @@
     }
   }
 
-  async function saveCardsToFirestore(cardsData) {
+  async   function saveCardsToFirestore(cardsData) {
     if (!window.firestore || !window.auth || !window.authUser) return;
     try {
       const uid = window.authUser.uid;
@@ -533,6 +550,21 @@
       }
     } catch(e) {
       console.warn('Firestore save error:', e);
+    }
+  }
+
+  async function saveLogsToFirestore() {
+    if (!window.firestore || !window.auth || !window.authUser) return;
+    try {
+      const uid = window.authUser.uid;
+      if (typeof window.firestore.collection === 'function') {
+        await window.firestore.collection('users').doc(uid).collection('sr_cards').doc('logs').set({
+          logs: logs.slice(-5000),
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
+    } catch(e) {
+      console.warn('Firestore logs save error:', e);
     }
   }
 
@@ -555,7 +587,9 @@
     loadSettings();
     loadTodayCount();
     loadNewTodayCount();
-    fsrs = new window.FSRS();
+    loadLogs();
+    fsrs = new window.FSRS(window._savedW || undefined);
+    delete window._savedW;
     fsrs.maxInterval = 180; // полгода
 
     try {
@@ -597,6 +631,26 @@
         }
       }
       saveCardsLocal(storedCards);
+
+      // Загружаем логи из Firestore
+      try {
+        const uid = window.authUser.uid;
+        if (typeof window.firestore.collection === 'function') {
+          const snap = await window.firestore.collection('users').doc(uid).collection('sr_cards').doc('logs').get();
+          if (snap.exists && Array.isArray(snap.data().logs)) {
+            const remoteLogs = snap.data().logs;
+            const localIds = new Set(logs.map(l => l.card_id + l.timestamp));
+            const merged = [...logs];
+            remoteLogs.forEach(l => {
+              const key = l.card_id + l.timestamp;
+              if (!localIds.has(key)) { merged.push(l); localIds.add(key); }
+            });
+            merged.sort((a, b) => a.timestamp - b.timestamp);
+            logs = merged.slice(-10000);
+            saveLogs();
+          }
+        }
+      } catch(e) { console.warn('Firestore logs load error:', e); }
     }
 
     const cardMap = {};
@@ -611,6 +665,8 @@
     saveCardsLocal(cards);
     if (window.auth && window.authUser) saveCardsToFirestore(cards);
 
+    window.__cards = cards;
+    window.__queue = queue;
     renderDeckSelection();
   }
 
@@ -701,8 +757,15 @@
     const area = document.getElementById('mainArea');
     const stats = getStats();
 
+    // Пропускаем карты, у которых due ещё не наступил
+    const now = Date.now();
+    while (currentIndex < queue.length && queue[currentIndex].due && queue[currentIndex].due > now + 5000) {
+      queue.splice(currentIndex, 1);
+    }
+
     if (queue.length === 0) {
-      if (stats.due === 0 && stats.new === 0) {
+      const hasLearning = cards.filter(c => c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING);
+      if (stats.due === 0 && stats.new === 0 && hasLearning.length === 0) {
         area.innerHTML = `
           <div class="done-state">
             <div class="icon">🎉</div>
@@ -713,9 +776,20 @@
             </div>
           </div>
         `;
+      } else if (hasLearning.length > 0 && stats.due === 0 && stats.new === 0) {
+        const nextDue = Math.min(...hasLearning.map(c => c.due || Infinity));
+        const waitSec = Math.max(1, Math.round((nextDue - Date.now()) / 1000));
+        area.innerHTML = `
+          <div class="done-state">
+            <div class="icon">⏳</div>
+            <h2>Ожидание изучения</h2>
+            <p>Изучаемые карты вернутся через ${waitSec > 60 ? Math.round(waitSec/60) + ' мин' : waitSec + ' сек'}</p>
+          </div>
+        `;
+        setTimeout(render, Math.min(60000, Math.max(5000, (nextDue - Date.now()))));
       } else {
         buildQueue();
-        if (queue.length === 0) { setTimeout(render, 1000); return; }
+        if (queue.length === 0) { setTimeout(render, 5000); return; }
         renderCard();
       }
       return;
@@ -823,6 +897,21 @@
     sessionAnswered = true;
     sessionDone++;
     const now = Date.now();
+
+    // Сохраняем лог для оптимизатора
+    logs.push({
+      card_id: card.id,
+      stability_before: card.stability,
+      difficulty_before: card.difficulty,
+      elapsed_days: card.elapsedDays,
+      state_before: card.state,
+      lapses_before: card.lapses,
+      reps_before: card.reps,
+      rating: rating,
+      timestamp: now
+    });
+    saveLogs();
+
     const results = fsrs.repeat(card, now);
     const updated = results[rating];
 
@@ -837,14 +926,22 @@
     }
 
     saveCardsLocal(cards);
-    if (window.auth && window.authUser) saveCardsToFirestore(cards);
+    if (window.auth && window.authUser) {
+      saveCardsToFirestore(cards);
+      saveLogsToFirestore();
+    }
+    window.__cards = cards;
+    window.__queue = queue;
 
     todayCount++;
     saveTodayCount();
 
     queue.splice(currentIndex, 1);
 
-    if (updated.state === window.FSRS_STATE.LEARNING || updated.state === window.FSRS_STATE.RELEARNING) {
+    // Если карта осталась в изучении с due в будущем — не вставляем обратно,
+    // buildQueue() подхватит её при перестроении очереди
+    if ((updated.state === window.FSRS_STATE.LEARNING || updated.state === window.FSRS_STATE.RELEARNING) &&
+        (updated.due || now) <= now + 5000) {
       const newDue = updated.due || now;
       const insertIdx = queue.findIndex(c =>
         (c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING) &&
@@ -910,6 +1007,106 @@
     }
     document.getElementById('settingsModal').style.display = 'none';
     renderDeckSelection();
+  }
+
+  // FSRS Оптимизатор
+  function computeFSRSLoss(w, byCard) {
+    let total = 0; let count = 0;
+    const tempFSRS = new window.FSRS(w);
+    tempFSRS.maxInterval = fsrs.maxInterval;
+    for (const id in byCard) {
+      const cardLogs = byCard[id];
+      let card = window.FSRS_defaultCard();
+      for (const log of cardLogs) {
+        card.stability = log.stability_before;
+        card.difficulty = log.difficulty_before;
+        card.elapsedDays = log.elapsed_days;
+        card.state = log.state_before;
+        card.lapses = log.lapses_before;
+        card.lastReview = log.timestamp - log.elapsed_days * 86400000;
+        card.reps = log.reps_before;
+        const R = tempFSRS.getRetrievability(card, log.timestamp);
+        if (R === null) continue;
+        const actual = log.rating >= 2 ? 1 : 0;
+        total += -actual * Math.log(Math.max(0.001, R)) - (1 - actual) * Math.log(Math.max(0.001, 1 - R));
+        count++;
+        const res = tempFSRS.repeat(card, log.timestamp);
+        card = res[log.rating];
+      }
+    }
+    return count > 0 ? total / count : Infinity;
+  }
+
+  function optimizeFSRS() {
+    const needed = 200;
+    if (logs.length < needed) {
+      showConfirm(
+        'Недостаточно данных',
+        `Для оптимизации нужно минимум ${needed} ответов. Сейчас собрано ${logs.length}. Продолжайте учить слова — логи собираются автоматически.`,
+        'OK', '', () => {}, () => {}
+      );
+      return;
+    }
+
+    const byCard = {};
+    for (const log of logs) {
+      if (!byCard[log.card_id]) byCard[log.card_id] = [];
+      byCard[log.card_id].push(log);
+    }
+    for (const id in byCard) byCard[id].sort((a, b) => a.timestamp - b.timestamp);
+
+    const modal = document.getElementById('settingsModal');
+    modal.style.display = 'none';
+
+    document.getElementById('mainArea').innerHTML = `
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <div>Оптимизация FSRS... <span id="optProgress">0%</span></div>
+      </div>
+    `;
+
+    setTimeout(() => {
+      let bestW = [...fsrs.w];
+      let bestLoss = computeFSRSLoss(bestW, byCard);
+
+      for (let iter = 0; iter < 500; iter++) {
+        const candidate = [...bestW];
+        for (let p = 0; p < 19; p++) {
+          const step = (Math.random() - 0.5) * 0.15 * (Math.abs(bestW[p]) + 0.1);
+          candidate[p] = Math.max(-5, Math.min(20, candidate[p] + step));
+        }
+        const loss = computeFSRSLoss(candidate, byCard);
+        if (loss < bestLoss) {
+          bestLoss = loss;
+          bestW = candidate;
+        }
+        if (iter % 50 === 0) {
+          const el = document.getElementById('optProgress');
+          if (el) el.textContent = Math.round((iter / 500) * 100) + '%';
+        }
+      }
+
+      fsrs.w = bestW;
+      // Пересчитываем все карты с новыми параметрами
+      cards.forEach(c => {
+        if (c.state !== window.FSRS_STATE.NEW) {
+          const retrievability = fsrs.getRetrievability(c, Date.now());
+          if (retrievability !== null) {
+            c.stability = c.stability; // stability stays, only future predictions change
+          }
+        }
+      });
+      saveSettingsToStorage();
+
+      document.getElementById('mainArea').innerHTML = `
+        <div class="done-state">
+          <div class="icon">✅</div>
+          <h2>Оптимизация завершена</h2>
+          <p>Параметры FSRS подстроены под вашу историю. Потеря (loss): ${bestLoss.toFixed(4)}</p>
+          <button class="big-btn" onclick="location.reload()" style="padding:12px 32px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer">Продолжить</button>
+        </div>
+      `;
+    }, 100);
   }
 
   function renderStats() {
@@ -1016,6 +1213,7 @@
     renderStats();
     document.getElementById('statsModal').style.display = 'flex';
   });
+  document.getElementById('optimizeBtn').addEventListener('click', optimizeFSRS);
   document.getElementById('statsBackBtn').addEventListener('click', () => {
     document.getElementById('statsModal').style.display = 'none';
     document.getElementById('settingsModal').style.display = 'flex';
