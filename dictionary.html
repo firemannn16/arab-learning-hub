@@ -121,8 +121,22 @@
 </head>
 <body>
   <div class="container">
-    <h1>Арабско-русский словарь</h1>
-    <p class="lead">Поиск по арабскому и по-русски. Нажмите на результат, чтобы открыть подробности.</p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+      <div>
+        <h1>Арабско-русский словарь</h1>
+        <p class="lead">Поиск по арабскому и по-русски. Нажмите на результат, чтобы открыть подробности.</p>
+      </div>
+      <button id="settingsBtn" class="btn" title="Настройки GitHub">⚙️</button>
+    </div>
+
+    <div id="settingsPanel" style="display:none;margin-bottom:12px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px">GitHub токен для автосохранения правок</div>
+      <div style="display:flex;gap:8px">
+        <input id="ghTokenInput" type="password" placeholder="Вставьте GitHub токен (ghp_...)" style="flex:1;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px">
+        <button id="ghTokenSaveBtn" class="btn" style="background:#0f172a;color:#fff;border-color:#0f172a">Сохранить</button>
+      </div>
+      <div id="ghTokenStatus" style="font-size:12px;color:#64748b;margin-top:4px"></div>
+    </div>
 
     <div class="search-wrapper">
       <input id="q" type="search" placeholder="Введите арабское (مثال: بَيْت или بيت) или русское (дом)..." autocomplete="off" dir="auto" />
@@ -390,9 +404,10 @@ function renderVisibleItems() {
       ruDisplay = escapeHtml(r.ru);
     }
     
+    const isEdited = pendingEdits[r.id];
     li.innerHTML = `<div style="flex:1">
                       <div class="ru">${ruDisplay}${r.gloss ? ' <small>(' + escapeHtml(r.gloss) + ')</small>' : ''}</div>
-                      <div class="ar">${escapeHtml(allArabicDisplay)}</div>
+                      <div class="ar">${escapeHtml(allArabicDisplay)}${isEdited ? ' <span style="font-size:11px;color:#f59e0b;font-weight:600">[ред.]</span>' : ''}</div>
                     </div>
                     <div class="word-actions">
                       <button class="star-btn ${isFav ? 'active' : ''}" data-raw="${escapeHtml(rawLine).replace(/"/g,'&quot;')}" title="${isFav ? 'Убрать из избранного' : 'В избранное'}" onclick="onDictStarClick(event, this)">${isFav ? '⭐' : '☆'}</button>
@@ -437,9 +452,10 @@ function appendMore(list, add = renderLimit, query = "") {
       ruDisplay = escapeHtml(r.ru);
     }
     
+    const isEdited = pendingEdits[r.id];
     li.innerHTML = `<div style="flex:1">
                       <div class="ru">${ruDisplay}${r.gloss ? ' <small>(' + escapeHtml(r.gloss) + ')</small>' : ''}</div>
-                      <div class="ar">${escapeHtml(allArabicDisplay)}</div>
+                      <div class="ar">${escapeHtml(allArabicDisplay)}${isEdited ? ' <span style="font-size:11px;color:#f59e0b;font-weight:600">[ред.]</span>' : ''}</div>
                     </div>
                     <div class="word-actions">
                       <button class="star-btn ${isFav ? 'active' : ''}" data-raw="${escapeHtml(rawLine).replace(/"/g,'&quot;')}" title="${isFav ? 'Убрать из избранного' : 'В избранное'}" onclick="onDictStarClick(event, this)">${isFav ? '⭐' : '☆'}</button>
@@ -609,6 +625,7 @@ function openModal(item) {
         <button id="copyBtn" class="btn">Копировать всё</button>
         ${item.arabicVariants.length > 0 ? `<a class="btn" href="https://glagol.reverso.net/%D1%81%D0%BF%D1%80%D1%8F%D0%B6%D0%B5%D0%BD%D0%B8%D0%B5-%D0%B0%D1%80%D0%B0%D0%B1%D1%81%D0%BA%D0%B8%D0%B9-%D0%B3%D0%BB%D0%B0%D0%B3%D0%BE%D0%BB-${encodeURIComponent(item.arabicVariants[0])}.html" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px">Спряжение ↗</a>` : ''}
         <button id="modalFav" class="btn" title="${favState ? 'Убрать из избранного' : 'В избранное'}">${favState ? '⭐' : '☆'}</button>
+        <button id="editBtn" class="btn" title="Редактировать">✏️</button>
       </div>
     </div>
   </div>`;
@@ -632,6 +649,14 @@ function openModal(item) {
       modalFavBtn.title = nowFav ? 'Убрать из избранного' : 'В избранное';
     });
   }
+  const editBtn = document.getElementById("editBtn");
+  if (editBtn) {
+    editBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      enableEditMode(item);
+    });
+  }
+
   modalEl.addEventListener("click", (ev) => { 
     if (ev.target.id === "modalWrap") closeModal(); 
   });
@@ -647,6 +672,225 @@ function showTemporaryNotify(text) {
   notifyEl.style.display = "block";
   setTimeout(() => { notifyEl.style.display = "none"; }, 1500);
 }
+
+/* ===== GitHub Token Management ===== */
+const GH_TOKEN_KEY = 'github_token';
+const GH_REPO = 'firemannn16/arab-learning-hub';
+const GH_BRANCH = 'main';
+const GH_PATH = 'words.txt';
+let pendingEdits = {};
+const STORAGE_EDITS_KEY = 'dict_edits';
+
+function getGitHubToken() {
+  return localStorage.getItem(GH_TOKEN_KEY) || '';
+}
+
+function saveGitHubToken(token) {
+  localStorage.setItem(GH_TOKEN_KEY, token);
+}
+
+function base64Encode(str) {
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/* ===== Edits persistence ===== */
+function loadEditsFromStorage() {
+  try {
+    const stored = localStorage.getItem(STORAGE_EDITS_KEY);
+    if (stored) pendingEdits = JSON.parse(stored);
+  } catch(e) { pendingEdits = {}; }
+}
+
+function saveEditsToStorage() {
+  try {
+    localStorage.setItem(STORAGE_EDITS_KEY, JSON.stringify(pendingEdits));
+  } catch(e) {}
+}
+
+function applyPendingEdits() {
+  loadEditsFromStorage();
+  for (const entry of entries) {
+    const edit = pendingEdits[entry.id];
+    if (edit) {
+      entry.ru = edit.ru;
+      entry.gloss = edit.gloss;
+      entry.arabicVariants = edit.arabicVariants.slice();
+      entry.note = edit.note || '';
+      entry._arabic_norm = entry.arabicVariants.map(normalizeArabic);
+      entry._ru_norm = normalizeRussian(entry.ru + (entry.gloss ? ` (${entry.gloss})` : ''));
+    }
+  }
+}
+
+function saveWordEdit(id, ru, gloss, arabicVariants, note) {
+  pendingEdits[id] = { ru, gloss, arabicVariants: arabicVariants.slice(), note: note || '' };
+  saveEditsToStorage();
+  const entry = entries.find(e => e.id === id);
+  if (entry) {
+    entry.ru = ru;
+    entry.gloss = gloss;
+    entry.arabicVariants = arabicVariants.slice();
+    entry.note = note || '';
+    entry._arabic_norm = entry.arabicVariants.map(normalizeArabic);
+    entry._ru_norm = normalizeRussian(entry.ru + (entry.gloss ? ` (${entry.gloss})` : ''));
+  }
+}
+
+function rebuildWordsTxt() {
+  return entries.map(e => {
+    const ruPart = e.ru + (e.gloss ? ` (${e.gloss})` : '');
+    const arPart = e.arabicVariants.join(' - ');
+    return `${ruPart} - ${arPart}`;
+  }).join('\n');
+}
+
+async function updateWordOnGitHub(entry, isRevert) {
+  const token = getGitHubToken();
+  if (!token) {
+    showTemporaryNotify('Введите GitHub токен в настройках');
+    return false;
+  }
+  try {
+    const getUrl = `https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}?ref=${GH_BRANCH}`;
+    const getRes = await fetch(getUrl, {
+      headers: { 'Authorization': `token ${token}` }
+    });
+    if (!getRes.ok) throw new Error(`Ошибка GET ${getRes.status}`);
+    const fileData = await getRes.json();
+    const sha = fileData.sha;
+
+    const updatedContent = rebuildWordsTxt();
+    const label = isRevert
+      ? `Отменено: ${entry.ru} — ${entry.arabicVariants.join(', ')}`
+      : `Исправлено: ${entry.ru} — ${entry.arabicVariants.join(', ')}`;
+
+    const putUrl = `https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`;
+    const putRes = await fetch(putUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `token ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: label,
+        content: base64Encode(updatedContent),
+        sha: sha,
+        branch: GH_BRANCH
+      })
+    });
+    if (!putRes.ok) throw new Error(`Ошибка PUT ${putRes.status}`);
+    if (isRevert) delete pendingEdits[entry.id];
+    else saveEditsToStorage();
+    return true;
+  } catch(e) {
+    console.error('GitHub API error:', e);
+    showTemporaryNotify('Ошибка GitHub: ' + e.message);
+    return false;
+  }
+}
+
+/* ===== Edit mode in modal ===== */
+function enableEditMode(item) {
+  const card = document.querySelector('.card');
+  if (!card) return;
+
+  const ru = item.ru;
+  const gloss = item.gloss || '';
+  const arabicJoined = item.arabicVariants.join(' - ');
+  const note = item.note || '';
+
+  card.innerHTML = `
+    <button id="closeEditBtn" style="float:right" class="btn">← Назад</button>
+    <h3 style="margin-top:4px">Редактирование</h3>
+    <div style="margin-top:12px">
+      <label style="display:block;font-size:12px;color:#64748b;margin-bottom:2px">Русский:</label>
+      <input id="editRu" value="${escapeHtml(ru)}" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:15px;box-sizing:border-box">
+    </div>
+    <div style="margin-top:8px">
+      <label style="display:block;font-size:12px;color:#64748b;margin-bottom:2px">Пояснение (gloss):</label>
+      <input id="editGloss" value="${escapeHtml(gloss)}" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:15px;box-sizing:border-box">
+    </div>
+    <div style="margin-top:8px">
+      <label style="display:block;font-size:12px;color:#64748b;margin-bottom:2px">Арабские варианты (через пробел - тире - пробел):</label>
+      <input id="editArabic" value="${escapeHtml(arabicJoined)}" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:15px;box-sizing:border-box" dir="rtl">
+    </div>
+    <div style="margin-top:8px">
+      <label style="display:block;font-size:12px;color:#64748b;margin-bottom:2px">Примечание:</label>
+      <input id="editNote" value="${escapeHtml(note)}" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:15px;box-sizing:border-box">
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button id="saveEditBtn" class="btn" style="background:#0f172a;color:#fff;border-color:#0f172a">💾 Сохранить в GitHub</button>
+      <button id="cancelEditBtn" class="btn">Отмена</button>
+    </div>
+  `;
+
+  document.getElementById('closeEditBtn').addEventListener('click', () => openModal(item));
+  document.getElementById('cancelEditBtn').addEventListener('click', () => openModal(item));
+  document.getElementById('saveEditBtn').addEventListener('click', async () => {
+    const newRu = document.getElementById('editRu').value.trim();
+    const newGloss = document.getElementById('editGloss').value.trim();
+    const newArabic = document.getElementById('editArabic').value.trim();
+    const newNote = document.getElementById('editNote').value.trim();
+
+    if (!newRu || !newArabic) {
+      showTemporaryNotify('Заполните русский и арабский текст');
+      return;
+    }
+
+    const arabicParts = newArabic.split(/\s*[-–—]\s*/).filter(s => s.trim());
+
+    const btn = document.getElementById('saveEditBtn');
+    btn.textContent = '⏳ Сохраняю...';
+    btn.disabled = true;
+
+    const updatedEntry = {
+      ...item,
+      ru: newRu,
+      gloss: newGloss,
+      arabicVariants: arabicParts,
+      note: newNote
+    };
+
+    const ok = await updateWordOnGitHub(updatedEntry, false);
+    if (ok) {
+      saveWordEdit(item.id, newRu, newGloss, arabicParts, newNote);
+      showTemporaryNotify('Сохранено в GitHub');
+      closeModal();
+      renderListPartial(lastResults.length ? performSearch(lastQuery) : entries, renderLimit, lastQuery);
+    } else {
+      btn.textContent = '💾 Сохранить в GitHub';
+      btn.disabled = false;
+    }
+  });
+}
+
+/* ===== Settings panel ===== */
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  const panel = document.getElementById('settingsPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  document.getElementById('ghTokenInput').value = getGitHubToken();
+});
+
+document.getElementById('ghTokenSaveBtn').addEventListener('click', () => {
+  const token = document.getElementById('ghTokenInput').value.trim();
+  const status = document.getElementById('ghTokenStatus');
+  if (!token) {
+    status.textContent = 'Введите токен';
+    status.style.color = '#ef4444';
+    return;
+  }
+  saveGitHubToken(token);
+  status.textContent = 'Токен сохранен';
+  status.style.color = '#10b981';
+  setTimeout(() => {
+    document.getElementById('settingsPanel').style.display = 'none';
+  }, 1000);
+});
 
 /* ===== loading and init ===== */
 async function loadFromServer() {
@@ -783,7 +1027,13 @@ window.addEventListener('offline', () => {
 });
 
 // init
-loadFromServer();
+loadFromServer().then(() => {
+  if (entries.length) {
+    applyPendingEdits();
+    lastResults = entries.slice();
+    renderListPartial(lastResults, renderLimit, '');
+  }
+});
 </script>
 </body>
 </html>
