@@ -2,7 +2,7 @@
 (function() {
     'use strict';
 
-    // ⚡ ВЕРСИЯ ПРИЛОЖЕНИЯ — при изменении принудительно обновляем
+    // ⚡ ВЕРСИЯ ПРИЛОЖЕНИЯ — при1 изменении принудительно обновляем
     const APP_VERSION = 'v1.2.3';
     const STORED_VERSION = localStorage.getItem('app_version');
 

@@ -247,6 +247,13 @@
   .deck-settings-btn:hover { color: #4b5563; }
   .dark-theme .deck-settings-btn { color: #64748b; }
   .dark-theme .deck-settings-btn:hover { color: #94a3b8; }
+  .limit-btn {
+    margin: 4px 4px 0; padding: 6px 14px; border: none;
+    border-radius: 6px; background: #667eea; color: #fff;
+    font-size: 0.8rem; cursor: pointer; transition: opacity 0.2s;
+  }
+  .limit-btn:hover { opacity: 0.85; }
+  .limit-btn-primary { background: #7c3aed; }
   .deck-card-footer {
     display: flex; justify-content: flex-end; align-items: center;
     margin-top: 14px; padding-top: 12px;
@@ -766,6 +773,7 @@
             <div class="deck-stat">Повторяемые: <span class="num-green">${stats.due}</span></div>
             <div class="deck-stat">Всего: <span class="num-gray">${stats.total}</span></div>
           </div>
+          <div id="studyMsg" style="display:none;margin-top:8px;padding:8px;border-radius:8px;background:#1e293b;color:#94a3b8;font-size:0.85rem;text-align:center;line-height:1.5"></div>
           <button class="deck-study-btn" id="studyBtn">Учить</button>
         </div>
         <div class="deck-card-footer">
@@ -774,7 +782,25 @@
       </div>
     `;
     document.getElementById('studyBtn').addEventListener('click', () => {
+      const hasLearning = cards.filter(c => c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING);
       buildQueue();
+      if (queue.length === 0) {
+        const msg = document.getElementById('studyMsg');
+        if (msg) {
+          if (hasLearning.length > 0 && stats.due === 0 && (stats.new === 0 || newCardsLeft <= 0)) {
+            const nextDue = Math.min(...hasLearning.map(c => c.due || Infinity));
+            const waitSec = Math.max(1, Math.round((nextDue - Date.now()) / 1000));
+            msg.innerHTML = '⏳ Изучаемые карты вернутся через ' + (waitSec > 60 ? Math.round(waitSec/60) + ' мин' : waitSec + ' сек') + '.<br><span style="font-size:0.8rem">Они появятся в очереди автоматически.</span>';
+          } else if (stats.new > 0 && limitNew > 0 && newCardsLeft <= 0) {
+            msg.innerHTML = '📅 Лимит новых слов: ' + limitNew + '.<br><span style="font-size:0.8rem;margin-bottom:6px;display:inline-block">Завтра лимит обновится.</span><br><button onclick="document.getElementById(\'studyMsg\').style.display=\'none\'; limitNew+=10; saveSettingsToStorage(); document.getElementById(\'studyBtn\').click();" class="limit-btn">+10</button><button onclick="document.getElementById(\'studyMsg\').style.display=\'none\'; limitNew+=25; saveSettingsToStorage(); document.getElementById(\'studyBtn\').click();" class="limit-btn">+25</button><button onclick="document.getElementById(\'studyMsg\').style.display=\'none\'; limitNew=999; saveSettingsToStorage(); document.getElementById(\'studyBtn\').click();" class="limit-btn limit-btn-primary">Снять лимит</button>';
+          } else {
+            msg.innerHTML = '🎉 На сегодня всё!<br><span style="font-size:0.8rem">Возвращайтесь завтра — будут новые слова.</span>';
+          }
+          msg.style.display = 'block';
+          setTimeout(() => { msg.style.display = 'none'; }, 5000);
+        }
+        return;
+      }
       render();
     });
     document.getElementById('settingsBtn').addEventListener('click', openSettings);
