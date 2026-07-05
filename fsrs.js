@@ -70,10 +70,15 @@
     if (card.state === STATE.NEW) {
       d = this._initDifficulty(w, rating);
       s = this._initStability(w, rating, d);
-      next.state = STATE.LEARNING;
       next.reps = 1;
       next.lapses = 0;
-      next.step = 0;
+      if (rating === RATING.EASY) {
+        next.state = STATE.REVIEW;
+        next.step = -1;
+      } else {
+        next.state = STATE.LEARNING;
+        next.step = 0;
+      }
 
     } else {
       d = this._nextDifficulty(w, card.difficulty, card.state, card.lapses, rating);
