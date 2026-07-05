@@ -1140,8 +1140,10 @@
     const beta1 = 0.9, beta2 = 0.999, adamEps = 1e-8;
     let m = new Array(19).fill(0);
     let v = new Array(19).fill(0);
+    const initialLoss = computeFSRSLoss(fsrs.w, byCard);
+    const initialW = fsrs.w.slice();
     let bestW = fsrs.w.slice();
-    let bestLoss = computeFSRSLoss(bestW, byCard);
+    let bestLoss = initialLoss;
     let iter = 0;
 
     function adamStep() {
@@ -1163,14 +1165,30 @@
       if (iter < maxIter) {
         setTimeout(adamStep, 0);
       } else {
-        finishOptimization(bestW, bestLoss);
+        finishOptimization(bestW, bestLoss, initialW, initialLoss);
       }
     }
 
     setTimeout(adamStep, 100);
   }
 
-  function finishOptimization(bestW, bestLoss) {
+  function computeRetention(w) {
+    const temp = new window.FSRS(w);
+    temp.maxInterval = fsrs.maxInterval;
+    let totalR = 0, count = 0;
+    cards.forEach(c => {
+      if (c.state === window.FSRS_STATE.NEW || !c.lastReview || c.stability <= 0) return;
+      const elapsed = ((c.due || Date.now()) - c.lastReview) / 86400000;
+      if (elapsed <= 0) return;
+      const R = Math.pow(1 + Math.pow(0.9, -1 / 0.25) * elapsed / c.stability, -0.25);
+      totalR += R; count++;
+    });
+    return count > 0 ? totalR / count : 0;
+  }
+
+  function finishOptimization(bestW, bestLoss, initialW, initialLoss) {
+    const oldR = computeRetention(initialW);
+    const newR = computeRetention(bestW);
     fsrs.w = bestW;
     cards.forEach(c => {
       if (c.state !== window.FSRS_STATE.NEW) {
@@ -1178,12 +1196,17 @@
       }
     });
     saveSettingsToStorage();
+    const rChange = ((newR - oldR) * 100).toFixed(1);
+    const rColor = newR >= oldR ? '#22c55e' : '#ef4444';
     document.getElementById('mainArea').innerHTML = `
       <div class="done-state">
         <div class="icon">✅</div>
         <h2>Оптимизация завершена</h2>
-        <p>Adam-градиентный спуск. Loss: ${bestLoss.toFixed(4)}</p>
-        <button class="big-btn" onclick="location.reload()" style="padding:12px 32px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer">Продолжить</button>
+        <p style="font-size:0.9rem;color:#94a3b8;margin:4px 0">Предполагаемый уровень запоминания:</p>
+        <p style="font-size:1.3rem;font-weight:700;color:${rColor}">${(newR * 100).toFixed(1)}%</p>
+        <p style="font-size:0.85rem;color:#94a3b8">Было: ${(oldR * 100).toFixed(1)}% ${newR >= oldR ? '↑' : '↓'}${rChange}%</p>
+        <div style="font-size:0.75rem;color:#64748b;margin-top:12px">Это значит: когда карта придёт на повторение, ты скорее всего вспомнишь её в ~${(newR * 100).toFixed(0)}% случаев. Интервалы подстроены под твою память.</div>
+        <button class="big-btn" onclick="location.reload()" style="margin-top:16px;padding:12px 32px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer">Продолжить</button>
       </div>
     `;
   }
