@@ -824,9 +824,12 @@
     const now2 = Date.now();
     const r = fsrs.getRetrievability(card, now2);
     const preds = fsrs.repeat(card, now2);
+    const debugInfo = { state: card.state, step: card.step, stability: card.stability, difficulty: card.difficulty, scheduledDays: card.scheduledDays, lastReview: card.lastReview, due: card.due, elapsedDays: card.elapsedDays, easySD: preds[3].scheduledDays };
+    console.log('renderCard', card.id, debugInfo);
     const fmt = (d) => {
-      if (d < 0.01) return '< 1 мин';
-      if (d < 1) { const m = Math.round(d * 1440); return m <= 1 ? '< 1 мин' : `~${m} мин`; }
+      const min = d * 1440;
+      if (min < 1) return '< 1 мин';
+      if (d < 1) { const m = Math.round(min); return `~${m} мин`; }
       if (d < 2) return '~1 д';
       return `~${Math.round(d)} д`;
     };
@@ -857,6 +860,9 @@
         <button class="rating-btn rating-easy" data-rating="3">Лёгко<span class="sub">${fmt(preds[3].scheduledDays)}</span></button>
       </div>
       <div class="queue-info">Вероятность вспомнить: ${r !== null ? Math.round(r * 100) + '%' : 'Новая карта'}</div>
+      <div class="debug-info" style="font-size:0.6rem;color:#64748b;text-align:center;margin-top:4px;opacity:0.6">
+        st:${card.stability.toFixed(1)} diff:${card.difficulty.toFixed(1)} step:${card.step} state:${card.state} due:${card.due ? Math.round((card.due-now2)/1000)+'s' : 'null'} easySD:${preds[3].scheduledDays.toFixed(1)}
+      </div>
     `;
 
     document.getElementById('flashcard').addEventListener('click', (e) => {
@@ -883,13 +889,18 @@
     });
 
     // Клавиши 1-4
-    document.addEventListener('keydown', function keyHandler(e) {
-      if (['1','2','3','4'].includes(e.key)) {
-        const rating = parseInt(e.key) - 1;
-        document.removeEventListener('keydown', keyHandler);
-        handleRating(card, rating);
-      }
-    });
+    window.__currentCard = card;
+    if (!window.__keyHandlerInstalled) {
+      window.__keyHandlerInstalled = true;
+      document.addEventListener('keydown', function globalKeyHandler(e) {
+        if (['1','2','3','4'].includes(e.key) && window.__currentCard) {
+          const rating = parseInt(e.key) - 1;
+          const c = window.__currentCard;
+          window.__currentCard = null;
+          handleRating(c, rating);
+        }
+      });
+    }
 
     document.getElementById('studyBackBtn').addEventListener('click', () => {
       if (sessionAnswered) {
@@ -916,6 +927,7 @@
   }
 
   function handleRating(card, rating) {
+    console.log('handleRating', card.id, { state: card.state, step: card.step, stability: card.stability, rating });
     sessionAnswered = true;
     sessionDone++;
     const now = Date.now();
