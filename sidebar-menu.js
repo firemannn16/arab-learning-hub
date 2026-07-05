@@ -20,7 +20,8 @@
     { name: 'Тренажер Правил', href: 'rules.html', icon: '📚' },
     // { name: 'Тренажер Заучка + Практика', href: 'input.html', icon: '✍️' },
     // { name: 'Тренажер Выборка', href: 'choice.html', icon: '✅' },
-    { name: 'Интервальное повторение', href: 'spaced-repetition.html', icon: '🧠' },
+    { name: 'Новый тренажёр — скоро', href: '#', icon: '🧠', disabled: true },
+    // { name: 'Интервальное повторение', href: 'spaced-repetition.html', icon: '🧠' },
     { name: 'Список слов', href: 'words-list.html', icon: '📋' }
   ];
 
@@ -170,6 +171,13 @@
       color: #667eea;
       font-weight: 600;
     }
+
+    .sidebar-nav-item-disabled {
+      opacity: 0.5;
+      cursor: default;
+      pointer-events: none;
+    }
+    .dark-theme .sidebar-nav-item-disabled { opacity: 0.35; }
 
     .sidebar-nav-icon {
       font-size: 20px;
@@ -359,6 +367,14 @@
   // Создаём HTML структуру
   function createSidebarHTML() {
     const menuItemsHTML = menuItems.map(item => {
+      if (item.disabled) {
+        return `
+          <div class="sidebar-nav-item sidebar-nav-item-disabled">
+            <span class="sidebar-nav-icon">${item.icon}</span>
+            <span class="sidebar-nav-text">${item.name}</span>
+          </div>
+        `;
+      }
       const isActive = currentPage === item.href || 
                        (currentPage === '' && item.href === 'index.html');
       return `

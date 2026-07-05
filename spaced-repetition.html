@@ -704,7 +704,9 @@
       if (c.state === window.FSRS_STATE.NEW) {
         newCards.push(c);
       } else if (c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING) {
-        learningCards.push(c);
+        if (!c.due || c.due <= now) {
+          learningCards.push(c);
+        }
       } else if (c.state === window.FSRS_STATE.REVIEW) {
         if (!c.due || c.due <= now) {
           reviewCards.push(c);
@@ -966,6 +968,7 @@
         const stillLearning = cards.find(c => c.id === updated.id);
         if (!stillLearning) return;
         if (stillLearning.state !== window.FSRS_STATE.LEARNING && stillLearning.state !== window.FSRS_STATE.RELEARNING) return;
+        if (queue.some(c => c.id === stillLearning.id)) return;
         const insIdx = queue.findIndex(c =>
           (c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING) &&
           (c.due || now) > (stillLearning.due || now)
