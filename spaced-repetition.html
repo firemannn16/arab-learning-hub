@@ -810,7 +810,19 @@
         setTimeout(render, Math.min(60000, Math.max(5000, (nextDue - Date.now()))));
       } else {
         buildQueue();
-        if (queue.length === 0) { setTimeout(render, 5000); return; }
+        if (queue.length === 0) {
+          area.innerHTML = `
+            <div class="done-state">
+              <div class="icon">🎉</div>
+              <h2>На сегодня всё!</h2>
+              <p>Лимит новых карт исчерпан или все слова повторены.</p>
+              <div style="font-size:0.9rem;color:#94a3b8;margin-top:12px">
+                Повторено сегодня: ${stats.today}
+              </div>
+            </div>
+          `;
+          return;
+        }
         renderCard();
       }
       return;
