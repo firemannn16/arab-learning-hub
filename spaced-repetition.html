@@ -862,6 +862,7 @@
         buildQueue();
         if (queue.length === 0) {
           area.innerHTML = `
+            <button class="study-back-btn" id="doneBackBtn2" title="Назад">←</button>
             <div class="done-state">
               <div class="icon">🎉</div>
               <h2>На сегодня всё!</h2>
@@ -871,6 +872,7 @@
               </div>
             </div>
           `;
+          document.getElementById('doneBackBtn2').addEventListener('click', renderDeckSelection);
           return;
         }
         renderCard();
