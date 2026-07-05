@@ -404,10 +404,9 @@ function renderVisibleItems() {
       ruDisplay = escapeHtml(r.ru);
     }
     
-    const isEdited = pendingEdits[r.id];
     li.innerHTML = `<div style="flex:1">
                       <div class="ru">${ruDisplay}${r.gloss ? ' <small>(' + escapeHtml(r.gloss) + ')</small>' : ''}</div>
-                      <div class="ar">${escapeHtml(allArabicDisplay)}${isEdited ? ' <span style="font-size:11px;color:#f59e0b;font-weight:600">[ред.]</span>' : ''}</div>
+                      <div class="ar">${escapeHtml(allArabicDisplay)}</div>
                     </div>
                     <div class="word-actions">
                       <button class="star-btn ${isFav ? 'active' : ''}" data-raw="${escapeHtml(rawLine).replace(/"/g,'&quot;')}" title="${isFav ? 'Убрать из избранного' : 'В избранное'}" onclick="onDictStarClick(event, this)">${isFav ? '⭐' : '☆'}</button>
@@ -452,10 +451,9 @@ function appendMore(list, add = renderLimit, query = "") {
       ruDisplay = escapeHtml(r.ru);
     }
     
-    const isEdited = pendingEdits[r.id];
     li.innerHTML = `<div style="flex:1">
                       <div class="ru">${ruDisplay}${r.gloss ? ' <small>(' + escapeHtml(r.gloss) + ')</small>' : ''}</div>
-                      <div class="ar">${escapeHtml(allArabicDisplay)}${isEdited ? ' <span style="font-size:11px;color:#f59e0b;font-weight:600">[ред.]</span>' : ''}</div>
+                      <div class="ar">${escapeHtml(allArabicDisplay)}</div>
                     </div>
                     <div class="word-actions">
                       <button class="star-btn ${isFav ? 'active' : ''}" data-raw="${escapeHtml(rawLine).replace(/"/g,'&quot;')}" title="${isFav ? 'Убрать из избранного' : 'В избранное'}" onclick="onDictStarClick(event, this)">${isFav ? '⭐' : '☆'}</button>
@@ -856,16 +854,16 @@ function enableEditMode(item) {
       note: newNote
     };
 
+    // Сначала обновляем entries, потом отправляем на GitHub
+    saveWordEdit(item.id, newRu, newGloss, arabicParts, newNote);
     const ok = await updateWordOnGitHub(updatedEntry, false);
-    if (ok) {
-      saveWordEdit(item.id, newRu, newGloss, arabicParts, newNote);
-      showTemporaryNotify('Сохранено в GitHub');
-      closeModal();
-      renderListPartial(lastResults.length ? performSearch(lastQuery) : entries, renderLimit, lastQuery);
+    if (!ok) {
+      showTemporaryNotify('Не удалось сохранить в GitHub');
     } else {
-      btn.textContent = '💾 Сохранить в GitHub';
-      btn.disabled = false;
+      showTemporaryNotify('Сохранено в GitHub');
     }
+    closeModal();
+    renderListPartial(lastResults.length ? performSearch(lastQuery) : entries, renderLimit, lastQuery);
   });
 }
 
