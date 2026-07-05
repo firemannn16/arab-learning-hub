@@ -43,7 +43,7 @@ function safeLocalStorageGet(key, maxAge = 0) {
             return null;
         }
 
-        // Проверка timestamp (если данные имеют поле timestamp и включена проверка возраста)
+        // Проверка  aa timestamp (если данные имеют поле timestamp и включена проверка возраста)
         if (data && typeof data === 'object' && data.timestamp) {
             // Если maxAge > 0, проверяем возраст данных
             if (maxAge > 0) {
