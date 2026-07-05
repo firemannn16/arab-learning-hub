@@ -422,6 +422,16 @@
 (function() {
   'use strict';
 
+  const PASS = 'arab123';
+  if (localStorage.getItem('sr_unlock') !== PASS && sessionStorage.getItem('sr_unlock') !== PASS) {
+    const p = prompt('Введите пароль для доступа к тренажёру:');
+    if (p !== PASS) {
+      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#666;font-size:1.2rem">Тренажёр временно недоступен</div>';
+      throw new Error('Access denied');
+    }
+    sessionStorage.setItem('sr_unlock', PASS);
+  }
+
   const CARD_STORE_KEY = 'arabSrCards';
   const SETTINGS_KEY = 'arabSrSettings';
   const TODAY_KEY = 'arabSrToday';
