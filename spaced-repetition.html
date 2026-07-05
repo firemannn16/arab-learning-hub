@@ -696,9 +696,9 @@
   }
 
   // Построение очереди как в Anki:
-  // 1) Изучаемые (learning) — в процессе
-  // 2) Повторяемые (review) — у кого due ≤ сейчас
-  // 3) Новые — до лимита
+  // 1) Повторяемые (review) — у кого due ≤ сейчас
+  // 2) Новые — до лимита
+  // 3) Изучаемые (learning) — после новых
   function buildQueue() {
     const now = Date.now();
     newCardsLeft = Math.max(0, limitNew - newTodayCount);
@@ -735,9 +735,9 @@
     }
 
     queue = [
-      ...learningCards,
       ...reviewCards,
-      ...newCards.slice(0, newCardsLeft)
+      ...newCards.slice(0, newCardsLeft),
+      ...learningCards
     ];
     currentIndex = 0;
     sessionTotal = queue.length;
@@ -979,29 +979,10 @@
 
     queue.splice(currentIndex, 1);
 
-    // Если карта осталась в изучении — ставим таймер, чтобы вставить обратно по due
+    // Как в Anki: learning-карта идёт в КОНЕЦ очереди, без таймера
     if (updated.state === window.FSRS_STATE.LEARNING || updated.state === window.FSRS_STATE.RELEARNING) {
-      const waitMs = Math.max(1000, (updated.due || now) - now);
-      setTimeout(() => {
-        if (document.getElementById('studyBackBtn') === null) return;
-        const stillLearning = cards.find(c => c.id === updated.id);
-        if (!stillLearning) return;
-        if (stillLearning.state !== window.FSRS_STATE.LEARNING && stillLearning.state !== window.FSRS_STATE.RELEARNING) return;
-        if (queue.some(c => c.id === stillLearning.id)) return;
-        const insIdx = queue.findIndex(c =>
-          (c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING) &&
-          (c.due || now) > (stillLearning.due || now)
-        );
-        if (insIdx === -1) {
-          const learnEnd = queue.findIndex(c =>
-            c.state !== window.FSRS_STATE.LEARNING && c.state !== window.FSRS_STATE.RELEARNING
-          );
-          queue.splice(learnEnd === -1 ? queue.length : learnEnd, 0, stillLearning);
-        } else {
-          queue.splice(insIdx, 0, stillLearning);
-        }
-        render();
-      }, waitMs);
+      queue.push(updated);
+      sessionTotal = queue.length;
     }
 
     render();
@@ -1049,8 +1030,27 @@
       c.line = c.line;
     });
     saveCardsLocal(cards);
+    logs = [];
+    saveLogs();
+    todayCount = 0;
+    saveTodayCount();
+    newTodayCount = 0;
+    saveNewTodayCount();
     if (window.auth && window.authUser) {
       await saveCardsToFirestore(cards);
+      try {
+        const uid = window.authUser.uid;
+        if (typeof window.firestore.collection === 'function') {
+          let chunkIdx = 0;
+          while (true) {
+            const ref = window.firestore.collection('users').doc(uid).collection('sr_cards').doc('logs_' + chunkIdx);
+            const snap = await ref.get();
+            if (!snap.exists) break;
+            await ref.delete();
+            chunkIdx++;
+          }
+        }
+      } catch(e) { console.warn('Firestore logs reset error:', e); }
     }
     document.getElementById('settingsModal').style.display = 'none';
     renderDeckSelection();
