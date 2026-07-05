@@ -1325,13 +1325,11 @@
 
       <div class="stat-section">
         <h3>Сложность карт <span style="font-size:0.65rem;font-weight:400;color:#64748b">(нажми на число)</span></h3>
-        ${dLabels.map((label, i) => {
-          const range = i === 0 ? [1,3] : i === 1 ? [4,5] : i === 2 ? [6,7] : i === 3 ? [8,9] : [10,10];
-          return `
+        ${dLabels.map((label, i) => `
           <div class="stat-bar-row">
             <span class="stat-bar-label">${label}</span>
             <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${(dCounts[i] / dMax * 100)}%;background:${['#22c55e','#3b82f6','#f97316','#ef4444','#dc2626'][i]}"></div></div>
-            <span class="stat-bar-count" data-dmin="${range[0]}" data-dmax="${range[1]}" data-dlabel="${label}" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${dCounts[i]}</span>
+            <span class="stat-bar-count" data-diff-bin="${i}" data-dlabel="${label}" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${dCounts[i]}</span>
           </div>`;
         }).join('')}
       </div>
@@ -1342,18 +1340,20 @@
     `;
   }
 
-  function showWordsByDifficulty(dMin, dMax, label) {
+  function showWordsByDifficulty(binIndex, label) {
     const words = cards.filter(c => c.state !== window.FSRS_STATE.NEW).filter(c => {
       const d = c.difficulty || 5;
-      return d >= dMin && d <= dMax;
+      if (binIndex === 0) return d <= 3;
+      if (binIndex === 1) return d > 3 && d <= 5;
+      if (binIndex === 2) return d > 5 && d <= 7;
+      if (binIndex === 3) return d > 7 && d <= 9;
+      return d > 9;
     });
     document.getElementById('wordListTitle').textContent = `${label} (${words.length})`;
     document.getElementById('wordListBody').innerHTML = words.length === 0
       ? '<div style="color:#94a3b8;text-align:center;padding:20px">Нет карт</div>'
       : words.map(c => {
-          const d = c.difficulty || 5;
-          const s = c.stability || 1;
-          const text = c.front || c.id || '';
+          const text = c.line || (c.ru && c.ar ? c.ru + ' – ' + c.ar : c.id || '');
           return `<div style="padding:4px 0;border-bottom:1px solid #f1f5f9">${text}</div>`;
         }).join('');
     document.getElementById('wordListModal').style.display = 'flex';
@@ -1411,9 +1411,9 @@
     if (e.target === e.currentTarget) e.target.style.display = 'none';
   });
   document.addEventListener('click', function diffHandler(e) {
-    const el = e.target.closest('[data-dmin]');
+    const el = e.target.closest('[data-diff-bin]');
     if (!el) return;
-    showWordsByDifficulty(parseInt(el.dataset.dmin), parseInt(el.dataset.dmax), el.dataset.dlabel);
+    showWordsByDifficulty(parseInt(el.dataset.diffBin), el.dataset.dlabel);
   });
   document.getElementById('resetBtn').addEventListener('click', () => {
     showConfirm(
