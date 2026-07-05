@@ -10,8 +10,8 @@
   const STATE = { NEW: 0, LEARNING: 1, REVIEW: 2, RELEARNING: 3 };
   const RATING = { AGAIN: 0, HARD: 1, GOOD: 2, EASY: 3 };
 
-  // Шаги обучения (в днях): 1мин, 10мин, 1день
-  const DEFAULT_STEPS = [1/1440, 10/1440, 1];
+  // Шаги обучения (в днях) — как Anki: 1мин, 10мин
+  const DEFAULT_STEPS = { learning: [1/1440, 10/1440], relearning: [10/1440] };
 
   function defaultCard() {
     return {
@@ -30,7 +30,8 @@
 
   function FSRS(w) {
     this.w = w || DEFAULT_W;
-    this.steps = DEFAULT_STEPS.slice();
+    this.learningSteps = DEFAULT_STEPS.learning.slice();
+    this.relearningSteps = DEFAULT_STEPS.relearning.slice();
   }
 
   FSRS.prototype.repeat = function(card, now) {
@@ -59,7 +60,6 @@
 
   FSRS.prototype._compute = function(card, rating, now) {
     const w = this.w;
-    const steps = this.steps;
     let next = Object.assign({}, card);
     next.lastReview = now;
     next.due = now;
@@ -90,22 +90,27 @@
 
         if (rating === RATING.AGAIN) {
           next.step = 0;
-          next.state = STATE.LEARNING;
+          next.state = card.state;
         } else if (rating === RATING.HARD) {
           next.step = Math.max(0, (card.step || 0));
-          next.state = STATE.LEARNING;
+          next.state = card.state;
         } else if (rating === RATING.GOOD) {
+          const activeSteps = card.state === STATE.RELEARNING ? this.relearningSteps : this.learningSteps;
           const nextStep = (card.step || 0) + 1;
-          if (nextStep >= steps.length) {
+          if (nextStep >= activeSteps.length) {
             next.state = STATE.REVIEW;
             next.step = -1;
           } else {
             next.step = nextStep;
-            next.state = STATE.LEARNING;
+            next.state = card.state;
           }
         } else {
           // EASY — выпустить сразу
-          s = Math.max(s, this._reviewStability(w, card.stability, d, card.elapsedDays, card.lapses, rating, d));
+          if (card.state === STATE.LEARNING) {
+            s = Math.max(s, this._initStability(w, rating, d));
+          } else {
+            s = Math.max(s, this._reviewStability(w, card.stability, card.difficulty, card.elapsedDays, card.lapses, rating, d));
+          }
           next.state = STATE.REVIEW;
           next.step = -1;
         }
@@ -132,8 +137,9 @@
 
     let interval = 0;
     if (next.state === STATE.LEARNING || next.state === STATE.RELEARNING) {
-      if (next.step >= 0 && next.step < steps.length) {
-        interval = steps[next.step];
+      const activeSteps = next.state === STATE.RELEARNING ? this.relearningSteps : this.learningSteps;
+      if (next.step >= 0 && next.step < activeSteps.length) {
+        interval = activeSteps[next.step];
       } else {
         interval = Math.max(0.01, s);
       }
