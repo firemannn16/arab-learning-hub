@@ -1056,7 +1056,7 @@
     renderDeckSelection();
   }
 
-  // FSRS Оптимизатор
+  // FSRS Оптимизатор — Adam с численными градиентами
   function computeFSRSLoss(w, byCard) {
     let total = 0; let count = 0;
     const tempFSRS = new window.FSRS(w);
@@ -1084,6 +1084,17 @@
     return count > 0 ? total / count : Infinity;
   }
 
+  function computeGradient(w, byCard, eps) {
+    const grad = new Array(19);
+    const baseLoss = computeFSRSLoss(w, byCard);
+    for (let i = 0; i < 19; i++) {
+      const wp = w.slice(); wp[i] += eps;
+      const wn = w.slice(); wn[i] -= eps;
+      grad[i] = (computeFSRSLoss(wp, byCard) - computeFSRSLoss(wn, byCard)) / (2 * eps);
+    }
+    return grad;
+  }
+
   function optimizeFSRS() {
     const needed = 200;
     if (logs.length < needed) {
@@ -1108,52 +1119,61 @@
     document.getElementById('mainArea').innerHTML = `
       <div class="loading-state">
         <div class="loading-spinner"></div>
-        <div>Оптимизация FSRS... <span id="optProgress">0%</span></div>
+        <div>Оптимизация FSRS (Adam)... <span id="optProgress">0%</span></div>
       </div>
     `;
 
-    setTimeout(() => {
-      let bestW = [...fsrs.w];
-      let bestLoss = computeFSRSLoss(bestW, byCard);
+    const maxIter = 150;
+    const lr = 0.01;
+    const beta1 = 0.9, beta2 = 0.999, adamEps = 1e-8;
+    let m = new Array(19).fill(0);
+    let v = new Array(19).fill(0);
+    let bestW = fsrs.w.slice();
+    let bestLoss = computeFSRSLoss(bestW, byCard);
+    let iter = 0;
 
-      for (let iter = 0; iter < 500; iter++) {
-        const candidate = [...bestW];
-        for (let p = 0; p < 19; p++) {
-          const step = (Math.random() - 0.5) * 0.15 * (Math.abs(bestW[p]) + 0.1);
-          candidate[p] = Math.max(-5, Math.min(20, candidate[p] + step));
-        }
-        const loss = computeFSRSLoss(candidate, byCard);
-        if (loss < bestLoss) {
-          bestLoss = loss;
-          bestW = candidate;
-        }
-        if (iter % 50 === 0) {
-          const el = document.getElementById('optProgress');
-          if (el) el.textContent = Math.round((iter / 500) * 100) + '%';
-        }
+    function adamStep() {
+      const eps = 1e-5;
+      const grad = computeGradient(fsrs.w, byCard, eps);
+      for (let i = 0; i < 19; i++) {
+        m[i] = beta1 * m[i] + (1 - beta1) * grad[i];
+        v[i] = beta2 * v[i] + (1 - beta2) * grad[i] * grad[i];
+        const mHat = m[i] / (1 - Math.pow(beta1, iter + 1));
+        const vHat = v[i] / (1 - Math.pow(beta2, iter + 1));
+        fsrs.w[i] -= lr * mHat / (Math.sqrt(vHat) + adamEps);
+        fsrs.w[i] = Math.max(-5, Math.min(20, fsrs.w[i]));
       }
+      const loss = computeFSRSLoss(fsrs.w, byCard);
+      if (loss < bestLoss) { bestLoss = loss; bestW = fsrs.w.slice(); }
+      iter++;
+      const el = document.getElementById('optProgress');
+      if (el) el.textContent = Math.round((iter / maxIter) * 100) + '%';
+      if (iter < maxIter) {
+        setTimeout(adamStep, 0);
+      } else {
+        finishOptimization(bestW, bestLoss);
+      }
+    }
 
-      fsrs.w = bestW;
-      // Пересчитываем все карты с новыми параметрами
-      cards.forEach(c => {
-        if (c.state !== window.FSRS_STATE.NEW) {
-          const retrievability = fsrs.getRetrievability(c, Date.now());
-          if (retrievability !== null) {
-            c.stability = c.stability; // stability stays, only future predictions change
-          }
-        }
-      });
-      saveSettingsToStorage();
+    setTimeout(adamStep, 100);
+  }
 
-      document.getElementById('mainArea').innerHTML = `
-        <div class="done-state">
-          <div class="icon">✅</div>
-          <h2>Оптимизация завершена</h2>
-          <p>Параметры FSRS подстроены под вашу историю. Потеря (loss): ${bestLoss.toFixed(4)}</p>
-          <button class="big-btn" onclick="location.reload()" style="padding:12px 32px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer">Продолжить</button>
-        </div>
-      `;
-    }, 100);
+  function finishOptimization(bestW, bestLoss) {
+    fsrs.w = bestW;
+    cards.forEach(c => {
+      if (c.state !== window.FSRS_STATE.NEW) {
+        fsrs.getRetrievability(c, Date.now());
+      }
+    });
+    saveSettingsToStorage();
+    document.getElementById('mainArea').innerHTML = `
+      <div class="done-state">
+        <div class="icon">✅</div>
+        <h2>Оптимизация завершена</h2>
+        <p>Adam-градиентный спуск. Loss: ${bestLoss.toFixed(4)}</p>
+        <button class="big-btn" onclick="location.reload()" style="padding:12px 32px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer">Продолжить</button>
+      </div>
+    `;
   }
 
   function renderStats() {

@@ -89,8 +89,15 @@
         next.lapses = card.lapses;
 
         if (rating === RATING.AGAIN) {
-          next.step = 0;
-          next.state = card.state;
+          next.lapses = (card.lapses || 0) + 1;
+          if (next.lapses >= 5) {
+            next.state = STATE.REVIEW;
+            next.step = -1;
+            s = 1;
+          } else {
+            next.step = 0;
+            next.state = card.state;
+          }
         } else if (rating === RATING.HARD) {
           next.step = Math.max(0, (card.step || 0));
           next.state = card.state;
