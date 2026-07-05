@@ -20,8 +20,7 @@
     { name: 'Тренажер Правил', href: 'rules.html', icon: '📚' },
     // { name: 'Тренажер Заучка + Практика', href: 'input.html', icon: '✍️' },
     // { name: 'Тренажер Выборка', href: 'choice.html', icon: '✅' },
-    { name: 'Новый тренажёр — скоро', href: '#', icon: '🧠', disabled: true },
-    // { name: 'Интервальное повторение', href: 'spaced-repetition.html', icon: '🧠' },
+    { name: 'Интервальное повторение', href: 'spaced-repetition.html', icon: '🧠' },
     { name: 'Список слов', href: 'words-list.html', icon: '📋' }
   ];
 

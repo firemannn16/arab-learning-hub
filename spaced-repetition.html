@@ -286,6 +286,16 @@
   .dark-theme .study-back-btn { color: #64748b; }
   .dark-theme .study-back-btn:hover { color: #94a3b8; }
 
+  .done-home-btn {
+    display: inline-block; margin-top: 24px; padding: 12px 28px;
+    background: #4fc3f7; color: #fff; border: none; border-radius: 12px;
+    font-size: 1.1rem; cursor: pointer; font-weight: 600;
+    transition: background 0.2s;
+  }
+  .done-home-btn:hover { background: #29b6f6; }
+  .dark-theme .done-home-btn { background: #0288d1; }
+  .dark-theme .done-home-btn:hover { background: #0277bd; }
+
   /* Settings back button */
   .settings-back-btn {
     background: none; border: none;
@@ -804,26 +814,20 @@
             const waitSec = Math.max(1, Math.round((nextDue - Date.now()) / 1000));
             msg.innerHTML = '⏳ Изучаемые карты вернутся через ' + (waitSec > 60 ? Math.round(waitSec/60) + ' мин' : waitSec + ' сек') + '.<br><span style="font-size:0.8rem">Они появятся в очереди автоматически.</span>';
           } else if (stats.new > 0 && limitNew > 0 && newCardsLeft <= 0) {
-            msg.innerHTML = '📅 Лимит новых слов: ' + limitNew + '.<br><span style="font-size:0.8rem;margin-bottom:6px;display:inline-block">Завтра лимит обновится.</span><br><button data-limit-add="10" class="limit-btn">+10</button><button data-limit-add="25" class="limit-btn">+25</button><button data-limit-add="999" class="limit-btn limit-btn-primary">Снять лимит</button>';
+            msg.innerHTML = '📅 Лимит новых слов: ' + limitNew + '.<br><span style="font-size:0.8rem">Чтобы увеличить, откройте <a href="#" id="limitToSettings" style="color:#4fc3f7">настройки</a> и измените дневной лимит.</span>';
           } else {
             msg.innerHTML = '🎉 На сегодня всё!<br><span style="font-size:0.8rem">Возвращайтесь завтра — будут новые слова.</span>';
           }
           msg.style.display = 'block';
-          if (!msg.querySelector('[data-limit-add]')) {
-            setTimeout(() => { msg.style.display = 'none'; }, 5000);
-          }
+          setTimeout(() => { msg.style.display = 'none'; }, 5000);
         }
         return;
       }
       render();
     });
     document.addEventListener('click', function limitHandler(e) {
-      const btn = e.target.closest('[data-limit-add]');
-      if (!btn) return;
-      const add = parseInt(btn.dataset.limitAdd);
-      limitNew = add === 999 ? 999 : limitNew + add;
-      saveSettingsToStorage();
-      document.getElementById('studyBtn').click();
+      const link = e.target.closest('#limitToSettings');
+      if (link) { e.preventDefault(); openSettings(); return; }
     });
     document.getElementById('settingsBtn').addEventListener('click', openSettings);
   }
@@ -836,7 +840,6 @@
       const hasLearning = cards.filter(c => c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING);
       if (stats.due === 0 && stats.new === 0 && hasLearning.length === 0) {
         area.innerHTML = `
-          <button class="study-back-btn" id="doneBackBtn" title="Назад">←</button>
           <div class="done-state">
             <div class="icon">🎉</div>
             <h2>Все слова повторены!</h2>
@@ -844,9 +847,10 @@
             <div style="font-size:0.9rem;color:#94a3b8;margin-top:12px">
               Повторено сегодня: ${stats.today}
             </div>
+            <button class="done-home-btn" id="doneHomeBtn">🏠 На начальный экран</button>
           </div>
         `;
-        document.getElementById('doneBackBtn').addEventListener('click', renderDeckSelection);
+        document.getElementById('doneHomeBtn').addEventListener('click', renderDeckSelection);
       } else if (hasLearning.length > 0 && stats.due === 0 && stats.new === 0) {
         const nextDue = Math.min(...hasLearning.map(c => c.due || Infinity));
         const waitSec = Math.max(1, Math.round((nextDue - Date.now()) / 1000));
@@ -862,7 +866,6 @@
         buildQueue();
         if (queue.length === 0) {
           area.innerHTML = `
-            <button class="study-back-btn" id="doneBackBtn2" title="Назад">←</button>
             <div class="done-state">
               <div class="icon">🎉</div>
               <h2>На сегодня всё!</h2>
@@ -870,9 +873,10 @@
               <div style="font-size:0.9rem;color:#94a3b8;margin-top:12px">
                 Повторено сегодня: ${stats.today}
               </div>
+              <button class="done-home-btn" id="doneHomeBtn2">🏠 На начальный экран</button>
             </div>
           `;
-          document.getElementById('doneBackBtn2').addEventListener('click', renderDeckSelection);
+          document.getElementById('doneHomeBtn2').addEventListener('click', renderDeckSelection);
           return;
         }
         renderCard();

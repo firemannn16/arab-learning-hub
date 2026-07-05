@@ -753,43 +753,55 @@ async function updateWordOnGitHub(entry, isRevert) {
     showTemporaryNotify('Введите GitHub токен в настройках');
     return false;
   }
-  try {
-    const getUrl = `https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}?ref=${GH_BRANCH}`;
-    const getRes = await fetch(getUrl, {
-      headers: { 'Authorization': `token ${token}` }
-    });
-    if (!getRes.ok) throw new Error(`Ошибка GET ${getRes.status}`);
-    const fileData = await getRes.json();
-    const sha = fileData.sha;
+  const updatedContent = rebuildWordsTxt();
+  const label = isRevert
+    ? `Отменено: ${entry.ru} — ${entry.arabicVariants.join(', ')}`
+    : `Исправлено: ${entry.ru} — ${entry.arabicVariants.join(', ')}`;
 
-    const updatedContent = rebuildWordsTxt();
-    const label = isRevert
-      ? `Отменено: ${entry.ru} — ${entry.arabicVariants.join(', ')}`
-      : `Исправлено: ${entry.ru} — ${entry.arabicVariants.join(', ')}`;
+  const putUrl = `https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`;
 
-    const putUrl = `https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`;
-    const putRes = await fetch(putUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `token ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        message: label,
-        content: base64Encode(updatedContent),
-        sha: sha,
-        branch: GH_BRANCH
-      })
-    });
-    if (!putRes.ok) throw new Error(`Ошибка PUT ${putRes.status}`);
-    if (isRevert) delete pendingEdits[entry.id];
-    else saveEditsToStorage();
-    return true;
-  } catch(e) {
-    console.error('GitHub API error:', e);
-    showTemporaryNotify('Ошибка GitHub: ' + e.message);
-    return false;
+  // До 3 попыток при конфликте SHA
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const getUrl = `https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}?ref=${GH_BRANCH}`;
+      const getRes = await fetch(getUrl, {
+        headers: { 'Authorization': `token ${token}` },
+        cache: 'no-cache'
+      });
+      if (!getRes.ok) throw new Error(`Ошибка GET ${getRes.status}`);
+      const fileData = await getRes.json();
+
+      const putRes = await fetch(putUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: label,
+          content: base64Encode(updatedContent),
+          sha: fileData.sha,
+          branch: GH_BRANCH
+        })
+      });
+      if (!putRes.ok) {
+        if (putRes.status === 409 && attempt < 2) {
+          continue; // SHA конфликт — повторяем
+        }
+        throw new Error(`Ошибка PUT ${putRes.status}`);
+      }
+      if (isRevert) delete pendingEdits[entry.id];
+      else saveEditsToStorage();
+      return true;
+    } catch(e) {
+      if (attempt === 2) {
+        console.error('GitHub API error:', e);
+        showTemporaryNotify('Ошибка GitHub: ' + e.message);
+        return false;
+      }
+    }
   }
+  return false;
 }
 
 /* ===== Edit mode in modal ===== */
