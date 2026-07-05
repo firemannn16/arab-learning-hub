@@ -1301,18 +1301,44 @@
       </div>
 
       <div class="stat-section">
-        <h3>Сложность карт</h3>
-        ${dLabels.map((label, i) => `
+        <h3>Сложность карт <span style="font-size:0.65rem;font-weight:400;color:#64748b">(нажми на число)</span></h3>
+        ${dLabels.map((label, i) => {
+          const range = i === 0 ? [1,3] : i === 1 ? [4,5] : i === 2 ? [6,7] : i === 3 ? [8,9] : [10,10];
+          return `
           <div class="stat-bar-row">
             <span class="stat-bar-label">${label}</span>
             <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${(dCounts[i] / dMax * 100)}%;background:${['#22c55e','#3b82f6','#f97316','#ef4444','#dc2626'][i]}"></div></div>
-            <span class="stat-bar-count">${dCounts[i]}</span>
-          </div>
-        `).join('')}
+            <span class="stat-bar-count" onclick="showWordsByDifficulty(${range[0]},${range[1]},'${label}')" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${dCounts[i]}</span>
+          </div>`;
+        }).join('')}
       </div>
 
       <div style="font-size:0.8rem;color:#94a3b8;text-align:center;margin-top:8px">
         Повторено сегодня: ${todayCount}
+      </div>
+    `;
+  }
+
+  function showWordsByDifficulty(dMin, dMax, label) {
+    const words = cards.filter(c => c.state !== window.FSRS_STATE.NEW).filter(c => {
+      const d = c.difficulty || 5;
+      return d >= dMin && d <= dMax;
+    }).slice(0, 200);
+    document.getElementById('statsContent').innerHTML = `
+      <div style="margin-bottom:12px">
+        <button onclick="renderStats()" style="background:none;border:none;color:#667eea;cursor:pointer;font-size:0.85rem">← Назад к статистике</button>
+        <h3 style="margin:8px 0">${label} (${words.length})</h3>
+      </div>
+      <div style="max-height:360px;overflow-y:auto">
+        ${words.length === 0 ? '<div style="color:#94a3b8;text-align:center;padding:20px">Нет карт в этой категории</div>' :
+          words.map(c => {
+            const d = c.difficulty || 5;
+            const s = c.stability || 1;
+            return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:0.8rem">
+              <span>${c.front || c.id}</span>
+              <span style="color:#64748b">D:${d.toFixed(1)} S:${s < 1 ? '<1д' : s < 30 ? s.toFixed(0)+'д' : (s/30).toFixed(0)+'мес'}</span>
+            </div>`;
+          }).join('')}
       </div>
     `;
   }
