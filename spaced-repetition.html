@@ -411,6 +411,17 @@
   </div>
 </div>
 
+<div id="wordListModal" class="modal-overlay" style="display:none">
+  <div class="modal-content" style="max-width:460px;max-height:80vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;margin-bottom:8px;flex-shrink:0">
+      <button class="settings-back-btn" id="wordListBackBtn" title="Назад">←</button>
+      <h3 id="wordListTitle" style="margin:0;font-size:1rem;flex:1"></h3>
+      <button id="wordListCopyBtn" style="padding:4px 10px;border:none;border-radius:6px;background:#667eea;color:#fff;font-size:0.75rem;cursor:pointer">Копировать</button>
+    </div>
+    <div id="wordListBody" style="overflow-y:auto;flex:1;font-size:0.8rem;line-height:1.6"></div>
+  </div>
+</div>
+
 <style>
   .modal-overlay {
     position:fixed;inset:0;background:rgba(0,0,0,0.5);
@@ -792,16 +803,26 @@
             const waitSec = Math.max(1, Math.round((nextDue - Date.now()) / 1000));
             msg.innerHTML = '⏳ Изучаемые карты вернутся через ' + (waitSec > 60 ? Math.round(waitSec/60) + ' мин' : waitSec + ' сек') + '.<br><span style="font-size:0.8rem">Они появятся в очереди автоматически.</span>';
           } else if (stats.new > 0 && limitNew > 0 && newCardsLeft <= 0) {
-            msg.innerHTML = '📅 Лимит новых слов: ' + limitNew + '.<br><span style="font-size:0.8rem;margin-bottom:6px;display:inline-block">Завтра лимит обновится.</span><br><button onclick="document.getElementById(\'studyMsg\').style.display=\'none\'; limitNew+=10; saveSettingsToStorage(); document.getElementById(\'studyBtn\').click();" class="limit-btn">+10</button><button onclick="document.getElementById(\'studyMsg\').style.display=\'none\'; limitNew+=25; saveSettingsToStorage(); document.getElementById(\'studyBtn\').click();" class="limit-btn">+25</button><button onclick="document.getElementById(\'studyMsg\').style.display=\'none\'; limitNew=999; saveSettingsToStorage(); document.getElementById(\'studyBtn\').click();" class="limit-btn limit-btn-primary">Снять лимит</button>';
+            msg.innerHTML = '📅 Лимит новых слов: ' + limitNew + '.<br><span style="font-size:0.8rem;margin-bottom:6px;display:inline-block">Завтра лимит обновится.</span><br><button data-limit-add="10" class="limit-btn">+10</button><button data-limit-add="25" class="limit-btn">+25</button><button data-limit-add="999" class="limit-btn limit-btn-primary">Снять лимит</button>';
           } else {
             msg.innerHTML = '🎉 На сегодня всё!<br><span style="font-size:0.8rem">Возвращайтесь завтра — будут новые слова.</span>';
           }
           msg.style.display = 'block';
-          setTimeout(() => { msg.style.display = 'none'; }, 5000);
+          if (!msg.querySelector('[data-limit-add]')) {
+            setTimeout(() => { msg.style.display = 'none'; }, 5000);
+          }
         }
         return;
       }
       render();
+    });
+    document.addEventListener('click', function limitHandler(e) {
+      const btn = e.target.closest('[data-limit-add]');
+      if (!btn) return;
+      const add = parseInt(btn.dataset.limitAdd);
+      limitNew = add === 999 ? 999 : limitNew + add;
+      saveSettingsToStorage();
+      document.getElementById('studyBtn').click();
     });
     document.getElementById('settingsBtn').addEventListener('click', openSettings);
   }
@@ -1074,22 +1095,24 @@
     saveTodayCount();
     newTodayCount = 0;
     saveNewTodayCount();
-    if (window.auth && window.authUser) {
-      await saveCardsToFirestore(cards);
-      try {
-        const uid = window.authUser.uid;
-        if (typeof window.firestore.collection === 'function') {
-          let chunkIdx = 0;
-          while (true) {
-            const ref = window.firestore.collection('users').doc(uid).collection('sr_cards').doc('logs_' + chunkIdx);
-            const snap = await ref.get();
-            if (!snap.exists) break;
-            await ref.delete();
-            chunkIdx++;
+    try {
+      if (window.auth && window.authUser) {
+        await saveCardsToFirestore(cards);
+        try {
+          const uid = window.authUser.uid;
+          if (typeof window.firestore.collection === 'function') {
+            let chunkIdx = 0;
+            while (true) {
+              const ref = window.firestore.collection('users').doc(uid).collection('sr_cards').doc('logs_' + chunkIdx);
+              const snap = await ref.get();
+              if (!snap.exists) break;
+              await ref.delete();
+              chunkIdx++;
+            }
           }
-        }
-      } catch(e) { console.warn('Firestore logs reset error:', e); }
-    }
+        } catch(e) { console.warn('Firestore logs reset error:', e); }
+      }
+    } catch(e) { console.warn('Firestore cards reset error:', e); }
     document.getElementById('settingsModal').style.display = 'none';
     renderDeckSelection();
   }
@@ -1308,7 +1331,7 @@
           <div class="stat-bar-row">
             <span class="stat-bar-label">${label}</span>
             <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${(dCounts[i] / dMax * 100)}%;background:${['#22c55e','#3b82f6','#f97316','#ef4444','#dc2626'][i]}"></div></div>
-            <span class="stat-bar-count" onclick="showWordsByDifficulty(${range[0]},${range[1]},'${label}')" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${dCounts[i]}</span>
+            <span class="stat-bar-count" data-dmin="${range[0]}" data-dmax="${range[1]}" data-dlabel="${label}" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${dCounts[i]}</span>
           </div>`;
         }).join('')}
       </div>
@@ -1323,25 +1346,33 @@
     const words = cards.filter(c => c.state !== window.FSRS_STATE.NEW).filter(c => {
       const d = c.difficulty || 5;
       return d >= dMin && d <= dMax;
-    }).slice(0, 200);
-    document.getElementById('statsContent').innerHTML = `
-      <div style="margin-bottom:12px">
-        <button onclick="renderStats()" style="background:none;border:none;color:#667eea;cursor:pointer;font-size:0.85rem">← Назад к статистике</button>
-        <h3 style="margin:8px 0">${label} (${words.length})</h3>
-      </div>
-      <div style="max-height:360px;overflow-y:auto">
-        ${words.length === 0 ? '<div style="color:#94a3b8;text-align:center;padding:20px">Нет карт в этой категории</div>' :
-          words.map(c => {
-            const d = c.difficulty || 5;
-            const s = c.stability || 1;
-            return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:0.8rem">
-              <span>${c.front || c.id}</span>
-              <span style="color:#64748b">D:${d.toFixed(1)} S:${s < 1 ? '<1д' : s < 30 ? s.toFixed(0)+'д' : (s/30).toFixed(0)+'мес'}</span>
-            </div>`;
-          }).join('')}
-      </div>
-    `;
+    });
+    document.getElementById('wordListTitle').textContent = `${label} (${words.length})`;
+    document.getElementById('wordListBody').innerHTML = words.length === 0
+      ? '<div style="color:#94a3b8;text-align:center;padding:20px">Нет карт</div>'
+      : words.map(c => {
+          const d = c.difficulty || 5;
+          const s = c.stability || 1;
+          const text = c.front || c.id || '';
+          return `<div style="padding:4px 0;border-bottom:1px solid #f1f5f9">${text}</div>`;
+        }).join('');
+    document.getElementById('wordListModal').style.display = 'flex';
   }
+
+  document.getElementById('wordListBackBtn').addEventListener('click', () => {
+    document.getElementById('wordListModal').style.display = 'none';
+  });
+  document.getElementById('wordListModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) e.target.style.display = 'none';
+  });
+  document.getElementById('wordListCopyBtn').addEventListener('click', () => {
+    const text = Array.from(document.getElementById('wordListBody').children).map(div => div.textContent.trim()).filter(Boolean).join('\n');
+    navigator.clipboard.writeText(text).catch(() => {});
+    const btn = document.getElementById('wordListCopyBtn');
+    const orig = btn.textContent;
+    btn.textContent = 'Скопировано!';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
 
   // Настройки
   function openSettings() {
@@ -1378,6 +1409,11 @@
   });
   document.getElementById('statsModal').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) e.target.style.display = 'none';
+  });
+  document.addEventListener('click', function diffHandler(e) {
+    const el = e.target.closest('[data-dmin]');
+    if (!el) return;
+    showWordsByDifficulty(parseInt(el.dataset.dmin), parseInt(el.dataset.dmax), el.dataset.dlabel);
   });
   document.getElementById('resetBtn').addEventListener('click', () => {
     showConfirm(
