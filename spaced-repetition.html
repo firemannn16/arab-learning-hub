@@ -628,20 +628,14 @@
   }
 
   async function init() {
-    console.log('init() started', new Date().toISOString());
     loadSettings();
     loadTodayCount();
     loadNewTodayCount();
     loadLogs();
-    fsrs = new window.FSRS(window._savedW || undefined);
+    // Миграция на настоящий FSRS-5: старые веса обучены на кривой модели — сбрасываем
+    const fsrsV2Done = localStorage.getItem('sr_fsrs_v2') === '1';
+    fsrs = new window.FSRS(fsrsV2Done ? (window._savedW || undefined) : undefined);
     delete window._savedW;
-    // Проверка: NEW+EASY должно давать ~3 дня, иначе битые веса — сброс на дефолт
-    const testCard = window.FSRS_defaultCard();
-    const testResult = fsrs.repeat(testCard, Date.now())[window.FSRS_RATING.EASY];
-    if (testResult.scheduledDays > 10 || testResult.scheduledDays < 0.1) {
-      console.warn('FSRS weights look corrupted, falling back to defaults', fsrs.w, testResult.scheduledDays);
-      fsrs = new window.FSRS();
-    }
     fsrs.maxInterval = 180; // полгода
 
     try {
@@ -716,12 +710,63 @@
       if (card) cards.push(card);
     });
 
+    migrateToFSRSv2();
+
     saveCardsLocal(cards);
     if (window.auth && window.authUser) saveCardsToFirestore(cards);
 
     window.__cards = cards;
     window.__queue = queue;
     renderDeckSelection();
+  }
+
+  // Одноразовая миграция на настоящий FSRS-5:
+  // пересчитываем stability/difficulty карт, прогоняя историю ответов через правильные формулы
+  function migrateToFSRSv2() {
+    if (localStorage.getItem('sr_fsrs_v2') === '1') return;
+
+    const byCard = {};
+    logs.forEach(l => {
+      if (!byCard[l.card_id]) byCard[l.card_id] = [];
+      byCard[l.card_id].push(l);
+    });
+    for (const id in byCard) byCard[id].sort((a, b) => a.timestamp - b.timestamp);
+
+    cards.forEach(card => {
+      if (card.state === window.FSRS_STATE.NEW) return;
+
+      const cardLogs = byCard[card.id];
+      if (cardLogs && cardLogs.length > 0) {
+        // Полный пересчёт из истории ответов
+        let replay = window.FSRS_defaultCard();
+        cardLogs.forEach(log => {
+          const res = fsrs.repeat(replay, log.timestamp);
+          replay = res[log.rating];
+        });
+        card.state = replay.state;
+        card.stability = replay.stability;
+        card.difficulty = replay.difficulty;
+        card.elapsedDays = replay.elapsedDays;
+        card.scheduledDays = replay.scheduledDays;
+        card.reps = replay.reps;
+        card.lapses = replay.lapses;
+        card.lastReview = replay.lastReview;
+        card.due = replay.due;
+        card.step = replay.step;
+      } else {
+        // Логов нет — консервативно ограничиваем раздутые значения старой модели
+        card.stability = Math.min(Math.max(0.1, card.stability || 1), 30);
+        card.difficulty = Math.min(10, Math.max(1, card.difficulty || 5));
+        if (card.scheduledDays > 30 && card.lastReview) {
+          card.scheduledDays = 30;
+          card.due = card.lastReview + 30 * 86400000;
+        }
+      }
+    });
+
+    // Старые оптимизированные веса обучены на неправильной модели — сохраняем дефолтные
+    saveSettingsToStorage();
+    localStorage.setItem('sr_fsrs_v2', '1');
   }
 
   // Построение очереди как в Anki:
@@ -899,8 +944,6 @@
     const now2 = Date.now();
     const r = fsrs.getRetrievability(card, now2);
     const preds = fsrs.repeat(card, now2);
-    const debugInfo = { state: card.state, step: card.step, stability: card.stability, difficulty: card.difficulty, scheduledDays: card.scheduledDays, lastReview: card.lastReview, due: card.due, elapsedDays: card.elapsedDays, easySD: preds[3].scheduledDays };
-    console.log('renderCard', card.id, debugInfo);
     const fmt = (d) => {
       const min = d * 1440;
       if (min < 1) return '< 1 мин';
@@ -935,9 +978,6 @@
         <button class="rating-btn rating-easy" data-rating="3">Лёгко<span class="sub">${fmt(preds[3].scheduledDays)}</span></button>
       </div>
       <div class="queue-info">Вероятность вспомнить: ${r !== null ? Math.round(r * 100) + '%' : 'Новая карта'}</div>
-      <div class="debug-info" style="font-size:0.6rem;color:#64748b;text-align:center;margin-top:4px;opacity:0.6">
-        st:${card.stability.toFixed(1)} diff:${card.difficulty.toFixed(1)} step:${card.step} state:${card.state} due:${card.due ? Math.round((card.due-now2)/1000)+'s' : 'null'} easySD:${preds[3].scheduledDays.toFixed(1)} w0:${fsrs ? fsrs.w[0].toFixed(4) : '?'} w14:${fsrs ? fsrs.w[14].toFixed(4) : '?'}
-      </div>
     `;
 
     document.getElementById('flashcard').addEventListener('click', (e) => {
@@ -1002,7 +1042,6 @@
   }
 
   function handleRating(card, rating) {
-    console.log('handleRating', card.id, { state: card.state, step: card.step, stability: card.stability, rating });
     sessionAnswered = true;
     sessionDone++;
     const now = Date.now();
@@ -1238,7 +1277,7 @@
       if (c.state === window.FSRS_STATE.NEW || !c.lastReview || c.stability <= 0) return;
       const elapsed = ((c.due || Date.now()) - c.lastReview) / 86400000;
       if (elapsed <= 0) return;
-      const R = Math.pow(1 + Math.pow(0.9, -1 / 0.25) * elapsed / c.stability, -0.25);
+      const R = window.FSRS_retrievability(elapsed, c.stability);
       totalR += R; count++;
     });
     return count > 0 ? totalR / count : 0;
@@ -1280,7 +1319,7 @@
     const intervals = cards.filter(c => c.state !== window.FSRS_STATE.NEW).map(c => {
       const elapsed = c.lastReview ? (now - c.lastReview) / 86400000 : 0;
       const stability = c.stability || 1;
-      return { card: c, retrievability: stability > 0 ? Math.pow(1 + Math.pow(0.9, -1 / 0.25) * elapsed / stability, -0.25) : 0 };
+      return { card: c, retrievability: window.FSRS_retrievability(elapsed, stability) };
     });
 
     // Распределение retrievability
