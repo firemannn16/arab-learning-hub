@@ -1166,26 +1166,56 @@
   }
 
   // FSRS Оптимизатор — Adam с численными градиентами
+  // Границы весов w0..w18 как в официальном FSRS-5 оптимизаторе
+  const W_BOUNDS = [
+    [0.001, 100], [0.001, 100], [0.001, 100], [0.001, 100], // w0-w3: начальные стабильности
+    [1, 10],       // w4: начальная сложность
+    [0.001, 4],    // w5
+    [0.001, 4],    // w6
+    [0.001, 0.75], // w7: возврат к среднему
+    [0, 4.5],      // w8
+    [0, 0.8],      // w9
+    [0.001, 3.5],  // w10
+    [0.001, 5],    // w11
+    [0.001, 0.25], // w12
+    [0.001, 0.9],  // w13
+    [0, 4],        // w14
+    [0, 1],        // w15: штраф Hard
+    [1, 6],        // w16: бонус Easy
+    [0, 2],        // w17: краткосрочная стабильность
+    [0, 2]         // w18
+  ];
+
   function computeFSRSLoss(w, byCard) {
     let total = 0; let count = 0;
     const tempFSRS = new window.FSRS(w);
     tempFSRS.maxInterval = fsrs.maxInterval;
     for (const id in byCard) {
       const cardLogs = byCard[id];
+      // Реплей истории карты с нуля на кандидатских весах w —
+      // стабильность и сложность пересчитываются моделью, а не берутся из лога
       let card = window.FSRS_defaultCard();
+      const first = cardLogs[0];
+      if (first.state_before !== window.FSRS_STATE.NEW) {
+        // История начата не с новой карты — стартуем с состояния из первого лога
+        card.state = first.state_before;
+        card.stability = first.stability_before || 0;
+        card.difficulty = first.difficulty_before || 0;
+        card.lapses = first.lapses_before || 0;
+        card.reps = first.reps_before || 0;
+      }
       for (const log of cardLogs) {
-        card.stability = log.stability_before;
-        card.difficulty = log.difficulty_before;
-        card.elapsedDays = log.elapsed_days;
-        card.state = log.state_before;
-        card.lapses = log.lapses_before;
+        // Лосс только по долгосрочным повторениям (интервал >= 1 дня),
+        // внутрисессионные шаги обучения — шум для кривой забывания
+        if (card.state === window.FSRS_STATE.REVIEW && card.stability > 0 && log.elapsed_days >= 1) {
+          const R = window.FSRS_retrievability(log.elapsed_days, card.stability);
+          const p = Math.min(0.999, Math.max(0.001, R));
+          // Again = забыл; Hard/Good/Easy = вспомнил (как в официальном FSRS)
+          const actual = log.rating >= 1 ? 1 : 0;
+          total += -(actual * Math.log(p) + (1 - actual) * Math.log(1 - p));
+          count++;
+        }
         card.lastReview = log.timestamp - log.elapsed_days * 86400000;
-        card.reps = log.reps_before;
-        const R = tempFSRS.getRetrievability(card, log.timestamp);
-        if (R === null) continue;
-        const actual = log.rating >= 2 ? 1 : 0;
-        total += -actual * Math.log(Math.max(0.001, R)) - (1 - actual) * Math.log(Math.max(0.001, 1 - R));
-        count++;
         const res = tempFSRS.repeat(card, log.timestamp);
         card = res[log.rating];
       }
@@ -1195,7 +1225,6 @@
 
   function computeGradient(w, byCard, eps) {
     const grad = new Array(19);
-    const baseLoss = computeFSRSLoss(w, byCard);
     for (let i = 0; i < 19; i++) {
       const wp = w.slice(); wp[i] += eps;
       const wn = w.slice(); wn[i] -= eps;
@@ -1252,7 +1281,7 @@
         const mHat = m[i] / (1 - Math.pow(beta1, iter + 1));
         const vHat = v[i] / (1 - Math.pow(beta2, iter + 1));
         fsrs.w[i] -= lr * mHat / (Math.sqrt(vHat) + adamEps);
-        fsrs.w[i] = Math.max(-5, Math.min(20, fsrs.w[i]));
+        fsrs.w[i] = Math.max(W_BOUNDS[i][0], Math.min(W_BOUNDS[i][1], fsrs.w[i]));
       }
       const loss = computeFSRSLoss(fsrs.w, byCard);
       if (loss < bestLoss) { bestLoss = loss; bestW = fsrs.w.slice(); }

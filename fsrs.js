@@ -43,7 +43,7 @@
     this.w = (w && w.length === 19) ? w.slice() : DEFAULT_W.slice();
     this.learningSteps = DEFAULT_STEPS.learning.slice();
     this.relearningSteps = DEFAULT_STEPS.relearning.slice();
-    this.requestRetention = 0.9; // желаемая вероятность вспомнить в момент повторения
+    this.requestRetention = 0.95; // желаемая вероятность вспомнить в момент повторения
     this.maxInterval = 0;
   }
 
