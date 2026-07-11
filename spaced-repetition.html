@@ -641,7 +641,7 @@
       const uid = window.authUser.uid;
       if (typeof window.firestore.collection !== 'function') return;
       const batchSize = 400;
-      const recent = logs.slice(-2000);
+      const recent = logs.slice(-3000);
       let chunkIndex = 0;
       for (let i = 0; i < recent.length; i += batchSize) {
         const chunk = recent.slice(i, i + batchSize);
@@ -1337,7 +1337,7 @@
   }
 
   function optimizeFSRS() {
-    const needed = 200;
+    const needed = 2500;
     if (logs.length < needed) {
       showConfirm(
         'Недостаточно данных',
@@ -1536,7 +1536,7 @@
         <div class="stat-grid-item"><div class="stat-grid-num" style="color:#3b82f6">${newC}</div><div class="stat-grid-label">Новые</div></div>
         <div class="stat-grid-item"><div class="stat-grid-num" style="color:#ef4444">${learningC}</div><div class="stat-grid-label">Изучаемые</div></div>
         <div class="stat-grid-item"><div class="stat-grid-num" style="color:#22c55e">${reviewC}</div><div class="stat-grid-label">Повторяемые</div></div>
-        <div class="stat-grid-item"><div class="stat-grid-num" style="color:#6b7280">${matureC}</div><div class="stat-grid-label">Зрелые (>21д)</div></div>
+        <div class="stat-grid-item"><div class="stat-grid-num" style="color:#6b7280">${matureC}</div><div class="stat-grid-label">З��елые (>21д)</div></div>
       </div>
 
       <div class="stat-section">
