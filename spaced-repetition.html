@@ -286,6 +286,21 @@
   .dark-theme .study-back-btn { color: #64748b; }
   .dark-theme .study-back-btn:hover { color: #94a3b8; }
 
+  /* Undo button (top-right, touch-friendly) */
+  .undo-btn {
+    position: absolute; top: 10px; right: 12px; z-index: 20;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+    font-size: 1.4rem; color: #4b5563; cursor: pointer;
+    width: 44px; height: 44px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: color 0.2s, opacity 0.2s;
+  }
+  .undo-btn:hover { color: #1f2937; }
+  .undo-btn.undo-disabled { opacity: 0.3; pointer-events: none; }
+  .dark-theme .undo-btn { background: #1e293b; border-color: #334155; color: #94a3b8; }
+  .dark-theme .undo-btn:hover { color: #e0e0e0; }
+
   .done-home-btn {
     display: inline-block; margin-top: 24px; padding: 12px 28px;
     background: #4fc3f7; color: #fff; border: none; border-radius: 12px;
@@ -397,7 +412,7 @@
       <input type="number" id="limitNew" min="1" max="200" value="50" style="width:80px;padding:6px;border-radius:8px;border:2px solid #e0e0e0;text-align:center;font-size:1rem">
     </label>
     <label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <span>Повторов без лимита:</span>
+      <span>По��торов без лимита:</span>
       <input type="checkbox" id="unlimitedReviews" checked style="width:20px;height:20px">
     </label>
     <label id="maxReviewsRow" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -406,6 +421,7 @@
     </label>
     <button id="settingsSaveBtn" class="big-btn" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer">Сохранить</button>
     <button id="statsBtn" class="reset-btn" style="color:#2563eb;border-color:#93c5fd;margin-top:16px">Статистика</button>
+    <button id="forecastBtn" class="reset-btn" style="color:#0891b2;border-color:#67e8f9">Прогноз нагрузки</button>
     <button id="optimizeBtn" class="reset-btn" style="color:#7c3aed;border-color:#c4b5fd">FSRS Оптимизатор</button>
     <button id="resetBtn" class="reset-btn">Сбросить прогресс</button>
   </div>
@@ -418,6 +434,16 @@
       <h2 style="margin:0;font-size:1.15rem">Статистика</h2>
     </div>
     <div id="statsContent"></div>
+  </div>
+</div>
+
+<div id="forecastModal" class="modal-overlay" style="display:none">
+  <div class="modal-content" style="max-width:420px">
+    <div style="display:flex;align-items:center;margin-bottom:16px">
+      <button class="settings-back-btn" id="forecastBackBtn" title="Назад">←</button>
+      <h2 style="margin:0;font-size:1.15rem">Прогноз нагрузки</h2>
+    </div>
+    <div id="forecastContent"></div>
   </div>
 </div>
 
@@ -482,6 +508,24 @@
   let sessionTotal = 0;
   let sessionDone = 0;
   let logs = [];
+  let undoStack = [];
+
+  // Час смены дня (как в Anki): день заканчивается в 4 утра.
+  // Карта со сроком "завтра" доступна с начала дня, а не с точного времени ответа.
+  const DAY_CUTOFF_HOUR = 4;
+  function dayStartTs(ts) {
+    const d = new Date(ts);
+    d.setHours(DAY_CUTOFF_HOUR, 0, 0, 0);
+    if (ts < d.getTime()) d.setDate(d.getDate() - 1);
+    return d.getTime();
+  }
+  function isDueByDay(due, now) {
+    if (!due) return true;
+    return dayStartTs(due) <= dayStartTs(now);
+  }
+  function srDayKey(now) {
+    return new Date(dayStartTs(now || Date.now())).toDateString();
+  }
 
   function loadLogs() {
     try { const d = JSON.parse(localStorage.getItem(LOGS_KEY)); if (Array.isArray(d)) logs = d; } catch(e) {}
@@ -516,24 +560,24 @@
   function loadNewTodayCount() {
     try {
       const d = JSON.parse(localStorage.getItem(NEW_TODAY_KEY));
-      if (d && d.date === new Date().toDateString()) newTodayCount = d.count || 0;
+      if (d && d.date === srDayKey()) newTodayCount = d.count || 0;
       else newTodayCount = 0;
     } catch(e) { newTodayCount = 0; }
   }
   function saveNewTodayCount() {
-    localStorage.setItem(NEW_TODAY_KEY, JSON.stringify({ date: new Date().toDateString(), count: newTodayCount }));
+    localStorage.setItem(NEW_TODAY_KEY, JSON.stringify({ date: srDayKey(), count: newTodayCount }));
   }
 
   // Сколько всего повторений сегодня
   function loadTodayCount() {
     try {
       const d = JSON.parse(localStorage.getItem(TODAY_KEY));
-      if (d && d.date === new Date().toDateString()) todayCount = d.count || 0;
+      if (d && d.date === srDayKey()) todayCount = d.count || 0;
       else todayCount = 0;
     } catch(e) { todayCount = 0; }
   }
   function saveTodayCount() {
-    localStorage.setItem(TODAY_KEY, JSON.stringify({ date: new Date().toDateString(), count: todayCount }));
+    localStorage.setItem(TODAY_KEY, JSON.stringify({ date: srDayKey(), count: todayCount }));
   }
 
   function loadCardsLocal() {
@@ -789,7 +833,8 @@
           learningCards.push(c);
         }
       } else if (c.state === window.FSRS_STATE.REVIEW) {
-        if (!c.due || c.due <= now) {
+        // Review-карты доступны с начала дня (cutoff 4 утра), как в Anki
+        if (isDueByDay(c.due, now)) {
           reviewCards.push(c);
         }
       }
@@ -823,7 +868,7 @@
     const total = cards.length;
     const newCount = cards.filter(c => c.state === window.FSRS_STATE.NEW).length;
     const learningCount = cards.filter(c => c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING).length;
-    const reviewDue = cards.filter(c => c.state === window.FSRS_STATE.REVIEW && (!c.due || c.due <= now)).length;
+    const reviewDue = cards.filter(c => c.state === window.FSRS_STATE.REVIEW && isDueByDay(c.due, now)).length;
     return { total, new: newCount, learning: learningCount, due: reviewDue, today: todayCount };
   }
 
@@ -961,6 +1006,7 @@
 
     area.innerHTML = `
       <button class="study-back-btn" id="studyBackBtn" title="Назад">←</button>
+      <button class="undo-btn ${undoStack.length === 0 ? 'undo-disabled' : ''}" id="undoBtn" title="Отменить последний ответ">↶</button>
       <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
       <div class="card-container">
         <div class="flashcard" id="flashcard">
@@ -1017,6 +1063,11 @@
       });
     }
 
+    document.getElementById('undoBtn').addEventListener('click', () => {
+      window.__currentCard = null;
+      undoLast();
+    });
+
     document.getElementById('studyBackBtn').addEventListener('click', () => {
       if (sessionAnswered) {
         showConfirm(
@@ -1042,6 +1093,16 @@
   }
 
   function handleRating(card, rating) {
+    // Снапшот для Undo — до любых изменений
+    undoStack.push({
+      card: Object.assign({}, card),
+      wasNew: card.state === window.FSRS_STATE.NEW,
+      queueIndex: currentIndex,
+      sessionDoneBefore: sessionDone,
+      sessionTotalBefore: sessionTotal
+    });
+    if (undoStack.length > 50) undoStack.shift();
+
     sessionAnswered = true;
     sessionDone++;
     const now = Date.now();
@@ -1095,10 +1156,52 @@
     render();
   }
 
+  function undoLast() {
+    if (undoStack.length === 0) return;
+    const u = undoStack.pop();
+
+    // Убираем последний лог
+    logs.pop();
+    saveLogs();
+
+    // Убираем обновлённую версию карты из очереди (могла быть добавлена в конец как learning)
+    const qi = queue.findIndex(c => c.id === u.card.id);
+    if (qi !== -1) queue.splice(qi, 1);
+
+    // Восстанавливаем карту
+    const idx = cards.findIndex(c => c.id === u.card.id);
+    if (idx !== -1) cards[idx] = u.card;
+
+    // Возвращаем её в очередь на прежнюю позицию
+    queue.splice(Math.min(u.queueIndex, queue.length), 0, u.card);
+    currentIndex = Math.min(u.queueIndex, queue.length - 1);
+
+    sessionDone = u.sessionDoneBefore;
+    sessionTotal = u.sessionTotalBefore;
+
+    todayCount = Math.max(0, todayCount - 1);
+    saveTodayCount();
+    if (u.wasNew) {
+      newTodayCount = Math.max(0, newTodayCount - 1);
+      saveNewTodayCount();
+    }
+
+    saveCardsLocal(cards);
+    if (window.auth && window.authUser) {
+      saveCardsToFirestore(cards);
+      saveLogsToFirestore();
+    }
+    window.__cards = cards;
+    window.__queue = queue;
+
+    render();
+  }
+
   function goBackToDeck() {
     queue = [];
     currentIndex = 0;
     sessionAnswered = false;
+    undoStack = [];
     renderDeckSelection();
   }
 
@@ -1312,6 +1415,47 @@
     return count > 0 ? totalR / count : 0;
   }
 
+  // Пересчёт расписания всех карт под текущие веса (как Reschedule в Anki после оптимизации):
+  // реплей истории каждой карты с нуля на новых весах — обновляются stability, difficulty и due
+  function rescheduleAllCards() {
+    const byCard = {};
+    logs.forEach(l => {
+      if (!byCard[l.card_id]) byCard[l.card_id] = [];
+      byCard[l.card_id].push(l);
+    });
+    for (const id in byCard) byCard[id].sort((a, b) => a.timestamp - b.timestamp);
+
+    cards.forEach(card => {
+      if (card.state === window.FSRS_STATE.NEW) return;
+      const cardLogs = byCard[card.id];
+      if (cardLogs && cardLogs.length > 0) {
+        let replay = window.FSRS_defaultCard();
+        cardLogs.forEach(log => {
+          const res = fsrs.repeat(replay, log.timestamp);
+          replay = res[log.rating];
+        });
+        card.state = replay.state;
+        card.stability = replay.stability;
+        card.difficulty = replay.difficulty;
+        card.elapsedDays = replay.elapsedDays;
+        card.scheduledDays = replay.scheduledDays;
+        card.reps = replay.reps;
+        card.lapses = replay.lapses;
+        card.lastReview = replay.lastReview;
+        card.due = replay.due;
+        card.step = replay.step;
+      } else if (card.state === window.FSRS_STATE.REVIEW && card.lastReview && card.stability > 0) {
+        // Логов нет — пересчитываем только интервал из текущей стабильности
+        const interval = fsrs._capInterval(Math.max(1, Math.round(fsrs._nextInterval(card.stability))));
+        card.scheduledDays = interval;
+        card.due = card.lastReview + interval * 86400000;
+      }
+    });
+
+    saveCardsLocal(cards);
+    if (window.auth && window.authUser) saveCardsToFirestore(cards);
+  }
+
   function finishOptimization(bestW, bestLoss, initialW, initialLoss) {
     const oldR = computeRetention(initialW);
     const newR = computeRetention(bestW);
@@ -1336,9 +1480,15 @@
         <div style="display:none;margin-top:6px;font-size:0.6rem;color:#64748b;text-align:left;max-width:280px;margin-left:auto;margin-right:auto;line-height:1.5">
           ${initialW.map((v, i) => `<span style="${Math.abs(v - bestW[i]) > 0.001 ? 'color:#facc15;font-weight:600' : ''}">w${i}: ${v.toFixed(4)} → ${bestW[i].toFixed(4)}${Math.abs(v - bestW[i]) > 0.001 ? ' ✓' : ''}</span>`).join('<br>')}
         </div>
-        <button class="big-btn" onclick="location.reload()" style="margin-top:16px;padding:12px 32px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer">Продолжить</button>
+        <button class="big-btn" id="optRescheduleBtn" style="margin-top:16px;padding:12px 32px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer;display:block;margin-left:auto;margin-right:auto">Пересчитать интервалы карт</button>
+        <div style="font-size:0.7rem;color:#64748b;margin-top:6px;max-width:280px;margin-left:auto;margin-right:auto">Реплей истории всех карт на новых весах — сроки повторений обновятся (как Reschedule в Anki)</div>
+        <button class="big-btn" onclick="location.reload()" style="margin-top:12px;padding:10px 28px;border:1.5px solid #94a3b8;border-radius:10px;background:transparent;color:#94a3b8;font-size:0.9rem;font-weight:600;cursor:pointer">Продолжить без пересчёта</button>
       </div>
     `;
+    document.getElementById('optRescheduleBtn').addEventListener('click', () => {
+      rescheduleAllCards();
+      location.reload();
+    });
   }
 
   function renderStats() {
@@ -1417,6 +1567,54 @@
     `;
   }
 
+  // Прогноз нагрузки: сколько review-карт придёт в каждый из следующих 14 дней
+  function renderForecast() {
+    const now = Date.now();
+    const todayStart = dayStartTs(now);
+    const DAYS = 14;
+    const counts = new Array(DAYS).fill(0);
+    let later = 0;
+
+    cards.forEach(c => {
+      if (c.state !== window.FSRS_STATE.REVIEW || !c.due) return;
+      const dueDay = dayStartTs(c.due);
+      const dayOffset = Math.round((dueDay - todayStart) / 86400000);
+      if (dayOffset <= 0) counts[0]++;           // просроченные + сегодня
+      else if (dayOffset < DAYS) counts[dayOffset]++;
+      else later++;
+    });
+
+    const maxC = Math.max(...counts, 1);
+    const dayNames = ['вс','пн','вт','ср','чт','пт','сб'];
+    const rows = counts.map((cnt, i) => {
+      const d = new Date(todayStart + i * 86400000);
+      const label = i === 0 ? 'Сегодня' : (i === 1 ? 'Завтра' : `${d.getDate()}.${String(d.getMonth()+1).padStart(2,'0')} ${dayNames[d.getDay()]}`);
+      const color = cnt === 0 ? '#e5e7eb' : (cnt > 40 ? '#ef4444' : cnt > 20 ? '#f97316' : '#22c55e');
+      return `
+        <div class="stat-bar-row">
+          <span class="stat-bar-label" style="width:78px">${label}</span>
+          <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${(cnt / maxC * 100)}%;background:${color}"></div></div>
+          <span class="stat-bar-count">${cnt}</span>
+        </div>`;
+    }).join('');
+
+    const total14 = counts.reduce((a, b) => a + b, 0);
+    const avg = (total14 / DAYS).toFixed(1);
+
+    document.getElementById('forecastContent').innerHTML = `
+      <div class="stat-grid" style="margin-bottom:16px">
+        <div class="stat-grid-item"><div class="stat-grid-num" style="color:#0891b2">${total14}</div><div class="stat-grid-label">За 14 дней</div></div>
+        <div class="stat-grid-item"><div class="stat-grid-num" style="color:#6b7280">${avg}</div><div class="stat-grid-label">В среднем в день</div></div>
+      </div>
+      <div class="stat-section">
+        <h3>Повторения по дням</h3>
+        ${rows}
+      </div>
+      ${later > 0 ? `<div style="font-size:0.8rem;color:#94a3b8;text-align:center;margin-top:8px">Позже 14 дней: ещё ${later} карт</div>` : ''}
+      <div style="font-size:0.7rem;color:#64748b;text-align:center;margin-top:8px">Без учёта новых карт и забываний — реальная нагрузка будет выше</div>
+    `;
+  }
+
   function showWordsByDifficulty(binIndex, label) {
     const words = cards.filter(c => c.state !== window.FSRS_STATE.NEW).filter(c => {
       const d = c.difficulty || 5;
@@ -1480,6 +1678,18 @@
     document.getElementById('statsModal').style.display = 'flex';
   });
   document.getElementById('optimizeBtn').addEventListener('click', optimizeFSRS);
+  document.getElementById('forecastBtn').addEventListener('click', () => {
+    document.getElementById('settingsModal').style.display = 'none';
+    renderForecast();
+    document.getElementById('forecastModal').style.display = 'flex';
+  });
+  document.getElementById('forecastBackBtn').addEventListener('click', () => {
+    document.getElementById('forecastModal').style.display = 'none';
+    document.getElementById('settingsModal').style.display = 'flex';
+  });
+  document.getElementById('forecastModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) e.target.style.display = 'none';
+  });
   document.getElementById('statsBackBtn').addEventListener('click', () => {
     document.getElementById('statsModal').style.display = 'none';
     document.getElementById('settingsModal').style.display = 'flex';
