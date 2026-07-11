@@ -412,7 +412,7 @@
       <input type="number" id="limitNew" min="1" max="200" value="50" style="width:80px;padding:6px;border-radius:8px;border:2px solid #e0e0e0;text-align:center;font-size:1rem">
     </label>
     <label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <span>По��торов без лимита:</span>
+      <span>Повторов без лимита:</span>
       <input type="checkbox" id="unlimitedReviews" checked style="width:20px;height:20px">
     </label>
     <label id="maxReviewsRow" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -1309,7 +1309,7 @@
       }
       for (const log of cardLogs) {
         // Лосс только по долгосрочным повторениям (интервал >= 1 дня),
-        // внутрисессионные шаги обучения — шум для кривой забывания
+        // внутрисессионные шаги обучения — шум для к��ивой забывания
         if (card.state === window.FSRS_STATE.REVIEW && card.stability > 0 && log.elapsed_days >= 1) {
           const R = window.FSRS_retrievability(log.elapsed_days, card.stability);
           const p = Math.min(0.999, Math.max(0.001, R));
@@ -1536,7 +1536,7 @@
         <div class="stat-grid-item"><div class="stat-grid-num" style="color:#3b82f6">${newC}</div><div class="stat-grid-label">Новые</div></div>
         <div class="stat-grid-item"><div class="stat-grid-num" style="color:#ef4444">${learningC}</div><div class="stat-grid-label">Изучаемые</div></div>
         <div class="stat-grid-item"><div class="stat-grid-num" style="color:#22c55e">${reviewC}</div><div class="stat-grid-label">Повторяемые</div></div>
-        <div class="stat-grid-item"><div class="stat-grid-num" style="color:#6b7280">${matureC}</div><div class="stat-grid-label">З��елые (>21д)</div></div>
+        <div class="stat-grid-item"><div class="stat-grid-num" style="color:#6b7280">${matureC}</div><div class="stat-grid-label">Зрелые (>21д)</div></div>
       </div>
 
       <div class="stat-section">
