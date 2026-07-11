@@ -95,7 +95,18 @@
       if (rating === RATING.EASY) {
         next.state = STATE.REVIEW;
         next.step = -1;
+      } else if (rating === RATING.GOOD) {
+        // "Хорошо" на новом слове сразу продвигает на следующий шаг обучения (как в Anki)
+        const nextStep = 1;
+        if (nextStep >= this.learningSteps.length) {
+          next.state = STATE.REVIEW;
+          next.step = -1;
+        } else {
+          next.state = STATE.LEARNING;
+          next.step = nextStep;
+        }
       } else {
+        // "Снова" / "Трудно" — остаёмся на первом шаге обучения
         next.state = STATE.LEARNING;
         next.step = 0;
       }
