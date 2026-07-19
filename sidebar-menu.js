@@ -21,7 +21,7 @@
     // { name: 'Тренажер Заучка + Практика', href: 'input.html', icon: '✍️' },
     // { name: 'Тренажер Выборка', href: 'choice.html', icon: '✅' },
     { name: 'Интервальное повторение', href: 'spaced-repetition.html', icon: '🧠' },
-    { name: 'Список слов', href: 'words-list.html', icon: '📋' }
+    { name: 'ХАБ', href: 'words-list.html', icon: '🗂️' }
   ];
 
   // CSS стили для меню
