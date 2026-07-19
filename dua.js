@@ -285,14 +285,12 @@
                 
                 <div class="dua-block">
                     <div class="dua-arabic">رَّبِّ زِدْنِى عِلْمًۭا</div>
-                    <div class="dua-translation">«Господь мой! Приумножь мои знания»</div>
                 </div>
                 
                 <div class="dua-divider"></div>
                 
                 <div class="dua-block">
-                    <div class="dua-arabic dua-arabic-small">اللَّهُمَّ أَصْلِحْ أَحْوَالَ الْمُسْلِمِينَ فِي فِلَسْطِينَ</div>
-                    <div class="dua-translation">«О Аллах, улучши положение мусульман в Палестине»</div>
+                    <div class="dua-arabic dua-arabic-small">اللَّهُمَّ أَصْلِحْ أَحْوَالَ الْمُسْلِمِينَ فِي فِلَسْطِينَ وَفِي كُلِّ مَكَانٍ</div>
                 </div>
                 
                 <button class="dua-button" id="dua-done-button">я сделал дуа</button>

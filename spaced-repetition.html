@@ -95,12 +95,20 @@
   .dark-theme .flashcard .tap-hint { color: #64748b; }
 
   .flashcard .card-note {
-    margin-top: 12px; padding: 8px 12px;
-    font-size: 0.85rem; color: #666;
-    background: #f0f4f8; border-radius: 8px;
-    width: 100%; word-break: break-word;
+    margin-top: 12px; padding: 16px 20px;
+    border: 1.5px solid #e5b8b8; border-radius: 14px;
+    background: #fff7f7; width: 100%; word-break: break-word;
+    font-size: 0.85rem; line-height: 1.6; display: flex; gap: 12px;
   }
-  .dark-theme .flashcard .card-note { background: #1e293b; color: #94a3b8; }
+  .flashcard .card-note .note-label {
+    color: #c0392b; font-weight: 700; font-size: 1rem; flex-shrink: 0;
+  }
+  .flashcard .card-note .note-text {
+    color: #1f2937; flex: 1;
+  }
+  .dark-theme .flashcard .card-note { background: #2a1a1a; border-color: #5a3a3a; }
+  .dark-theme .flashcard .card-note .note-label { color: #e57373; }
+  .dark-theme .flashcard .card-note .note-text { color: #e0e0e0; }
 
   .flashcard .word-index {
     position: absolute; top: 12px; right: 16px;
@@ -1005,7 +1013,7 @@
 
     const front = card.ar;
     const note = notesMap[card.arKey];
-    const noteHtml = note ? `<div class="card-note">📝 ${note}</div>` : '';
+    const noteHtml = note ? `<div class="card-note"><span class="note-label">شرح</span><span class="note-text">${note}</span></div>` : '';
     const total = sessionTotal;
     const done = sessionDone;
     const pct = total > 0 ? ((done / total) * 100) : 0;

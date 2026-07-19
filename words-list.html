@@ -129,6 +129,16 @@
       transform: translateY(0);
     }
 
+    /* 🚫 Скрытый раздел "Список слов" (можно вернуть удалив display:none) */
+    #tabAll {
+      display: none !important;
+    }
+
+    /* 🚫 Скрытый раздел "По главам" (можно вернуть удалив display:none) */
+    #tabChapters {
+      display: none !important;
+    }
+
     /* Табы */
     .tabs {
       display: flex;
@@ -633,6 +643,198 @@
       background: linear-gradient(135deg, #4338ca 0%, #6b21a8 100%);
     }
 
+    /* ========== ПУСТОЙ ТРЕНАЖЁР СТИЛИ ========== */
+    .empty-container {
+      background: #fff;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    .empty-container h2 { font-size: 1.3em; margin-bottom: 10px; }
+    .empty-container p { font-size: 0.95em; color: #666; margin-bottom: 10px; }
+    .empty-container textarea { width: 100%; height: 150px; font-size: 1em; box-sizing: border-box; }
+    .empty-container input[type="text"] { width: 60%; font-size: 1em; padding: 6px; box-sizing: border-box; }
+    .empty-container .button { padding: 10px 16px; margin: 8px; font-size: 1em; cursor: pointer; }
+    .empty-container #empty-correct-list,
+    .empty-container #empty-mistake-list { max-height: 160px; overflow-y: auto; background: #fafafa; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+    .empty-container .hidden { display: none !important; }
+    .empty-container .oral-btn { background: #e8f5e9; border: 1px solid #81c784; }
+    .empty-container .oral-btn:hover { background: #c8e6c9; }
+    .empty-container .forgot-btn { background: #ffebee; border: 1px solid #e57373; }
+    .empty-container .forgot-btn:hover { background: #ffcdd2; }
+    .empty-container .copy-btn { background: #e3f2fd; border: 1px solid #64b5f6; padding: 6px 12px; font-size: 0.9em; cursor: pointer; border-radius: 4px; margin-top: 8px; }
+    .empty-container .copy-btn:hover { background: #bbdefb; }
+    .empty-container .copy-success { color: #4caf50; font-size: 0.9em; margin-left: 8px; }
+    .empty-container #empty-progress { margin-top: 12px; font-size: 1.1em; }
+
+    .empty-container .overlay {
+      position: fixed; left: 0; top: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10000;
+    }
+
+    .empty-container .modal {
+      background: #fff;
+      width: 760px; max-width: 95%;
+      border-radius: 8px;
+      box-shadow: 0 6px 30px rgba(0,0,0,0.25);
+      padding: 18px 20px;
+      box-sizing: border-box;
+    }
+
+    .empty-container .modal h2 { font-size: 26px; margin: 0 0 8px 0; font-weight: 700; }
+    .empty-container .modal .label { font-size: 16px; margin-bottom: 6px; color: #222; }
+    .empty-container .modal .row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+    .empty-container .modal .left { flex: 0 0 auto; width: 48%; text-align: left; }
+    .empty-container .modal .right { flex: 1 1 auto; text-align: right; direction: rtl; }
+    .empty-container .modal .answer { font-weight: 700; font-size: 20px; }
+    .empty-container .modal .controls { display:flex; justify-content:flex-end; margin-top: 14px; gap:10px; flex-wrap:wrap; }
+    .empty-container .close-btn { background:#f4f4f4; color:#222; border:1px solid #bfbfbf; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:14px; }
+
+    body.dark-theme .empty-container { background: #1f2937; border-color: #374151; }
+    body.dark-theme .empty-container h2 { color: #f3f4f6; }
+    body.dark-theme .empty-container p { color: #9ca3af; }
+    body.dark-theme .empty-container textarea { background: #374151; border-color: #4b5563; color: #e5e7eb; }
+    body.dark-theme .empty-container input[type="text"] { background: #374151; border-color: #4b5563; color: #e5e7eb; }
+    body.dark-theme .empty-container .modal { background: #2d3748; color: #e5e7eb; }
+    body.dark-theme .empty-container .modal .label { color: #d1d5db; }
+    body.dark-theme .empty-container #empty-correct-list,
+    body.dark-theme .empty-container #empty-mistake-list { background: #374151; border-color: #4b5563; color: #e5e7eb; }
+
+    /* ========== ОПРЕДЕЛЕНИЯ ПРАВИЛ ========== */
+    .rules-defs-container { max-width: 700px; margin: 0 auto; }
+    
+    /* Экран выбора тем (как в rules.html) */
+    .topics-title {
+      color: #333; text-align: center; margin: 20px 0 15px; font-size: 1.2rem;
+    }
+    .topics-list { display: flex; flex-direction: column; gap: 12px; }
+    .topic-card {
+      background: white; border-radius: 12px; padding: 18px 20px;
+      cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.1);
+      border-left: 4px solid #667eea;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .topic-card:hover {
+      transform: translateY(-2px); box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+      border-left-color: #764ba2;
+    }
+    .topic-name { font-size: 1.1rem; font-weight: 600; color: #333; }
+    .topic-count {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white; padding: 5px 12px; border-radius: 20px;
+      font-size: 0.85rem; font-weight: 600;
+    }
+    .restart-btn {
+      padding: 10px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white; border: none; border-radius: 8px;
+      font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+    }
+    .restart-btn:hover { opacity: 0.9; }
+    .hidden { display: none !important; }
+    
+    body.dark-theme .topics-title { color: #e0e0e0; }
+    body.dark-theme .topic-card { background: #1f2937; }
+    body.dark-theme .topic-card:hover { background: #2d3748; border-left-color: #a78bfa; }
+    body.dark-theme .topic-name { color: #e5e7eb; }
+    
+    /* Карточка определения (как в rules.html) */
+    .rules-defs-container .definition-card {
+      background: white; border-radius: 15px; padding: 25px;
+      margin-bottom: 15px; box-shadow: 0 3px 15px rgba(0,0,0,0.1);
+      cursor: pointer; transition: all 0.3s;
+      border-left: 4px solid #667eea; position: relative;
+    }
+    .rules-defs-container .definition-card:hover {
+      transform: translateY(-2px); box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    }
+    .rules-defs-container .definition-card.expanded { border-left-color: #22c55e; }
+    .rules-defs-container .def-close-btn {
+      display: none; position: absolute; top: 12px; right: 12px;
+      width: 30px; height: 30px; border-radius: 50%; border: none;
+      background: #f3f4f6; color: #6b7280; font-size: 16px; cursor: pointer;
+      align-items: center; justify-content: center; transition: all 0.2s; z-index: 2;
+    }
+    .rules-defs-container .def-close-btn:hover { background: #fee2e2; color: #dc2626; }
+    .rules-defs-container .definition-card.expanded .def-close-btn { display: flex; }
+    .rules-defs-container .definition-term {
+      font-size: 1.2rem; font-weight: 600; color: #333; margin-bottom: 5px;
+    }
+    .rules-defs-container .definition-term.rtl {
+      direction: rtl; font-family: "Noto Naskh Arabic", Arial, sans-serif; font-size: 1.4rem;
+    }
+    .rules-defs-container .definition-category {
+      font-size: 0.85rem; color: #667eea; margin-bottom: 10px;
+    }
+    .rules-defs-container .definition-answer {
+      display: none; padding-top: 15px; border-top: 1px solid #e5e7eb; margin-top: 10px;
+      color: #555; line-height: 1.6;
+    }
+    .rules-defs-container .definition-card.expanded .definition-answer { display: block; }
+    .rules-defs-container .definition-arabic {
+      direction: rtl; font-family: "Noto Naskh Arabic", Arial, sans-serif;
+      font-size: 1.15rem; line-height: 1.8; padding: 12px;
+      background: #e0e7ff; border-radius: 8px; margin-bottom: 10px;
+      color: #333; white-space: pre-wrap; text-align: right; overflow: hidden;
+    }
+    .rules-defs-container .definition-arabic img {
+      max-width: 100%; height: auto; display: block; margin: 0 auto; border-radius: 6px;
+    }
+    .rules-defs-container .def-view-image-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 14px 16px;
+      background: linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%);
+      border: 1.5px dashed #667eea; border-radius: 12px;
+      color: #4338ca; font-size: 0.95rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .rules-defs-container .def-view-image-btn:hover {
+      background: linear-gradient(135deg, #c7d2fe 0%, #ddd6fe 100%);
+      transform: translateY(-1px); box-shadow: 0 3px 10px rgba(102, 126, 234, 0.2);
+    }
+
+    /* Полноэкранный просмотр изображения */
+    .img-fullscreen-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%; height: 100dvh;
+      background: rgba(0,0,0,0.92); z-index: 20000;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 15px; box-sizing: border-box; animation: fadeInImg 0.2s ease;
+      overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    }
+    @keyframes fadeInImg {
+      from { opacity: 0; } to { opacity: 1; }
+    }
+    .img-fullscreen-overlay img {
+      max-width: calc(100vw - 30px); max-height: calc(100dvh - 80px);
+      width: auto; height: auto; object-fit: contain;
+      border-radius: 8px; background: white; display: block;
+    }
+    .img-fullscreen-close {
+      position: fixed; top: 12px; right: 12px;
+      width: 44px; height: 44px; border-radius: 50%; border: none;
+      background: rgba(255,255,255,0.25); color: white; font-size: 22px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      z-index: 20001; backdrop-filter: blur(4px);
+    }
+    .img-fullscreen-close:hover { background: rgba(255,255,255,0.4); }
+
+    /* Тёмная тема */
+    body.dark-theme .rules-defs-container .definition-card { background: #1f2937; }
+    body.dark-theme .rules-defs-container .definition-term { color: #e5e7eb; }
+    body.dark-theme .rules-defs-container .definition-answer { color: #9ca3af; border-top-color: #374151; }
+    body.dark-theme .rules-defs-container .definition-arabic { background: #2d3748; color: #d1d5db; }
+    body.dark-theme .rules-defs-container .definition-category { color: #818cf8; }
+    body.dark-theme .rules-defs-container .category-filter { background: #1f2937; }
+    body.dark-theme .rules-defs-container .category-filter label { color: #e5e7eb; }
+    body.dark-theme .rules-defs-container .category-filter select {
+      background: #374151; color: #e5e7eb; border-color: #4b5563;
+    }
+    body.dark-theme .rules-defs-container .def-close-btn { background: #374151; color: #9ca3af; }
+    body.dark-theme .rules-defs-container .def-close-btn:hover { background: #4a2222; color: #f87171; }
+
     /* ========== ЗАУЧИВАНИЕ СТИЛИ ========== */
     
     /* Контейнер заучивания */
@@ -641,6 +843,41 @@
       border-radius: 12px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.08);
       padding: 30px;
+      position: relative;
+    }
+
+    .exit-learn-btn {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      padding: 6px 14px;
+      border: 2px solid #ef4444;
+      border-radius: 10px;
+      background: #fff5f5;
+      color: #dc2626;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .exit-learn-btn:hover {
+      background: #fee2e2;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+    }
+
+    body.dark-theme .exit-learn-btn {
+      background: #3b1a1a;
+      border-color: #ef4444;
+      color: #f87171;
+    }
+
+    body.dark-theme .exit-learn-btn:hover {
+      background: #4a2222;
     }
 
     /* Начальный экран */
@@ -680,6 +917,20 @@
 
     .learn-textarea::placeholder {
       color: #9ca3af;
+    }
+
+    .word-count-display {
+      margin: 15px 0 5px;
+      padding: 10px 20px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #667eea;
+      background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+      border: 2px solid #c7caf0;
+      border-radius: 14px;
+      display: block;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
     }
 
     .learn-actions {
@@ -742,67 +993,38 @@
       margin-bottom: 15px;
     }
 
-    .picker-wrapper {
+    .timer-single {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
+      margin-top: 10px;
     }
 
-    .picker-container {
-      position: relative;
-      width: 90px;
-      height: 150px;
-    }
-
-    .picker-highlight {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 80px;
-      height: 50px;
-      background: linear-gradient(135deg, rgba(102,126,234,0.1), rgba(118,75,162,0.1));
-      border: 2px solid #667eea;
-      border-radius: 12px;
-      pointer-events: none;
-      z-index: 2;
-    }
-
-    .picker-scroll {
-      height: 100%;
-      overflow-y: scroll;
-      scroll-snap-type: y mandatory;
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-      -webkit-overflow-scrolling: touch;
-      padding: 50px 0;
-      mask-image: linear-gradient(transparent 0%, black 35%, black 65%, transparent 100%);
-      -webkit-mask-image: linear-gradient(transparent 0%, black 35%, black 65%, transparent 100%);
-    }
-
-    .picker-scroll::-webkit-scrollbar {
-      display: none;
-    }
-
-    .picker-item {
-      height: 50px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      scroll-snap-align: center;
-      font-size: 22px;
-      color: #9ca3af;
-      user-select: none;
-      transition: color 0.15s, font-size 0.15s, font-weight 0.15s;
-    }
-
-    .picker-item.selected {
-      font-size: 32px;
-      font-weight: bold;
+    .timer-single-input {
+      width: 100px;
+      padding: 12px 16px;
+      border: 2px solid #e5e7eb;
+      border-radius: 14px;
+      font-size: 28px;
+      font-weight: 700;
       color: #667eea;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      background: #fafbff;
     }
 
-    .picker-unit {
+    .timer-single-input:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+    }
+
+    .timer-single-input::-webkit-inner-spin-button {
+      opacity: 1;
+      height: 40px;
+    }
+
+    .timer-single-unit {
       font-size: 18px;
       color: #6b7280;
       font-weight: 500;
@@ -924,13 +1146,25 @@
       display: none;
     }
 
-    .word-card-note {
-      margin-top: 12px; padding: 10px 14px;
-      font-size: 14px; color: #555;
-      background: #f0f4f8; border-radius: 8px;
-      line-height: 1.5; width: 100%;
+    .word-card-hidden .word-card-note {
+      display: none !important;
     }
-    .dark-theme .word-card-note { background: #1e293b; color: #94a3b8; }
+
+    .word-card-note {
+      margin-top: 12px; padding: 16px 20px;
+      border: 1.5px solid #e5b8b8; border-radius: 14px;
+      background: #fff7f7; font-size: 14px; line-height: 1.6; width: 100%;
+      box-sizing: border-box; display: flex; align-items: flex-start;
+    }
+    .word-card-note .note-label {
+      color: #c0392b; font-weight: 700; font-size: 16px; flex-shrink: 0; margin-right: 16px;
+    }
+    .word-card-note .note-text {
+      color: #1f2937; flex: 1;
+    }
+    .dark-theme .word-card-note { background: #2a1a1a; border-color: #5a3a3a; }
+    .dark-theme .word-card-note .note-label { color: #e57373; }
+    .dark-theme .word-card-note .note-text { color: #e0e0e0; }
 
     /* Кнопки управления */
     .learn-controls {
@@ -1129,6 +1363,44 @@
       background: #fecaca;
     }
 
+    /* Стикеры рядом с таймером */
+    .timer-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 25px;
+    }
+
+    .sticker-btn {
+      width: 54px;
+      height: 54px;
+      border: none;
+      border-radius: 50%;
+      background: #f3f4f6;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      font-size: 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .sticker-btn:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    }
+
+    .sticker-btn:active {
+      transform: scale(0.95);
+    }
+
+    body.dark-theme .sticker-btn {
+      background: #374151;
+    }
+
     /* Кнопка показать перевод (глазок) */
     .show-translation-btn {
       position: absolute;
@@ -1294,7 +1566,7 @@
   <div class="container">
     <div class="header">
       <div class="header-top">
-        <h1>📋 Список слов</h1>
+        <h1>📋 Избранное</h1>
         <div class="header-info">
           <span class="word-count" id="wordCount">Загрузка...</span>
           <button class="copy-all-btn" id="copyAllBtn" disabled>
@@ -1304,10 +1576,10 @@
         </div>
       </div>
       <div class="tabs">
-        <button class="tab-btn active" id="tabAll" onclick="showTab('all')">
+        <button class="tab-btn" id="tabAll" onclick="showTab('all')" style="display:none">
           📚 Все слова <span class="tab-badge" id="allCount">0</span>
         </button>
-        <button class="tab-btn" id="tabFavorites" onclick="showTab('favorites')">
+        <button class="tab-btn active" id="tabFavorites" onclick="showTab('favorites')">
           ⭐ Избранное <span class="tab-badge" id="favCount">0</span>
         </button>
         <button class="tab-btn" id="tabChapters" onclick="showTab('chapters')">
@@ -1315,6 +1587,12 @@
         </button>
         <button class="tab-btn" id="tabLearn" onclick="showTab('learn')">
           🎯 Заучивание
+        </button>
+        <button class="tab-btn" id="tabEmpty" onclick="showTab('empty')">
+          🗃️ Пустой тренажёр
+        </button>
+        <button class="tab-btn" id="tabRulesDefs" onclick="showTab('rulesdefs')">
+          📖 Определения правил
         </button>
       </div>
     </div>
@@ -1367,23 +1645,21 @@
 
     <!-- Контейнер заучивания -->
     <div class="learn-container" id="learnContainer" style="display: none;">
+      <button class="exit-learn-btn" id="exitLearnBtn" onclick="exitLearnLater()" style="display: none;" title="Выйти">✕ Выйти</button>
       <!-- Начальный экран -->
       <div class="learn-input-section" id="learnInputSection">
         <h2>🎯 Заучивание слов</h2>
         <p>Вставьте слова в формате: <strong>перевод — арабский</strong></p>
         
-        <textarea class="learn-textarea" id="learnTextarea" placeholder="экземпляр, книга — مُصْحَفٌ - مَصَاحِفُ&#10;вода — مَاءٌ&#10;книга — كِتَابٌ - كُتُبٌ"></textarea>
+        <textarea class="learn-textarea" id="learnTextarea" oninput="updateWordCount()" placeholder="экземпляр, книга — مُصْحَفٌ - مَصَاحِفُ&#10;вода — مَاءٌ&#10;книга — كِتَابٌ - كُتُبٌ"></textarea>
+        
+        <div class="word-count-display" id="wordCountDisplay">Всего: 0</div>
         
         <div class="timer-section">
           <span class="timer-label">⏱️ Интервал между словами</span>
-          <div class="picker-wrapper">
-            <div class="picker-container">
-              <div class="picker-highlight"></div>
-              <div class="picker-scroll" id="pickerScroll">
-                <!-- Элементы 0-60 генерируются JavaScript -->
-              </div>
-            </div>
-            <span class="picker-unit">сек</span>
+          <div class="timer-single">
+            <input type="number" class="timer-single-input" id="timerInput" min="1" max="60" value="15" oninput="setTimeFromInput(this)">
+            <span class="timer-single-unit">сек</span>
           </div>
         </div>
         
@@ -1407,19 +1683,23 @@
           <div class="learn-progress-fill" id="learnProgressFill" style="width: 0%"></div>
         </div>
         
-        <div class="circle-timer" id="circleTimer">
-          <svg viewBox="0 0 100 100">
-            <defs>
-              <linearGradient id="timerGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#667eea"/>
-                <stop offset="100%" style="stop-color:#764ba2"/>
-              </linearGradient>
-            </defs>
-            <circle class="circle-timer-bg" cx="50" cy="50" r="45"/>
-            <circle class="circle-timer-progress" id="timerProgress" cx="50" cy="50" r="45" 
-              stroke-dasharray="283" stroke-dashoffset="0"/>
-          </svg>
-          <div class="circle-timer-text" id="timerText">15</div>
+        <div class="timer-row">
+          <button class="sticker-btn" id="pauseBtn" onclick="togglePause()" title="Пауза">⏸️</button>
+          <div class="circle-timer" id="circleTimer">
+            <svg viewBox="0 0 100 100">
+              <defs>
+                <linearGradient id="timerGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" style="stop-color:#667eea"/>
+                  <stop offset="100%" style="stop-color:#764ba2"/>
+                </linearGradient>
+              </defs>
+              <circle class="circle-timer-bg" cx="50" cy="50" r="45"/>
+              <circle class="circle-timer-progress" id="timerProgress" cx="50" cy="50" r="45" 
+                stroke-dasharray="283" stroke-dashoffset="0"/>
+            </svg>
+            <div class="circle-timer-text" id="timerText">15</div>
+          </div>
+          <button class="sticker-btn" onclick="nextWord()" title="Далее">▶️</button>
         </div>
         
         <div class="word-card" id="wordCard">
@@ -1429,11 +1709,11 @@
         </div>
         
         <div class="learn-controls">
-          <button class="control-btn btn-pause" id="pauseBtn" onclick="togglePause()">
-            ⏸️ Пауза
+          <button class="control-btn btn-know" onclick="markKnow()">
+            ✓ Я знаю
           </button>
-          <button class="control-btn btn-next" onclick="nextWord()">
-            ▶️ Далее
+          <button class="control-btn btn-forgot" onclick="markForgot()">
+            ✗ Я не знаю
           </button>
         </div>
       </div>
@@ -1445,7 +1725,9 @@
           <div class="learn-progress-fill" id="testProgressFill" style="width: 0%"></div>
         </div>
         
-        <div class="circle-timer" id="testCircleTimer">
+        <div class="timer-row">
+          <button class="sticker-btn" id="testPauseBtn" onclick="toggleTestPause()" title="Пауза">⏸️</button>
+          <div class="circle-timer" id="testCircleTimer">
           <svg viewBox="0 0 100 100">
             <defs>
               <linearGradient id="timerGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -1459,6 +1741,8 @@
           </svg>
           <div class="circle-timer-text" id="testTimerText">15</div>
         </div>
+          <button class="sticker-btn" onclick="exitLearnLater()" title="Продолжить потом">⏰</button>
+        </div>
         
         <div class="word-card word-card-hidden" id="testWordCard">
           <button class="show-translation-btn" id="showTranslationBtn" onclick="toggleTranslation()" title="Показать перевод">
@@ -1470,20 +1754,107 @@
         </div>
         
         <div class="learn-controls">
-          <button class="control-btn btn-pause" id="testPauseBtn" onclick="toggleTestPause()">
-            ⏸️ Пауза
-          </button>
-          <button class="control-btn btn-forgot" onclick="markForgot()">
-            ✗ Я забыл
-          </button>
           <button class="control-btn btn-know" onclick="markKnow()">
             ✓ Я знаю
           </button>
-          <button class="control-btn btn-later" onclick="exitLearnLater()">
-            ⏰ Продолжить потом
+          <button class="control-btn btn-forgot" onclick="markForgot()">
+            ✗ Я не знаю
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Контейнер пустого тренажёра -->
+  <div class="empty-container" id="emptyContainer" style="display: none;">
+    <div id="empty-loader">
+      <h2>Пустой тренажер</h2>
+      <p>Вставьте список слов (формат: <strong>русский - арабский</strong>, каждое слово с новой строки):</p>
+      <textarea id="empty-word-list" placeholder="Разум –  عَقْلٌ - عُقُولٌ&#10;замешательство -  حَيْرَةٌ&#10;Целеустремлённый  , стремящийся – حَرِيصٌ"></textarea>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+        <button id="empty-load-list" class="button">Начать тренировку</button>
+        <button id="empty-load-favorites" class="button" style="background:#fff8e1;border-color:#ffc107;">⭐ Добавить из избранного</button>
+      </div>
+      <p id="empty-fav-count-hint" style="font-size:0.85em;color:#888;margin-top:8px;"></p>
+    </div>
+
+    <div id="empty-trainer" style="display: none;">
+      <div id="empty-progress"></div>
+      
+      <div class="word-card word-card-hidden" id="empty-wordCard">
+        <button class="show-translation-btn" id="empty-showTranslationBtn" onclick="emptyTrainer.toggleTranslation()" onmousedown="event.preventDefault()" title="Показать перевод">👁️</button>
+        <div class="word-card-arabic" id="empty-arabic-word"></div>
+        <div class="word-card-translation" id="empty-word-translation"></div>
+      </div>
+      
+      <input type="text" id="empty-answer-input" placeholder="Введите перевод" autofocus>
+      <button id="empty-submit-answer" class="button">Ответить</button>
+      <button id="empty-oral-answer" class="button oral-btn">Ответил устно</button>
+      <button id="empty-forgot-answer" class="button forgot-btn">Я забыл</button>
+
+      <h3>Правильно:</h3>
+      <div id="empty-correct-list"></div>
+
+      <h3>Ошибки:</h3>
+      <div id="empty-mistake-list"></div>
+      <div id="empty-copy-mistakes-container" class="hidden">
+        <button id="empty-copy-mistakes" class="copy-btn">Копировать ошибки</button>
+        <span id="empty-copy-success" class="copy-success hidden">Скопировано!</span>
+      </div>
+
+      <div id="empty-after-session" class="hidden">
+        <button id="empty-retry-all" class="button">Пройти заново</button>
+        <button id="empty-start-mistakes" class="button hidden">Работа над ошибками</button>
+        <button id="empty-learn-mistakes" class="button hidden" style="background:#e8f0ff;border:1px solid #667eea;color:#4338ca;">🎯 Заучить ошибки</button>
+      </div>
+    </div>
+
+    <div id="empty-modal-root"></div>
+  </div>
+
+  <!-- Контейнер определений правил -->
+  <div class="rules-defs-container" id="rulesDefsContainer" style="display: none;">
+
+    <!-- Фильтр категории (виден на всех экранах) -->
+    <div class="category-filter" style="background:white;border-radius:12px;padding:15px;margin-bottom:20px;box-shadow:0 2px 10px rgba(0,0,0,0.1);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <label style="font-weight:600;color:#333;">Категория:</label>
+      <select id="rulesDefsCategory" onchange="renderDefVolumes()" style="padding:10px 15px;border:2px solid #e5e7eb;border-radius:8px;font-size:1rem;cursor:pointer;flex:1;min-width:150px;">
+        <option value="all">Все категории</option>
+        <option value="نحو">نحو (Нахв)</option>
+        <option value="صرف">صرف (Сорф)</option>
+      </select>
+    </div>
+
+    <!-- Экран 1: Выбор тома -->
+    <div id="defVolumesScreen">
+      <h2 class="topics-title">📚 Выберите том:</h2>
+      <div id="defVolumesList" class="topics-list"></div>
+    </div>
+    
+    <!-- Экран 2: Выбор части -->
+    <div id="defPartsScreen" class="hidden">
+      <div class="category-filter" style="background:white;border-radius:12px;padding:15px;margin-bottom:20px;box-shadow:0 2px 10px rgba(0,0,0,0.1);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <button class="restart-btn" onclick="backToDefVolumes()">← К томам</button>
+        <span id="currentVolumeName" style="font-weight: 600; flex: 1; text-align: center;"></span>
+      </div>
+      <h2 class="topics-title">📄 Выберите часть:</h2>
+      <div id="defPartsList" class="topics-list"></div>
+    </div>
+    
+    <!-- Экран 3: Список определений -->
+    <div id="defCardsScreen" class="hidden">
+      <div class="category-filter" style="background:white;border-radius:12px;padding:15px;margin-bottom:20px;box-shadow:0 2px 10px rgba(0,0,0,0.1);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <button class="restart-btn" onclick="backToDefParts()">← К частям</button>
+        <span id="currentPartName" style="font-weight: 600; flex: 1; text-align: center;"></span>
+      </div>
+      <p class="definition-hint" style="font-size:0.9rem;color:#999;text-align:center;margin-bottom:15px;">Нажмите на карточку, чтобы увидеть содержание</p>
+      <div id="defCardsList"></div>
+    </div>
+    
+    <div class="empty-state hidden" id="defEmptyState">
+      <span>📖</span>
+      <h2>Нет определений</h2>
+      <p>Определения не загружены</p>
     </div>
   </div>
 
@@ -1500,8 +1871,11 @@
     let allWordsText = '';
     let allWords = [];
     let notesMap = {};
-    let currentTab = 'all';
+    let currentTab = 'favorites';
     let selectedWords = new Set(); // Выбранные слова для копирования
+    let rulesDefs = [];
+    let defSelectedVolume = null;
+    let defSelectedPart = null;
 
     // ========== ПО ГЛАВАМ - Переменные ==========
     let chaptersData = null;
@@ -1827,6 +2201,181 @@
       return div.innerHTML;
     }
 
+    // ========== ОПРЕДЕЛЕНИЯ ПРАВИЛ ==========
+
+    // Загрузка определений из definitions.json
+    async function loadRulesDefs() {
+      try {
+        const response = await fetch('definitions.json?' + Date.now());
+        if (!response.ok) throw new Error('Файл не найден');
+        rulesDefs = await response.json();
+        console.log('📖 Загружено определений:', rulesDefs.length);
+      } catch (e) {
+        console.warn('Ошибка загрузки definitions.json:', e);
+        rulesDefs = [];
+      }
+    }
+
+    // Нормализация определений (для совместимости)
+    function normalizeDef(def) {
+      return { ...def, volume: def.volume || 2, part: def.part || 1 };
+    }
+
+    // Экран 1: Показать тома
+    function renderDefVolumes() {
+      defSelectedVolume = null;
+      defSelectedPart = null;
+
+      document.getElementById('defVolumesScreen').classList.remove('hidden');
+      document.getElementById('defPartsScreen').classList.add('hidden');
+      document.getElementById('defCardsScreen').classList.add('hidden');
+      document.getElementById('defEmptyState').classList.add('hidden');
+
+      const category = document.getElementById('rulesDefsCategory').value;
+      let filtered = rulesDefs;
+      if (category !== 'all') {
+        filtered = rulesDefs.filter(d => d.category === category);
+      }
+
+      if (filtered.length === 0) {
+        document.getElementById('defVolumesList').innerHTML = '';
+        document.getElementById('defEmptyState').classList.remove('hidden');
+        return;
+      }
+
+      const normalized = filtered.map(normalizeDef);
+      const volumes = {};
+      normalized.forEach(def => {
+        const v = def.volume;
+        if (!volumes[v]) volumes[v] = 0;
+        volumes[v]++;
+      });
+
+      const volumeIcons = { 2: '📗', 3: '📘', 4: '📙' };
+      const container = document.getElementById('defVolumesList');
+      container.innerHTML = Object.entries(volumes)
+        .sort((a, b) => a[0] - b[0])
+        .map(([vol, count]) => {
+          const icon = volumeIcons[vol] || '📕';
+          return `<div class="topic-card" onclick="selectDefVolume(${vol})">
+            <span class="topic-name">${icon} ${vol} том</span>
+            <span class="topic-count">${count} определений</span>
+          </div>`;
+        }).join('');
+    }
+
+    // Экран 2: Выбор тома → показать части
+    function selectDefVolume(vol) {
+      defSelectedVolume = vol;
+
+      document.getElementById('defVolumesScreen').classList.add('hidden');
+      document.getElementById('defPartsScreen').classList.remove('hidden');
+      document.getElementById('defCardsScreen').classList.add('hidden');
+
+      const volumeIcons = { 2: '📗', 3: '📘', 4: '📙' };
+      const icon = volumeIcons[vol] || '📕';
+      document.getElementById('currentVolumeName').textContent = `${icon} ${vol} том`;
+
+      const category = document.getElementById('rulesDefsCategory').value;
+      let filtered = rulesDefs;
+      if (category !== 'all') {
+        filtered = rulesDefs.filter(d => d.category === category);
+      }
+
+      const normalized = filtered.map(normalizeDef);
+      const parts = {};
+      normalized.filter(d => d.volume === vol).forEach(def => {
+        const p = def.part;
+        if (!parts[p]) parts[p] = 0;
+        parts[p]++;
+      });
+
+      const container = document.getElementById('defPartsList');
+      container.innerHTML = Object.entries(parts)
+        .sort((a, b) => a[0] - b[0])
+        .map(([pt, count]) => `
+          <div class="topic-card" onclick="selectDefPart(${pt})">
+            <span class="topic-name">📄 ${pt} часть</span>
+            <span class="topic-count">${count} определений</span>
+          </div>
+        `).join('');
+    }
+
+    // Экран 3: Выбор части → показать определения
+    function selectDefPart(pt) {
+      defSelectedPart = pt;
+
+      document.getElementById('defVolumesScreen').classList.add('hidden');
+      document.getElementById('defPartsScreen').classList.add('hidden');
+      document.getElementById('defCardsScreen').classList.remove('hidden');
+
+      const volumeIcons = { 2: '📗', 3: '📘', 4: '📙' };
+      const icon = volumeIcons[defSelectedVolume] || '📕';
+      document.getElementById('currentPartName').textContent = `${icon} ${defSelectedVolume} том — ${pt} часть`;
+
+      const category = document.getElementById('rulesDefsCategory').value;
+      let filtered = rulesDefs;
+      if (category !== 'all') {
+        filtered = rulesDefs.filter(d => d.category === category);
+      }
+
+      const normalized = filtered.map(normalizeDef);
+      const defs = normalized.filter(d => d.volume === defSelectedVolume && d.part === pt);
+
+      const html = defs.map(def => `
+        <div class="definition-card" onclick="this.classList.toggle('expanded')">
+          <button class="def-close-btn" onclick="event.stopPropagation(); this.parentElement.classList.remove('expanded');" title="Закрыть">✕</button>
+          <div class="definition-category">${def.category === 'نحو' ? 'نحو (Нахв)' : 'صرف (Сорф)'}</div>
+          <div class="definition-term rtl">${def.term}</div>
+          <div class="definition-answer">
+            ${def.definitionAr ? `<div class="definition-arabic">${def.definitionAr}</div>` : ''}
+            ${def.image ? `<div class="definition-image" style="margin-top:12px;"><button class="def-view-image-btn" onclick="event.stopPropagation(); openImageFullscreen('${def.image}')">🖼️ Фото правила — нажмите для просмотра</button></div>` : ''}
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('defCardsList').innerHTML = html;
+    }
+
+    // Навигация назад
+    function backToDefVolumes() {
+      renderDefVolumes();
+    }
+
+    function backToDefParts() {
+      if (defSelectedVolume !== null) {
+        selectDefVolume(defSelectedVolume);
+      } else {
+        renderDefVolumes();
+      }
+    }
+
+    // Полноэкранный просмотр изображения
+    function openImageFullscreen(src) {
+      const overlay = document.createElement('div');
+      overlay.className = 'img-fullscreen-overlay';
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'img-fullscreen-close';
+      closeBtn.title = 'Закрыть';
+      closeBtn.textContent = '✕';
+      const img = document.createElement('img');
+      img.src = src;
+      img.alt = '';
+      overlay.appendChild(closeBtn);
+      overlay.appendChild(img);
+      function close() {
+        overlay.remove();
+        document.removeEventListener('keydown', onKey);
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') close();
+      }
+      closeBtn.addEventListener('click', function(e) { e.stopPropagation(); close(); });
+      overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+      document.addEventListener('keydown', onKey);
+      document.body.appendChild(overlay);
+    }
+
     // Сохранить/загрузить выбранный таймер
     function saveTimerPreference(seconds) {
       try {
@@ -1963,9 +2512,14 @@
       selectedTime = session.selectedTime || 15;
       isPaused = false;
       
+      // Синхронизируем поле ввода таймера
+      const timerInput = document.getElementById('timerInput');
+      if (timerInput) timerInput.value = selectedTime;
+      
       // Восстанавливаем текст в textarea
       if (session.textareaContent) {
         document.getElementById('learnTextarea').value = session.textareaContent;
+        updateWordCount();
       }
       
       closeModal();
@@ -1981,6 +2535,7 @@
       
       // Показываем нужный режим
       document.getElementById('learnInputSection').style.display = 'none';
+      document.getElementById('exitLearnBtn').style.display = 'flex';
       
       if (learnMode === 'learn') {
         document.getElementById('learnModeSection').style.display = 'block';
@@ -2001,30 +2556,28 @@
       showTab('learn');
     }
 
-    function highlightPickerValue(value) {
-      const picker = document.getElementById('pickerScroll');
-      if (!picker) return;
-      picker.querySelectorAll('.picker-item').forEach(el => {
-        el.classList.toggle('selected', parseInt(el.dataset.value, 10) === value);
-      });
-    }
-
     // Переключение табов
     function showTab(tab) {
+      // Вкладки "Все слова" и "По главам" скрыты — перенаправляем на "Избранное"
+      if (tab === 'all' || tab === 'chapters') tab = 'favorites';
       currentTab = tab;
       
       document.getElementById('tabAll').classList.toggle('active', tab === 'all');
       document.getElementById('tabFavorites').classList.toggle('active', tab === 'favorites');
       document.getElementById('tabChapters').classList.toggle('active', tab === 'chapters');
       document.getElementById('tabLearn').classList.toggle('active', tab === 'learn');
+      document.getElementById('tabEmpty').classList.toggle('active', tab === 'empty');
+      document.getElementById('tabRulesDefs').classList.toggle('active', tab === 'rulesdefs');
       
       // Показать/скрыть контейнеры
       document.getElementById('wordsContainer').style.display = (tab === 'all' || tab === 'favorites') ? 'block' : 'none';
       document.getElementById('chaptersContainer').style.display = tab === 'chapters' ? 'block' : 'none';
       document.getElementById('learnContainer').style.display = tab === 'learn' ? 'block' : 'none';
+      document.getElementById('emptyContainer').style.display = tab === 'empty' ? 'block' : 'none';
+      document.getElementById('rulesDefsContainer').style.display = tab === 'rulesdefs' ? 'block' : 'none';
       
-      // Скрыть header-info на вкладках заучивания и глав
-      document.querySelector('.header-info').style.display = (tab === 'learn' || tab === 'chapters') ? 'none' : 'flex';
+      // Скрыть header-info на вкладках заучивания, глав, пустого тренажёра и определений правил
+      document.querySelector('.header-info').style.display = (tab === 'learn' || tab === 'chapters' || tab === 'empty' || tab === 'rulesdefs') ? 'none' : 'flex';
       
       // При переходе на другую вкладку — сброс заучивания (но не localStorage)
       if (tab !== 'learn') {
@@ -2052,6 +2605,20 @@
         updateSelectionBar();
         renderWords();
         updateCounts();
+      }
+      
+      // Пустой тренажёр — отложенная проверка сессии
+      if (tab === 'empty') {
+        if (typeof emptyTrainer.onShow === 'function') emptyTrainer.onShow();
+      }
+      
+      // Определения правил — загрузить если ещё не
+      if (tab === 'rulesdefs') {
+        if (rulesDefs.length === 0) {
+          loadRulesDefs().then(() => renderDefVolumes());
+        } else {
+          renderDefVolumes();
+        }
       }
     }
 
@@ -2296,8 +2863,18 @@
     // Загружаем при старте
     loadWords();
     loadNotes();
+    loadRulesDefs();
 
     // ========== ЗАУЧИВАНИЕ - Функции ==========
+
+    // Перемешивание массива (Fisher-Yates)
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
 
     // Парсинг слов из текста
     function parseWords(text) {
@@ -2323,11 +2900,19 @@
       return parsed;
     }
 
+    // Обновить счётчик слов
+    function updateWordCount() {
+      const text = document.getElementById('learnTextarea').value;
+      const words = parseWords(text);
+      document.getElementById('wordCountDisplay').textContent = 'Всего: ' + words.length;
+    }
+
     // Вставить из буфера обмена
     async function pasteFromClipboard() {
       try {
         const text = await navigator.clipboard.readText();
         document.getElementById('learnTextarea').value = text;
+        updateWordCount();
         showToast('Вставлено из буфера!');
       } catch (e) {
         showToast('Не удалось получить доступ к буферу');
@@ -2353,100 +2938,37 @@
         textarea.value = favoritesText;
       }
       
+      updateWordCount();
       showToast(`Добавлено ${favorites.length} слов из избранного!`);
     }
 
-    // Инициализация scroll-picker
-    function initPicker() {
-      const picker = document.getElementById('pickerScroll');
-      picker.innerHTML = '';
+    // Инициализация таймера
+    function initTimer() {
       const savedTime = loadTimerPreference();
       selectedTime = savedTime;
-      
-      // Создаём элементы 1-60
-      for (let i = 1; i <= 60; i++) {
-        const item = document.createElement('div');
-        item.className = 'picker-item';
-        item.dataset.value = i;
-        item.textContent = i;
-        item.addEventListener('click', () => {
-          setTime(i);
-        });
-        picker.appendChild(item);
-      }
-      
-      // IntersectionObserver для определения центрального элемента
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-            const value = parseInt(entry.target.dataset.value);
-            if (value !== selectedTime) {
-              selectedTime = value;
-              // Обновить стили
-              picker.querySelectorAll('.picker-item').forEach(item => {
-                item.classList.toggle('selected', parseInt(item.dataset.value) === value);
-              });
-              saveTimerPreference(selectedTime);
-            }
-          }
-        });
-      }, {
-        root: picker,
-        rootMargin: '-50px 0px -50px 0px',
-        threshold: 0.5
-      });
-      
-      // Наблюдаем за всеми элементами
-      picker.querySelectorAll('.picker-item').forEach(item => {
-        observer.observe(item);
-      });
-      
-      // Прокрутить к начальному значению (15)
-      setTimeout(() => {
-        setTime(savedTime);
-      }, 50);
-    }
-
-    // Установить время и прокрутить к нему
-    function setTime(seconds) {
-      seconds = Math.max(1, Math.min(60, seconds));
-      selectedTime = seconds;
-      saveTimerPreference(seconds);
-      
-      const picker = document.getElementById('pickerScroll');
-      const item = picker.querySelector(`[data-value="${seconds}"]`);
-      if (item) {
-        item.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
-        // Обновить стили
-        picker.querySelectorAll('.picker-item').forEach(el => {
-          el.classList.toggle('selected', parseInt(el.dataset.value) === seconds);
+      const input = document.getElementById('timerInput');
+      if (input) {
+        input.value = savedTime;
+        input.addEventListener('wheel', function(e) {
+          e.preventDefault();
+          let val = parseInt(this.value, 10) || 1;
+          if (e.deltaY < 0) val = Math.min(60, val + 1);
+          else val = Math.max(1, val - 1);
+          this.value = val;
+          selectedTime = val;
+          saveTimerPreference(val);
         });
       }
     }
 
-    // Определить текущее выбранное значение по центру пикера
-    function getPickerSelectedValue() {
-      const picker = document.getElementById('pickerScroll');
-      if (!picker) return selectedTime;
-      
-      const rect = picker.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      const element = document.elementFromPoint(centerX, centerY);
-      
-      if (element && element.classList.contains('picker-item')) {
-        const value = parseInt(element.dataset.value, 10);
-        if (!isNaN(value)) return value;
-      }
-      
-      const selectedEl = picker.querySelector('.picker-item.selected');
-      if (selectedEl) {
-        const value = parseInt(selectedEl.dataset.value, 10);
-        if (!isNaN(value)) return value;
-      }
-      
-      return selectedTime;
+    // Установить время из ручного ввода
+    function setTimeFromInput(input) {
+      let val = parseInt(input.value, 10);
+      if (isNaN(val) || val < 1) val = 1;
+      if (val > 60) val = 60;
+      input.value = val;
+      selectedTime = val;
+      saveTimerPreference(val);
     }
 
     // Начать заучивание
@@ -2459,13 +2981,19 @@
         return;
       }
       
+      document.getElementById('exitLearnBtn').style.display = 'flex';
+      
       // Активировать звук при нажатии кнопки (важно для iOS/Android)
       unlockAudio();
       
-      // ВАЖНО: Получаем значение таймера ДО скрытия picker!
-      let currentValue = getPickerSelectedValue();
-      if (isNaN(currentValue)) currentValue = selectedTime;
-      currentValue = Math.max(1, Math.min(60, currentValue));
+      // Перемешиваем слова
+      shuffleArray(learnWords);
+      
+      // Получаем значение таймера из поля ввода
+      const input = document.getElementById('timerInput');
+      let currentValue = input ? parseInt(input.value, 10) : selectedTime;
+      if (isNaN(currentValue) || currentValue < 1) currentValue = 1;
+      if (currentValue > 60) currentValue = 60;
       selectedTime = currentValue;
       saveTimerPreference(selectedTime);
       
@@ -2495,10 +3023,13 @@
       document.getElementById('cardTranslation').textContent = word.translation;
       const noteEl = document.getElementById('cardNote');
       const note = notesMap[word.firstArabic];
-      noteEl.textContent = note ? '📝 ' + note : '';
-      noteEl.style.display = note ? 'block' : 'none';
-      
-      // Обновить прогресс
+      if (note) {
+        noteEl.innerHTML = '<span class="note-label">شرح</span><span class="note-text">' + escapeHtml(note) + '</span>';
+        noteEl.style.display = 'flex';
+      } else {
+        noteEl.innerHTML = '';
+        noteEl.style.display = 'none';
+      }
       const progress = ((currentWordIndex + 1) / learnWords.length) * 100;
       document.getElementById('learnProgressFill').style.width = progress + '%';
       document.getElementById('learnProgressText').textContent = 
@@ -2529,6 +3060,8 @@
             if (learnMode === 'learn') {
               nextWord();
             } else {
+              forgotCount++;
+              forgottenWords.push(learnWords[currentWordIndex]);
               nextTestWord();
             }
           }
@@ -2568,7 +3101,8 @@
     function togglePause() {
       isPaused = !isPaused;
       const btn = document.getElementById('pauseBtn');
-      btn.innerHTML = isPaused ? '▶️ Продолжить' : '⏸️ Пауза';
+      btn.innerHTML = isPaused ? '▶️' : '⏸️';
+      btn.title = isPaused ? 'Продолжить' : 'Пауза';
       saveSession();
     }
 
@@ -2589,6 +3123,8 @@
       if (words) {
         learnWords = words;
       }
+      
+      document.getElementById('exitLearnBtn').style.display = 'flex';
       
       // Активировать звук (важно для iOS/Android)
       unlockAudio();
@@ -2622,8 +3158,13 @@
       document.getElementById('testCardTranslation').textContent = word.translation;
       const noteEl = document.getElementById('testCardNote');
       const note = notesMap[word.firstArabic];
-      noteEl.textContent = note ? '📝 ' + note : '';
-      noteEl.style.display = note ? 'block' : 'none';
+      if (note) {
+        noteEl.innerHTML = '<span class="note-label">شرح</span><span class="note-text">' + escapeHtml(note) + '</span>';
+        noteEl.style.display = 'flex';
+      } else {
+        noteEl.innerHTML = '';
+        noteEl.style.display = 'none';
+      }
       
       // Сбросить состояние показа перевода (скрыть перевод)
       resetTranslationButton();
@@ -2645,7 +3186,8 @@
     function toggleTestPause() {
       isPaused = !isPaused;
       const btn = document.getElementById('testPauseBtn');
-      btn.innerHTML = isPaused ? '▶️ Продолжить' : '⏸️ Пауза';
+      btn.innerHTML = isPaused ? '▶️' : '⏸️';
+      btn.title = isPaused ? 'Продолжить' : 'Пауза';
       saveSession();
     }
 
@@ -2677,14 +3219,22 @@
     // Я знаю
     function markKnow() {
       knownCount++;
-      nextTestWord();
+      if (learnMode === 'learn') {
+        nextWord();
+      } else {
+        nextTestWord();
+      }
     }
 
-    // Я забыл
+    // Я не знаю
     function markForgot() {
       forgotCount++;
       forgottenWords.push(learnWords[currentWordIndex]);
-      nextTestWord();
+      if (learnMode === 'learn') {
+        nextWord();
+      } else {
+        nextTestWord();
+      }
     }
 
     // Следующее слово (проверка)
@@ -2804,6 +3354,7 @@
       learnMode = 'learn';
       document.getElementById('learnModeSection').style.display = 'block';
       document.getElementById('testModeSection').style.display = 'none';
+      document.getElementById('exitLearnBtn').style.display = 'flex';
       showCurrentWord();
       startTimer();
       saveSession();
@@ -2829,7 +3380,7 @@
         clearInterval(timerInterval);
         timerInterval = null;
       }
-      showTab('all');
+      showTab('favorites');
     }
 
     function closeModalAndReset() {
@@ -2842,12 +3393,14 @@
       closeModal();
       unlockAudio();
       learnWords = [...forgottenWords];
+      shuffleArray(learnWords);
       forgottenWords = [];
       currentWordIndex = 0;
       learnMode = 'learn';
-      
       document.getElementById('learnModeSection').style.display = 'block';
       document.getElementById('testModeSection').style.display = 'none';
+      document.getElementById('exitLearnBtn').style.display = 'flex';
+      
       
       showCurrentWord();
       startTimer();
@@ -2872,21 +3425,377 @@
       document.getElementById('learnModeSection').style.display = 'none';
       document.getElementById('testModeSection').style.display = 'none';
       document.getElementById('learnTextarea').value = '';
+      updateWordCount();
+      document.getElementById('exitLearnBtn').style.display = 'none';
       
       // Сброс кнопки паузы
       const pauseBtn = document.getElementById('pauseBtn');
-      if (pauseBtn) pauseBtn.innerHTML = '⏸️ Пауза';
+      if (pauseBtn) { pauseBtn.innerHTML = '⏸️'; pauseBtn.title = 'Пауза'; }
       const testPauseBtn = document.getElementById('testPauseBtn');
-      if (testPauseBtn) testPauseBtn.innerHTML = '⏸️ Пауза';
+      if (testPauseBtn) { testPauseBtn.innerHTML = '⏸️'; testPauseBtn.title = 'Пауза'; }
     }
 
     // Инициализация picker при загрузке
-    initPicker();
+    initTimer();
     
     // Проверяем сохранённую сессию при загрузке страницы
     checkSavedSession();
 
     // Приём ошибок из другого тренажёра (simple.html → заучивание)
+    // ========== ПУСТОЙ ТРЕНАЖЁР ==========
+    const emptyTrainer = {};
+    (function() {
+      let allWords = [], sessionWords = [], mistakes = [], mistakeLines = [], total = 0, currentIndex = 0;
+      let modalTimer = null;
+
+      const WORDS_STORAGE_KEY = 'simpleTrainerWords';
+      const SESSION_STORAGE_KEY = 'simpleTrainerSession';
+
+      function saveWordList(text) {
+        try { localStorage.setItem(WORDS_STORAGE_KEY, text); } catch (e) { console.warn(e); }
+      }
+
+      function loadWordList() {
+        try { return localStorage.getItem(WORDS_STORAGE_KEY) || ''; } catch (e) { return ''; }
+      }
+
+      function clearWordList() {
+        try { localStorage.removeItem(WORDS_STORAGE_KEY); } catch (e) { console.warn(e); }
+      }
+
+      function saveSession() {
+        if (sessionWords.length === 0) return;
+        try {
+          localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+            allWords, sessionWords, currentIndex, mistakes, mistakeLines, total, timestamp: Date.now()
+          }));
+        } catch (e) { console.warn(e); }
+      }
+
+      function loadSession() {
+        try { const s = localStorage.getItem(SESSION_STORAGE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+      }
+
+      function clearSession() {
+        try { localStorage.removeItem(SESSION_STORAGE_KEY); } catch (e) { console.warn(e); }
+      }
+
+      function showResumeModal(session) {
+        const root = document.getElementById('empty-modal-root');
+        const overlay = document.createElement('div');
+        overlay.className = 'overlay';
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        const progress = (session.currentIndex + 1) + ' из ' + session.total;
+        const mistakesCount = session.mistakes ? session.mistakes.length : 0;
+        modal.innerHTML = '<h2>📚 Продолжить сессию?</h2>' +
+          '<div class="label" style="margin-bottom:15px;">Найдена незавершённая тренировка:<br><strong>Слово ' + progress + '</strong>, ошибок: ' + mistakesCount + '</div>' +
+          '<div class="controls"><button id="empty-resume-session-btn" class="close-btn" style="background:#e8f5e9;border-color:#81c784;">▶️ Продолжить</button>' +
+          '<button id="empty-restart-session-btn" class="close-btn" style="background:#ffebee;border-color:#e57373;">🔄 Начать заново</button>' +
+          '<button id="empty-postpone-session-btn" class="close-btn" style="background:#f3f4f6;border-color:#d1d5db;">⏰ Продолжить позже</button></div>';
+        overlay.appendChild(modal);
+        root.appendChild(overlay);
+
+        document.getElementById('empty-resume-session-btn').addEventListener('click', function() {
+          root.innerHTML = '';
+          resumeSession(session);
+        });
+        document.getElementById('empty-restart-session-btn').addEventListener('click', function() {
+          root.innerHTML = '';
+          clearSession();
+          clearWordList();
+          wordListTextarea.value = '';
+          loader.style.display = '';
+          trainer.style.display = 'none';
+        });
+        document.getElementById('empty-postpone-session-btn').addEventListener('click', function() {
+          root.innerHTML = '';
+        });
+      }
+
+      function resumeSession(session) {
+        allWords = session.allWords;
+        sessionWords = session.sessionWords;
+        currentIndex = session.currentIndex;
+        mistakes = session.mistakes || [];
+        mistakeLines = session.mistakeLines || [];
+        total = session.total;
+        loader.style.display = 'none';
+        trainer.style.display = '';
+        submitBtn.disabled = false;
+        oralBtn.disabled = false;
+        forgotBtn.disabled = false;
+        afterSession.classList.add('hidden');
+        correctListDiv.innerHTML = '';
+        mistakeListDiv.innerHTML = '';
+        mistakeLines.forEach(function(line) {
+          mistakeListDiv.innerHTML += '<div>' + escapeHtml(line) + '</div>';
+        });
+        if (mistakeLines.length > 0) copyMistakesContainer.classList.remove('hidden');
+        nextWord();
+      }
+
+      function checkSavedSession() {
+        const session = loadSession();
+        if (session && session.sessionWords && session.sessionWords.length > 0 && session.currentIndex < session.total) {
+          showResumeModal(session);
+        }
+      }
+
+      const loader = document.getElementById('empty-loader');
+      const trainer = document.getElementById('empty-trainer');
+      const wordListTextarea = document.getElementById('empty-word-list');
+      const loadListBtn = document.getElementById('empty-load-list');
+      const startMistakesBtn = document.getElementById('empty-start-mistakes');
+      const retryAllBtn = document.getElementById('empty-retry-all');
+      const learnMistakesBtn = document.getElementById('empty-learn-mistakes');
+      const arabicWordH2 = document.getElementById('empty-arabic-word');
+      const progressDiv = document.getElementById('empty-progress');
+      const answerInput = document.getElementById('empty-answer-input');
+      const submitBtn = document.getElementById('empty-submit-answer');
+      const oralBtn = document.getElementById('empty-oral-answer');
+      const forgotBtn = document.getElementById('empty-forgot-answer');
+      const correctListDiv = document.getElementById('empty-correct-list');
+      const mistakeListDiv = document.getElementById('empty-mistake-list');
+      const afterSession = document.getElementById('empty-after-session');
+      const copyMistakesContainer = document.getElementById('empty-copy-mistakes-container');
+      const copyMistakesBtn = document.getElementById('empty-copy-mistakes');
+      const copySuccess = document.getElementById('empty-copy-success');
+
+      function shuffle(a) {
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+      }
+
+      function parseText(text) {
+        allWords = text.split(/\r?\n/).map(function(l) { return l.trim(); }).filter(function(l) { return l; }).map(function(line) {
+          const sep = line.search(/[-–—]/);
+          const rus = sep !== -1 ? line.slice(0, sep).trim() : '';
+          const arab = sep !== -1 ? line.slice(sep + 1).trim() : '';
+          const rusVars = rus.split(',').map(function(r) { return r.trim().toLowerCase(); });
+          return { arabicFull: arab, rusVariants: rusVars, originalLine: line };
+        });
+      }
+
+      emptyTrainer.toggleTranslation = function() {
+        const card = document.getElementById('empty-wordCard');
+        const btn = document.getElementById('empty-showTranslationBtn');
+        if (card.classList.contains('word-card-hidden')) {
+          card.classList.remove('word-card-hidden');
+          btn.classList.add('active');
+          btn.title = 'Скрыть перевод';
+        } else {
+          card.classList.add('word-card-hidden');
+          btn.classList.remove('active');
+          btn.title = 'Показать перевод';
+        }
+        setTimeout(function() { answerInput.focus(); }, 10);
+      };
+
+      function resetTranslationButton() {
+        const card = document.getElementById('empty-wordCard');
+        const btn = document.getElementById('empty-showTranslationBtn');
+        card.classList.add('word-card-hidden');
+        btn.classList.remove('active');
+        btn.title = 'Показать перевод';
+      }
+
+      function startSession(useMistakes) {
+        if (!useMistakes) {
+          mistakes = []; mistakeLines = [];
+          startMistakesBtn.classList.add('hidden');
+          learnMistakesBtn.classList.add('hidden');
+          sessionWords = allWords.slice();
+        } else {
+          sessionWords = mistakes.slice();
+          mistakes = []; mistakeLines = [];
+        }
+        shuffle(sessionWords);
+        total = sessionWords.length;
+        currentIndex = 0;
+        correctListDiv.innerHTML = '';
+        mistakeListDiv.innerHTML = '';
+        copyMistakesContainer.classList.add('hidden');
+        trainer.style.display = '';
+        submitBtn.disabled = false;
+        oralBtn.disabled = false;
+        forgotBtn.disabled = false;
+        afterSession.classList.add('hidden');
+        nextWord();
+        saveSession();
+      }
+
+      loadListBtn.addEventListener('click', function() {
+        const text = wordListTextarea.value.trim();
+        if (!text) { alert('Введите список слов'); return; }
+        parseText(text);
+        if (allWords.length === 0) { alert('Не удалось распознать слова. Проверьте формат.'); return; }
+        saveWordList(text);
+        loader.style.display = 'none';
+        startSession(false);
+      });
+
+      const loadFavoritesBtn = document.getElementById('empty-load-favorites');
+      const favCountHint = document.getElementById('empty-fav-count-hint');
+
+      function updateFavHint() {
+        const count = typeof getFavoritesCount === 'function' ? getFavoritesCount() : 0;
+        favCountHint.textContent = count > 0 ? '⭐ В избранном: ' + count + ' слов' : 'В избранном пока нет слов';
+      }
+      updateFavHint();
+
+      const savedWordList = loadWordList();
+      if (savedWordList) wordListTextarea.value = savedWordList;
+
+      loadFavoritesBtn.addEventListener('click', function() {
+        const favText = typeof getFavoritesAsText === 'function' ? getFavoritesAsText() : '';
+        if (!favText) { alert('В избранном пока нет слов.'); return; }
+        const current = wordListTextarea.value.trim();
+        wordListTextarea.value = current ? current + '\n' + favText : favText;
+        alert('✅ Добавлено ' + getFavoritesCount() + ' слов из избранного!');
+      });
+
+      function nextWord() {
+        if (currentIndex >= total) {
+          progressDiv.textContent = 'Готово! Пройдено ' + total + '/' + total + ', ошибок: ' + mistakes.length;
+          submitBtn.disabled = true;
+          oralBtn.disabled = true;
+          forgotBtn.disabled = true;
+          if (mistakes.length) {
+            startMistakesBtn.classList.remove('hidden');
+            learnMistakesBtn.classList.remove('hidden');
+            copyMistakesContainer.classList.remove('hidden');
+          }
+          afterSession.classList.remove('hidden');
+          clearSession();
+          return;
+        }
+        const it = sessionWords[currentIndex];
+        arabicWordH2.textContent = it.arabicFull;
+        document.getElementById('empty-word-translation').textContent = it.rusVariants.join(', ');
+        resetTranslationButton();
+        progressDiv.textContent = (currentIndex + 1) + '/' + total + ' слов пройдено – ' + mistakes.length + ' ошибок';
+        answerInput.value = '';
+        answerInput.focus();
+        const card = document.getElementById('empty-wordCard');
+        card.style.animation = 'none';
+        card.offsetHeight;
+        card.style.animation = 'fadeIn 0.4s ease';
+      }
+
+      function addMistake(it) {
+        mistakes.push(it);
+        mistakeLines.push(it.originalLine);
+        mistakeListDiv.innerHTML += '<div>' + escapeHtml(it.originalLine) + '</div>';
+        if (mistakes.length > 0) copyMistakesContainer.classList.remove('hidden');
+      }
+
+      function showWrongModal(arabicText, ruText, onClose) {
+        const root = document.getElementById('empty-modal-root');
+        root.innerHTML = '';
+        if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+        const overlay = document.createElement('div');
+        overlay.className = 'overlay';
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = '<h2>Неправильно</h2>' +
+          '<div class="label">Правильный ответ:</div>' +
+          '<div class="row"><div class="left"></div><div class="right"><span class="answer">' + escapeHtml(arabicText) + ' - ' + escapeHtml(ruText) + '</span></div></div>' +
+          '<div class="controls"><button id="empty-modal-close-btn" class="close-btn">Закрыть (Esc)</button></div>';
+        overlay.appendChild(modal);
+        root.appendChild(overlay);
+
+        function cleanup() {
+          if (modalTimer) { clearTimeout(modalTimer); modalTimer = null; }
+          document.removeEventListener('keydown', onKey);
+          if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        }
+
+        function onKey(e) {
+          if (e.key === 'Escape') { cleanup(); if (onClose) onClose(); }
+        }
+
+        document.addEventListener('keydown', onKey);
+        document.getElementById('empty-modal-close-btn').addEventListener('click', function() {
+          cleanup();
+          if (onClose) onClose();
+        });
+        modalTimer = setTimeout(function() { cleanup(); if (onClose) onClose(); }, 17000);
+      }
+
+      startMistakesBtn.addEventListener('click', function() { if (mistakes.length) startSession(true); });
+      retryAllBtn.addEventListener('click', function() { clearSession(); startSession(false); });
+      learnMistakesBtn.addEventListener('click', function() {
+        if (!mistakeLines.length) return;
+        try { localStorage.setItem('arabLearnMistakes', JSON.stringify(mistakeLines)); } catch (e) {}
+        showTab('learn');
+        document.getElementById('learnTextarea').value = mistakeLines.join('\n');
+      });
+
+      function handleAnswer() {
+        const it = sessionWords[currentIndex];
+        let ans = answerInput.value.trim().toLowerCase();
+        if (!ans) return;
+        const norm = ans.replace(/е/g, 'ё');
+        const ok = it.rusVariants.some(function(v) { return v === ans || v === norm; });
+        if (ok) {
+          correctListDiv.innerHTML += '<div>' + escapeHtml(it.originalLine) + '</div>';
+          if (typeof recordWordAnswer === 'function') recordWordAnswer();
+          currentIndex++;
+          saveSession();
+          nextWord();
+        } else {
+          addMistake(it);
+          const corr = it.rusVariants.join(', ');
+          showWrongModal(it.arabicFull, corr, function() { currentIndex++; saveSession(); nextWord(); });
+        }
+      }
+
+      function handleOralAnswer() {
+        const it = sessionWords[currentIndex];
+        correctListDiv.innerHTML += '<div>' + escapeHtml(it.originalLine) + '</div>';
+        if (typeof recordWordAnswer === 'function') recordWordAnswer();
+        currentIndex++;
+        saveSession();
+        nextWord();
+      }
+
+      function handleForgotAnswer() {
+        const it = sessionWords[currentIndex];
+        addMistake(it);
+        currentIndex++;
+        saveSession();
+        nextWord();
+      }
+
+      copyMistakesBtn.addEventListener('click', function() {
+        const textToCopy = mistakeLines.join('\n');
+        navigator.clipboard.writeText(textToCopy).then(function() {
+          copySuccess.classList.remove('hidden');
+          setTimeout(function() { copySuccess.classList.add('hidden'); }, 2000);
+        }).catch(function() { alert('Не удалось скопировать.'); });
+      });
+
+      submitBtn.addEventListener('click', handleAnswer);
+      oralBtn.addEventListener('click', handleOralAnswer);
+      forgotBtn.addEventListener('click', handleForgotAnswer);
+      answerInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); handleAnswer(); }
+      });
+
+      // Откладываем проверку сессии до первого открытия вкладки
+      let sessionChecked = false;
+      emptyTrainer.onShow = function() {
+        if (!sessionChecked) {
+          sessionChecked = true;
+          checkSavedSession();
+        }
+        updateFavHint();
+      };
+    })();
+
     function checkIncomingMistakes() {
       if (window.location.hash !== '#learn') return;
       try {
@@ -2900,6 +3809,9 @@
       } catch (e) {}
     }
     checkIncomingMistakes();
+    
+    // Показать вкладку "Избранное" по умолчанию
+    showTab('favorites');
   </script>
 </body>
 </html>
