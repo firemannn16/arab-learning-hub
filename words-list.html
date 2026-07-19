@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -95,6 +95,27 @@
     .clear-fav-btn:hover {
       background: #ffecec;
       box-shadow: 0 2px 8px rgba(209, 67, 67, 0.25);
+    }
+
+    .add-fav-btn {
+      padding: 8px 10px;
+      background: #f0f4ff;
+      color: #667eea;
+      border: 1px solid #d0d9f8;
+      border-radius: 50%;
+      width: 38px;
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .add-fav-btn:hover {
+      background: #e4eaff;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
     }
 
     .word-count {
@@ -666,6 +687,7 @@
     .empty-container .copy-btn:hover { background: #bbdefb; }
     .empty-container .copy-success { color: #4caf50; font-size: 0.9em; margin-left: 8px; }
     .empty-container #empty-progress { margin-top: 12px; font-size: 1.1em; }
+    .empty-container #empty-trainer { position: relative; padding-top: 52px; }
 
     .empty-container .overlay {
       position: fixed; left: 0; top: 0; right: 0; bottom: 0;
@@ -1020,8 +1042,11 @@
     }
 
     .timer-single-input::-webkit-inner-spin-button {
-      opacity: 1;
-      height: 40px;
+      display: none;
+    }
+
+    .timer-single-input[type="number"] {
+      -moz-appearance: textfield;
     }
 
     .timer-single-unit {
@@ -1459,6 +1484,34 @@
       margin-bottom: 15px;
     }
 
+    /* Confirm диалог */
+    .confirm-overlay {
+      position:fixed;inset:0;background:rgba(0,0,0,0.5);
+      display:flex;align-items:center;justify-content:center;
+      z-index:999999;padding:20px;
+    }
+    .confirm-box {
+      background:#fff;border-radius:16px;padding:28px;
+      max-width:360px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,0.25);
+      text-align:center;
+    }
+    .dark-theme .confirm-box { background:#1e293b; color:#e0e0e0; }
+    .confirm-box h3 { margin:0 0 12px; font-size:1.1rem; }
+    .confirm-box p { font-size:0.9rem; color:#6b7280; margin-bottom:20px; line-height:1.5; }
+    .dark-theme .confirm-box p { color:#94a3b8; }
+    .confirm-actions { display:flex; gap:10px; }
+    .confirm-actions button {
+      flex:1; padding:12px; border-radius:10px;
+      font-size:0.9rem; font-weight:600; cursor:pointer;
+      border:none; transition:background 0.2s;
+    }
+    .confirm-cancel { background:#e5e7eb; color:#1f2937; }
+    .confirm-cancel:hover { background:#d1d5db; }
+    .dark-theme .confirm-cancel { background:#374151; color:#e0e0e0; }
+    .dark-theme .confirm-cancel:hover { background:#4b5563; }
+    .confirm-danger { background:#dc2626; color:#fff; }
+    .confirm-danger:hover { background:#b91c1c; }
+
     /* Адаптив */
     @media (max-width: 600px) {
       body {
@@ -1573,6 +1626,7 @@
             <span>📋</span> Копировать всё
           </button>
           <button class="clear-fav-btn" id="clearFavBtn" title="Очистить избранное">🗑️</button>
+          <button class="add-fav-btn" id="addFavBtn" title="Добавить слова">✏️</button>
         </div>
       </div>
       <div class="tabs">
@@ -1658,7 +1712,7 @@
         <div class="timer-section">
           <span class="timer-label">⏱️ Интервал между словами</span>
           <div class="timer-single">
-            <input type="number" class="timer-single-input" id="timerInput" min="1" max="60" value="15" oninput="setTimeFromInput(this)">
+            <input type="number" class="timer-single-input" id="timerInput" min="0" max="60" value="0" oninput="setTimeFromInput(this)" onfocus="this.select()">
             <span class="timer-single-unit">сек</span>
           </div>
         </div>
@@ -1708,14 +1762,6 @@
           <div class="word-card-note" id="cardNote"></div>
         </div>
         
-        <div class="learn-controls">
-          <button class="control-btn btn-know" onclick="markKnow()">
-            ✓ Я знаю
-          </button>
-          <button class="control-btn btn-forgot" onclick="markForgot()">
-            ✗ Я не знаю
-          </button>
-        </div>
       </div>
 
       <!-- Режим проверки -->
@@ -1741,7 +1787,7 @@
           </svg>
           <div class="circle-timer-text" id="testTimerText">15</div>
         </div>
-          <button class="sticker-btn" onclick="exitLearnLater()" title="Продолжить потом">⏰</button>
+          <button class="sticker-btn" id="testNextBtn" onclick="nextTestWord()" title="Далее">▶️</button>
         </div>
         
         <div class="word-card word-card-hidden" id="testWordCard">
@@ -1779,6 +1825,7 @@
     </div>
 
     <div id="empty-trainer" style="display: none;">
+      <button class="exit-learn-btn" id="emptyExitBtn" onclick="emptyTrainer.exitSession()" title="Выйти">✕ Выйти</button>
       <div id="empty-progress"></div>
       
       <div class="word-card word-card-hidden" id="empty-wordCard">
@@ -1885,7 +1932,7 @@
     // ========== ЗАУЧИВАНИЕ - Переменные ==========
     let learnWords = [];           // Слова для заучивания [{arabic: '...', translation: '...'}, ...]
     let currentWordIndex = 0;      // Текущий индекс слова
-    let selectedTime = 15;         // Выбранное время (сек)
+    let selectedTime = 0;         // Выбранное время (сек)
     let timerInterval = null;      // Интервал таймера
     let timeLeft = 15;             // Оставшееся время
     let isPaused = false;          // Флаг паузы
@@ -2390,12 +2437,12 @@
         const saved = localStorage.getItem(TIMER_STORAGE_KEY);
         const parsed = parseInt(saved, 10);
         if (!isNaN(parsed)) {
-          return Math.max(1, Math.min(60, parsed));
+          return Math.max(0, Math.min(60, parsed));
         }
       } catch (e) {
         console.warn('Не удалось загрузить таймер', e);
       }
-      return 15;
+      return 0;
     }
 
     // ========== СОХРАНЕНИЕ ПРОГРЕССА ==========
@@ -2509,7 +2556,7 @@
       forgottenWords = session.forgottenWords || [];
       knownCount = session.knownCount || 0;
       forgotCount = session.forgotCount || 0;
-      selectedTime = session.selectedTime || 15;
+      selectedTime = session.selectedTime || 0;
       isPaused = false;
       
       // Синхронизируем поле ввода таймера
@@ -2825,6 +2872,46 @@
       updateCounts();
     });
 
+    // Добавить слова в избранное вручную
+    document.getElementById('addFavBtn').addEventListener('click', showAddFavoritesModal);
+
+    function showAddFavoritesModal() {
+      const overlay = document.getElementById('modalOverlay');
+      const content = document.getElementById('modalContent');
+      content.innerHTML = `
+        <div style="text-align:center;padding:5px 0;">
+          <div style="font-size:30px;margin-bottom:5px;">✏️</div>
+          <div style="font-size:20px;font-weight:700;margin-bottom:10px;">Добавить слова в избранное</div>
+          <div style="font-size:13px;color:#6b7280;margin-bottom:12px;">
+            Формат: <strong>русский — арабский</strong>, каждое слово с новой строки
+          </div>
+          <textarea id="favAddTextarea" placeholder="экземпляр, книга — مُصْحَفٌ - مَصَاحِفُ" style="width:100%;height:180px;padding:12px;font-size:15px;border:2px solid #e5e7eb;border-radius:10px;resize:vertical;box-sizing:border-box;font-family:inherit;line-height:1.8;"></textarea>
+          <div id="favAddResult" style="font-size:14px;color:#059669;margin:8px 0;display:none;"></div>
+          <div style="display:flex;gap:10px;justify-content:center;margin-top:12px;">
+            <button id="favAddSubmitBtn" style="padding:10px 24px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;cursor:pointer;font-size:15px;font-weight:600;">➕ Добавить</button>
+            <button id="favAddCancelBtn" style="padding:10px 24px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:15px;">Отмена</button>
+          </div>
+        </div>`;
+      overlay.style.display = 'flex';
+      document.getElementById('favAddCancelBtn').addEventListener('click', closeModal);
+      document.getElementById('favAddSubmitBtn').addEventListener('click', function() {
+        const text = document.getElementById('favAddTextarea').value.trim();
+        if (!text) { showToast('Введите слова'); return; }
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l);
+        let added = 0, skipped = 0;
+        lines.forEach(line => { if (addToFavorites(line)) added++; else skipped++; });
+        const resultEl = document.getElementById('favAddResult');
+        resultEl.style.display = 'block';
+        resultEl.textContent = skipped > 0 ? '✅ Добавлено: ' + added + ', пропущено (уже есть): ' + skipped : '✅ Добавлено слов: ' + added;
+        resultEl.style.color = skipped > 0 ? '#f59e0b' : '#059669';
+        document.getElementById('favAddTextarea').value = '';
+        renderWords();
+        updateCounts();
+        document.getElementById('favAddTextarea').focus();
+      });
+      setTimeout(function() { document.getElementById('favAddTextarea').focus(); }, 100);
+    }
+
     // Слушаем изменения избранного
     window.addEventListener('favoritesChanged', () => {
       if (currentTab === 'favorites') {
@@ -2949,22 +3036,13 @@
       const input = document.getElementById('timerInput');
       if (input) {
         input.value = savedTime;
-        input.addEventListener('wheel', function(e) {
-          e.preventDefault();
-          let val = parseInt(this.value, 10) || 1;
-          if (e.deltaY < 0) val = Math.min(60, val + 1);
-          else val = Math.max(1, val - 1);
-          this.value = val;
-          selectedTime = val;
-          saveTimerPreference(val);
-        });
       }
     }
 
     // Установить время из ручного ввода
     function setTimeFromInput(input) {
       let val = parseInt(input.value, 10);
-      if (isNaN(val) || val < 1) val = 1;
+      if (isNaN(val) || val < 0) val = 0;
       if (val > 60) val = 60;
       input.value = val;
       selectedTime = val;
@@ -2992,8 +3070,12 @@
       // Получаем значение таймера из поля ввода
       const input = document.getElementById('timerInput');
       let currentValue = input ? parseInt(input.value, 10) : selectedTime;
-      if (isNaN(currentValue) || currentValue < 1) currentValue = 1;
+      if (isNaN(currentValue) || currentValue < 0) currentValue = 0;
       if (currentValue > 60) currentValue = 60;
+      if (currentValue === 0) {
+        showToast('Поставьте правильный интервал');
+        return;
+      }
       selectedTime = currentValue;
       saveTimerPreference(selectedTime);
       
@@ -3101,7 +3183,7 @@
     function togglePause() {
       isPaused = !isPaused;
       const btn = document.getElementById('pauseBtn');
-      btn.innerHTML = isPaused ? '▶️' : '⏸️';
+      btn.innerHTML = isPaused ? '⏯️' : '⏸️';
       btn.title = isPaused ? 'Продолжить' : 'Пауза';
       saveSession();
     }
@@ -3186,7 +3268,7 @@
     function toggleTestPause() {
       isPaused = !isPaused;
       const btn = document.getElementById('testPauseBtn');
-      btn.innerHTML = isPaused ? '▶️' : '⏸️';
+      btn.innerHTML = isPaused ? '⏯️' : '⏸️';
       btn.title = isPaused ? 'Продолжить' : 'Пауза';
       saveSession();
     }
@@ -3374,13 +3456,41 @@
       startTest();
     }
 
+    function showConfirm(title, text, cancelLabel, confirmLabel, onCancel, onConfirm) {
+      const div = document.createElement('div');
+      div.className = 'confirm-overlay';
+      div.innerHTML = `
+        <div class="confirm-box">
+          <h3>${title}</h3>
+          <p>${text}</p>
+          <div class="confirm-actions">
+            <button class="confirm-cancel" id="confirmCancel">${cancelLabel}</button>
+            <button class="confirm-danger" id="confirmOk">${confirmLabel}</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(div);
+      div.addEventListener('click', (e) => { if (e.target === div) { onCancel(); div.remove(); } });
+      div.querySelector('#confirmCancel').addEventListener('click', () => { onCancel(); div.remove(); });
+      div.querySelector('#confirmOk').addEventListener('click', () => { try { onConfirm(); } catch(e) { console.error(e); } div.remove(); });
+    }
+
     function exitLearnLater() {
-      saveSession();
-      if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-      }
-      showTab('favorites');
+      showConfirm(
+        'Завершить текущую сессию?',
+        'Прогресс по уже отвеченным карточкам сохранится. Вы сможете продолжить обучение позже.',
+        'Продолжить обучение',
+        'Выйти',
+        () => {},
+        () => {
+          saveSession();
+          if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+          }
+          showTab('favorites');
+        }
+      );
     }
 
     function closeModalAndReset() {
@@ -3432,7 +3542,7 @@
       const pauseBtn = document.getElementById('pauseBtn');
       if (pauseBtn) { pauseBtn.innerHTML = '⏸️'; pauseBtn.title = 'Пауза'; }
       const testPauseBtn = document.getElementById('testPauseBtn');
-      if (testPauseBtn) { testPauseBtn.innerHTML = '⏸️'; testPauseBtn.title = 'Пауза'; }
+      btn.innerHTML = isPaused ? '? ����������' : '??';
     }
 
     // Инициализация picker при загрузке
@@ -3732,6 +3842,7 @@
         try { localStorage.setItem('arabLearnMistakes', JSON.stringify(mistakeLines)); } catch (e) {}
         showTab('learn');
         document.getElementById('learnTextarea').value = mistakeLines.join('\n');
+        updateWordCount();
       });
 
       function handleAnswer() {
@@ -3787,6 +3898,23 @@
 
       // Откладываем проверку сессии до первого открытия вкладки
       let sessionChecked = false;
+      emptyTrainer.exitSession = function() {
+        if (sessionWords.length === 0) { trainer.style.display = 'none'; loader.style.display = ''; return; }
+        showConfirm(
+          'Завершить текущую сессию?',
+          'Прогресс по уже отвеченным карточкам сохранится. Вы сможете продолжить обучение позже.',
+          'Продолжить обучение',
+          'Выйти',
+          () => {},
+          () => {
+            saveSession();
+            trainer.style.display = 'none';
+            loader.style.display = '';
+            clearSession();
+            showTab('favorites');
+          }
+        );
+      };
       emptyTrainer.onShow = function() {
         if (!sessionChecked) {
           sessionChecked = true;
@@ -3806,6 +3934,7 @@
         localStorage.removeItem('arabLearnMistakes');
         showTab('learn');
         document.getElementById('learnTextarea').value = lines.join('\n');
+        updateWordCount();
       } catch (e) {}
     }
     checkIncomingMistakes();
