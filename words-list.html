@@ -924,6 +924,14 @@
       display: none;
     }
 
+    .word-card-note {
+      margin-top: 12px; padding: 10px 14px;
+      font-size: 14px; color: #555;
+      background: #f0f4f8; border-radius: 8px;
+      line-height: 1.5; width: 100%;
+    }
+    .dark-theme .word-card-note { background: #1e293b; color: #94a3b8; }
+
     /* Кнопки управления */
     .learn-controls {
       display: flex;
@@ -1417,6 +1425,7 @@
         <div class="word-card" id="wordCard">
           <div class="word-card-arabic" id="cardArabic">مُصْحَفٌ - مَصَاحِفُ</div>
           <div class="word-card-translation" id="cardTranslation">экземпляр, книга</div>
+          <div class="word-card-note" id="cardNote"></div>
         </div>
         
         <div class="learn-controls">
@@ -1457,6 +1466,7 @@
           </button>
           <div class="word-card-arabic" id="testCardArabic">مُصْحَفٌ - مَصَاحِفُ</div>
           <div class="word-card-translation" id="testCardTranslation">экземпляр, книга</div>
+          <div class="word-card-note" id="testCardNote"></div>
         </div>
         
         <div class="learn-controls">
@@ -1489,6 +1499,7 @@
   <script>
     let allWordsText = '';
     let allWords = [];
+    let notesMap = {};
     let currentTab = 'all';
     let selectedWords = new Set(); // Выбранные слова для копирования
 
@@ -2186,6 +2197,16 @@
     }
 
     // Загрузка слов
+    async function loadNotes() {
+      try {
+        const resp = await fetch('notes.json');
+        if (resp.ok) {
+          const data = await resp.json();
+          notesMap = data || {};
+        }
+      } catch(e) { console.warn('Notes load error:', e); }
+    }
+
     async function loadWords() {
       const container = document.getElementById('wordsContainer');
       const copyAllBtn = document.getElementById('copyAllBtn');
@@ -2274,6 +2295,7 @@
 
     // Загружаем при старте
     loadWords();
+    loadNotes();
 
     // ========== ЗАУЧИВАНИЕ - Функции ==========
 
@@ -2290,9 +2312,10 @@
           // Первая часть - перевод, остальное - арабский
           const translation = parts[0].trim();
           const arabic = parts.slice(1).join(' - ').trim();
+          const firstArabic = parts[1].trim();
           
           if (translation && arabic) {
-            parsed.push({ translation, arabic });
+            parsed.push({ translation, arabic, firstArabic });
           }
         }
       }
@@ -2470,6 +2493,10 @@
       const word = learnWords[currentWordIndex];
       document.getElementById('cardArabic').textContent = word.arabic;
       document.getElementById('cardTranslation').textContent = word.translation;
+      const noteEl = document.getElementById('cardNote');
+      const note = notesMap[word.firstArabic];
+      noteEl.textContent = note ? '📝 ' + note : '';
+      noteEl.style.display = note ? 'block' : 'none';
       
       // Обновить прогресс
       const progress = ((currentWordIndex + 1) / learnWords.length) * 100;
@@ -2593,6 +2620,10 @@
       const word = learnWords[currentWordIndex];
       document.getElementById('testCardArabic').textContent = word.arabic;
       document.getElementById('testCardTranslation').textContent = word.translation;
+      const noteEl = document.getElementById('testCardNote');
+      const note = notesMap[word.firstArabic];
+      noteEl.textContent = note ? '📝 ' + note : '';
+      noteEl.style.display = note ? 'block' : 'none';
       
       // Сбросить состояние показа перевода (скрыть перевод)
       resetTranslationButton();

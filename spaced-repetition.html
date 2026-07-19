@@ -94,6 +94,14 @@
   }
   .dark-theme .flashcard .tap-hint { color: #64748b; }
 
+  .flashcard .card-note {
+    margin-top: 12px; padding: 8px 12px;
+    font-size: 0.85rem; color: #666;
+    background: #f0f4f8; border-radius: 8px;
+    width: 100%; word-break: break-word;
+  }
+  .dark-theme .flashcard .card-note { background: #1e293b; color: #94a3b8; }
+
   .flashcard .word-index {
     position: absolute; top: 12px; right: 16px;
     font-size: 0.75rem; color: #bbb;
@@ -493,6 +501,7 @@
   const LOGS_KEY = 'arabSrLogs';
 
   let allWords = [];
+  let notesMap = {};
   let cards = [];
   let queue = [];
   let currentIndex = 0;
@@ -602,6 +611,16 @@
     return 'w_' + Math.abs(hash).toString(36);
   }
 
+  async function loadNotes() {
+    try {
+      const resp = await fetch('notes.json');
+      if (resp.ok) {
+        const data = await resp.json();
+        notesMap = data || {};
+      }
+    } catch(e) { console.warn('Notes load error:', e); }
+  }
+
   async function loadCardsFromFirestore() {
     if (!window.firestore || !window.auth || !window.authUser) return null;
     try {
@@ -666,6 +685,7 @@
       id,
       ru: match[1].trim(),
       ar: match[2].trim(),
+      arKey: match[2].trim().split(/[-–—]/)[0].trim(),
       line: wordLine,
       ...window.FSRS_defaultCard()
     };
@@ -692,6 +712,7 @@
       document.getElementById('mainArea').innerHTML = '<div class="done-state"><div class="icon">❌</div><h2>Не удалось загрузить слова</h2><p>Проверьте файл words.txt</p></div>';
       return;
     }
+    await loadNotes();
 
     let storedCards = loadCardsLocal();
     if (window.auth && window.authUser) {
@@ -983,6 +1004,8 @@
     isFlipped = false;
 
     const front = card.ar;
+    const note = notesMap[card.arKey];
+    const noteHtml = note ? `<div class="card-note">📝 ${note}</div>` : '';
     const total = sessionTotal;
     const done = sessionDone;
     const pct = total > 0 ? ((done / total) * 100) : 0;
@@ -1013,6 +1036,7 @@
           <button class="fav-star ${window.isFavorite ? (window.isFavorite(card.line) ? 'active' : '') : ''}" id="favStar">${window.isFavorite && window.isFavorite(card.line) ? '⭐' : '☆'}</button>
           <div class="word-index">${done + 1}/${total}</div>
           <div class="front-text arabic" id="frontText">${front}</div>
+          ${noteHtml}
           <div class="tap-hint" id="tapHint">👆 нажмите, чтобы увидеть перевод</div>
           <div style="position:absolute;bottom:4px;left:16px;font-size:0.65rem;color:#94a3b8">${stateLabel}</div>
         </div>
