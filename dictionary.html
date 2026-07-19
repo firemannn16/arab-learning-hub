@@ -676,7 +676,9 @@ const GH_TOKEN_KEY = 'github_token';
 const GH_REPO = 'firemannn16/arab-learning-hub';
 const GH_BRANCH = 'main';
 const GH_PATH = 'words.txt';
+const NOTES_PATH = 'notes.json';
 let pendingEdits = {};
+let notesMap = {};
 const STORAGE_EDITS_KEY = 'dict_edits';
 
 function getGitHubToken() {
@@ -694,6 +696,15 @@ function base64Encode(str) {
     binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary);
+}
+
+function base64Decode(str) {
+  const binary = atob(str);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new TextDecoder().decode(bytes);
 }
 
 /* ===== Edits persistence ===== */
@@ -718,7 +729,7 @@ function applyPendingEdits() {
       entry.ru = edit.ru;
       entry.gloss = edit.gloss;
       entry.arabicVariants = edit.arabicVariants.slice();
-      entry.note = edit.note || '';
+      if (edit.note) entry.note = edit.note;
       entry._arabic_norm = entry.arabicVariants.map(normalizeArabic);
       entry._ru_norm = normalizeRussian(entry.ru + (entry.gloss ? ` (${entry.gloss})` : ''));
     }
@@ -726,7 +737,8 @@ function applyPendingEdits() {
 }
 
 function saveWordEdit(id, ru, gloss, arabicVariants, note) {
-  pendingEdits[id] = { ru, gloss, arabicVariants: arabicVariants.slice(), note: note || '' };
+  pendingEdits[id] = { ru, gloss, arabicVariants: arabicVariants.slice() };
+  if (note) pendingEdits[id].note = note;
   saveEditsToStorage();
   const entry = entries.find(e => e.id === id);
   if (entry) {
@@ -804,6 +816,74 @@ async function updateWordOnGitHub(entry, isRevert) {
   return false;
 }
 
+/* ===== Notes management ===== */
+async function loadNotesFromGitHub() {
+  try {
+    const token = getGitHubToken();
+    const url = `https://api.github.com/repos/${GH_REPO}/contents/${NOTES_PATH}?ref=${GH_BRANCH}`;
+    const res = await fetch(url, {
+      headers: token ? { 'Authorization': `token ${token}` } : {},
+      cache: 'no-cache'
+    });
+    if (res.status === 404) return {};
+    if (!res.ok) throw new Error(`GET notes ${res.status}`);
+    const data = await res.json();
+    return JSON.parse(base64Decode(data.content));
+  } catch(e) {
+    console.warn('Failed to load notes:', e);
+    return {};
+  }
+}
+
+async function saveNotesToGitHub(notesToSave) {
+  const token = getGitHubToken();
+  if (!token) return false;
+
+  const content = base64Encode(JSON.stringify(notesToSave, null, 2));
+  try {
+    let sha = null;
+    const getUrl = `https://api.github.com/repos/${GH_REPO}/contents/${NOTES_PATH}?ref=${GH_BRANCH}`;
+    const getRes = await fetch(getUrl, {
+      headers: { 'Authorization': `token ${token}` },
+      cache: 'no-cache'
+    });
+    if (getRes.ok) {
+      const data = await getRes.json();
+      sha = data.sha;
+    }
+
+    const putUrl = `https://api.github.com/repos/${GH_REPO}/contents/${NOTES_PATH}`;
+    const body = {
+      message: 'Обновление примечаний',
+      content: content,
+      branch: GH_BRANCH
+    };
+    if (sha) body.sha = sha;
+
+    const putRes = await fetch(putUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `token ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+    return putRes.ok;
+  } catch(e) {
+    console.error('Failed to save notes:', e);
+    return false;
+  }
+}
+
+function applyNotesToEntries() {
+  for (const entry of entries) {
+    const arKey = entry.arabicVariants[0];
+    if (arKey && notesMap[arKey]) {
+      entry.note = notesMap[arKey];
+    }
+  }
+}
+
 /* ===== Edit mode in modal ===== */
 function enableEditMode(item) {
   const card = document.querySelector('.card');
@@ -869,10 +949,18 @@ function enableEditMode(item) {
     // Сначала обновляем entries, потом отправляем на GitHub
     saveWordEdit(item.id, newRu, newGloss, arabicParts, newNote);
     const ok = await updateWordOnGitHub(updatedEntry, false);
-    if (!ok) {
-      showTemporaryNotify('Не удалось сохранить в GitHub');
-    } else {
+    if (ok) {
+      // Сохраняем примечание в notes.json
+      const arKey = arabicParts[0] || item.id.toString();
+      const oldNote = notesMap[arKey] || '';
+      if (newNote !== oldNote) {
+        if (newNote) notesMap[arKey] = newNote;
+        else delete notesMap[arKey];
+        await saveNotesToGitHub(notesMap);
+      }
       showTemporaryNotify('Сохранено в GitHub');
+    } else {
+      showTemporaryNotify('Не удалось сохранить в GitHub');
     }
     closeModal();
     renderListPartial(lastResults.length ? performSearch(lastQuery) : entries, renderLimit, lastQuery);
@@ -1037,8 +1125,10 @@ window.addEventListener('offline', () => {
 });
 
 // init
-loadFromServer().then(() => {
+loadFromServer().then(async () => {
   if (entries.length) {
+    notesMap = await loadNotesFromGitHub();
+    applyNotesToEntries();
     applyPendingEdits();
     lastResults = entries.slice();
     renderListPartial(lastResults, renderLimit, '');
