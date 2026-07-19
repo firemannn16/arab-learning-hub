@@ -623,7 +623,13 @@ function openModal(item) {
         <button id="copyBtn" class="btn">Копировать всё</button>
         ${item.arabicVariants.length > 0 ? `<a class="btn" href="https://glagol.reverso.net/%D1%81%D0%BF%D1%80%D1%8F%D0%B6%D0%B5%D0%BD%D0%B8%D0%B5-%D0%B0%D1%80%D0%B0%D0%B1%D1%81%D0%BA%D0%B8%D0%B9-%D0%B3%D0%BB%D0%B0%D0%B3%D0%BE%D0%BB-${encodeURIComponent(item.arabicVariants[0])}.html" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px">Спряжение ↗</a>` : ''}
         <button id="modalFav" class="btn" title="${favState ? 'Убрать из избранного' : 'В избранное'}">${favState ? '⭐' : '☆'}</button>
+        ${getGitHubToken() ? `
         <button id="editBtn" class="btn" title="Редактировать">✏️</button>
+        <button id="deleteBtn" class="btn" style="border-color:#fecaca;color:#dc2626" title="Удалить слово">🗑️</button>` : ''}
+      </div>
+      <div style="margin-top:14px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;font-size:13px;text-align:center;cursor:pointer" id="telegramBtn" title="Нажмите, чтобы написать в Telegram">
+        <span style="color:#0369a1">Нашли ошибку? Есть примечание?</span>
+        <span style="color:#0284c7;font-weight:600">→ Написать в Telegram</span>
       </div>
     </div>
   </div>`;
@@ -652,6 +658,28 @@ function openModal(item) {
     editBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       enableEditMode(item);
+    });
+  }
+
+  const deleteBtn = document.getElementById("deleteBtn");
+  if (deleteBtn) {
+    deleteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteWord(item);
+    });
+  }
+
+  const telegramBtn = document.getElementById("telegramBtn");
+  if (telegramBtn) {
+    telegramBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const ruPart = `${item.ru}${item.gloss ? ' (' + item.gloss + ')' : ''}`;
+      const arPart = item.arabicVariants.join(' - ');
+      const template = `📖 Словарь: ${ruPart} - ${arPart}\n\nОшибка / примечание:\n`;
+      navigator.clipboard.writeText(template).then(() => {
+        showTemporaryNotify('Текст скопирован');
+      }).catch(() => {});
+      window.open('https://t.me/firemannnm?text=' + encodeURIComponent(template), '_blank');
     });
   }
 
@@ -881,6 +909,94 @@ function applyNotesToEntries() {
     if (arKey && notesMap[arKey]) {
       entry.note = notesMap[arKey];
     }
+  }
+}
+
+/* ===== Delete word ===== */
+async function deleteWord(item) {
+  if (!confirm(`Удалить "${item.ru}"? Это действие отправит изменения на GitHub.`)) return;
+
+  const token = getGitHubToken();
+  if (!token) {
+    showTemporaryNotify('Введите GitHub токен в настройках');
+    return;
+  }
+
+  const btn = document.getElementById('deleteBtn');
+  btn.textContent = '⏳';
+  btn.disabled = true;
+
+  // Remove from entries array
+  const idx = entries.findIndex(e => e.id === item.id);
+  if (idx === -1) return;
+  entries.splice(idx, 1);
+
+  // Rebuild IDs sequentially
+  entries.forEach((e, i) => e.id = i + 1);
+
+  // Rebuild words.txt and push to GitHub
+  const updatedContent = rebuildWordsTxt();
+  const label = `Удалено: ${item.ru}`;
+
+  let success = false;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const getUrl = `https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}?ref=${GH_BRANCH}`;
+      const getRes = await fetch(getUrl, {
+        headers: { 'Authorization': `token ${token}` },
+        cache: 'no-cache'
+      });
+      if (!getRes.ok) throw new Error(`Ошибка GET ${getRes.status}`);
+      const fileData = await getRes.json();
+
+      const putRes = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: label,
+          content: base64Encode(updatedContent),
+          sha: fileData.sha,
+          branch: GH_BRANCH
+        })
+      });
+      if (!putRes.ok) {
+        if (putRes.status === 409 && attempt < 2) continue;
+        throw new Error(`Ошибка PUT ${putRes.status}`);
+      }
+      success = true;
+      break;
+    } catch(e) {
+      if (attempt === 2) {
+        console.error('GitHub API error:', e);
+        showTemporaryNotify('Ошибка GitHub: ' + e.message);
+      }
+    }
+  }
+
+  if (success) {
+    // Remove note from notes.json if exists
+    const arKey = item.arabicVariants[0];
+    if (arKey && notesMap[arKey]) {
+      delete notesMap[arKey];
+      await saveNotesToGitHub(notesMap);
+    }
+
+    // Clean up pendingEdits
+    delete pendingEdits[item.id];
+    saveEditsToStorage();
+
+    showTemporaryNotify('Удалено');
+    closeModal();
+    lastResults = entries.slice();
+    renderListPartial(lastResults, renderLimit, '');
+  } else {
+    entries.splice(idx, 0, item); // restore on failure
+    entries.forEach((e, i) => e.id = i + 1);
+    btn.textContent = '🗑️';
+    btn.disabled = false;
   }
 }
 
