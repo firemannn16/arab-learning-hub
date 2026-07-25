@@ -17,42 +17,35 @@
     
     // Проверяем, нужно ли показывать дуа
     function shouldShowDua() {
-        // На главной странице показываем ТОЛЬКО для новых пользователей
         const currentPage = window.location.pathname.toLowerCase();
         const isIndexPage = currentPage.includes('index.html') || 
                           currentPage === '/' || 
                           currentPage.endsWith('/');
         
-        console.log(`🔍 shouldShowDua(): страница="${currentPage}", isIndexPage=${isIndexPage}`);
-        
-        // Не показываем в словаре
-        if (currentPage.includes('dictionary.html')) {
-            console.log('⏸️ Словарь - не показываем дуа');
+        // Не показываем на главной странице
+        if (isIndexPage) {
             return false;
         }
         
-        // На главной странице проверяем, новый ли пользователь
-        if (isIndexPage) {
-            const userCode = localStorage.getItem('userProgressCode');
-            console.log(`🔍 Главная страница: userCode="${userCode}"`);
-            const result = !userCode;
-            console.log(`➡️ shouldShowDua() = ${result} (новый пользователь: ${result})`);
-            return result;
+        // Не показываем в словаре
+        if (currentPage.includes('dictionary.html')) {
+            return false;
+        }
+        
+        // Не показываем, если пользователь не авторизован
+        if (window.auth && window.auth.isLoggedIn && !window.auth.isLoggedIn()) {
+            return false;
         }
         
         // На других страницах проверяем время последнего показа
         const lastShown = localStorage.getItem(STORAGE_KEY);
         if (!lastShown) {
-            console.log('⏸️ Не на главной, lastShown нет - показываем');
             return true;
         }
         
         const now = Date.now();
         const timePassed = now - parseInt(lastShown);
-        const result = timePassed > DUA_INTERVAL;
-        console.log(`➡️ shouldShowDua() = ${result} (прошло ${Math.round(timePassed / 1000)}с)`);
-        
-        return result;
+        return timePassed > DUA_INTERVAL;
     }
     
     // Сохраняем время показа
@@ -377,35 +370,16 @@
     
     // Закрыть модалку
     function closeDuaModal() {
-        console.log('🚪 Закрываем дуа...');
         const modal = document.getElementById('global-dua-modal');
         if (modal) {
-            console.log('➖ Убираем класс .show');
             modal.classList.remove('show');
-            console.log(`✅ Класс убран. Текущие классы: ${modal.className}`);
             document.body.style.overflow = '';
-            
-            // Если мы на главной странице, отправляем событие для показа модалки с кодом
-            const currentPage = window.location.pathname.toLowerCase();
-            const isIndexPage = currentPage.includes('index.html') || 
-                              currentPage === '/' || 
-                              currentPage.endsWith('/');
-            
-            if (isIndexPage) {
-                console.log('📤 Отправляем событие duaClosed');
-                // Отправляем событие, что дуа закрыто
-                window.dispatchEvent(new CustomEvent('duaClosed'));
-            } else {
-                console.log('⏸️ Не на главной странице, событие не отправляем');
-            }
         }
     }
     
     // Показать дуа с кодом после сброса
     function showDuaWithCode() {
-        const userCode = localStorage.getItem('userProgressCode');
         const isLoggedIn = window.auth && window.auth.isLoggedIn && window.auth.isLoggedIn();
-        const userEmail = isLoggedIn ? (window.auth.getUserEmail() || '') : '';
         
         // Создаем модалку если её нет
         if (!document.getElementById('global-dua-modal')) {
@@ -415,10 +389,11 @@
         const modal = document.getElementById('global-dua-modal');
         const content = modal.querySelector('.dua-modal-content');
         
-        // Добавляем секцию с кодом
+        // Добавляем секцию с email
         const codeSection = document.createElement('div');
         codeSection.className = 'dua-code-section';
         if (isLoggedIn) {
+            const userEmail = window.auth.getUserEmail() || '';
             codeSection.innerHTML = `
                 <div class="dua-code-label">Вы вошли как:</div>
                 <div class="dua-code-box">
@@ -426,17 +401,9 @@
                 </div>
                 <div style="font-size:12px;color:#666;margin-top:8px">Прогресс сохраняется в облаке</div>
             `;
-        } else if (userCode) {
-            codeSection.innerHTML = `
-                <div class="dua-code-label">Ваш код для сохранения прогресса:</div>
-                <div class="dua-code-box">
-                    <div class="dua-code-value">${userCode}</div>
-                    <button class="dua-copy-btn" onclick="copyDuaCode()">📋 Копировать</button>
-                </div>
-            `;
         } else {
             codeSection.innerHTML = `
-                <div class="dua-code-label">Войдите в аккаунт для сохранения прогресса</div>
+                <div class="dua-code-label">Войдите в аккаунт для сохранения прогресса в облаке</div>
                 <div style="font-size:12px;color:#666;margin-top:8px">Нажмите «Войти» в меню</div>
             `;
         }
@@ -458,30 +425,6 @@
         };
     }
     
-    // Глобальная функция для копирования кода из дуа
-    window.copyDuaCode = function() {
-        const codeElement = document.querySelector('.dua-code-value');
-        if (codeElement) {
-            const code = codeElement.textContent;
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(code).then(() => {
-                    alert('✅ Код скопирован!');
-                }).catch(() => {
-                    alert('❌ Не удалось скопировать');
-                });
-            } else {
-                // Fallback
-                const input = document.createElement('input');
-                input.value = code;
-                document.body.appendChild(input);
-                input.select();
-                document.execCommand('copy');
-                document.body.removeChild(input);
-                alert('✅ Код скопирован!');
-            }
-        }
-    };
-    
     // Слушаем событие сброса прогресса
     window.addEventListener('progressReset', () => {
         console.log('📢 Событие progressReset получено, показываем дуа с кодом');
@@ -492,18 +435,30 @@
     
     // Функция инициализации (вызывается только один раз)
     function initDua() {
-        if (initialized) {
-            console.log('⏸️ Дуа уже инициализировано, пропускаем');
-            return;
-        }
+        if (initialized) return;
         initialized = true;
-        console.log('🚀 Инициализация dua.js');
         
-        if (shouldShowDua()) {
-            console.log('✅ shouldShowDua() = true, показываем дуа через 300мс');
+        // На главной странице не показываем вообще
+        const currentPage = window.location.pathname.toLowerCase();
+        const isIndexPage = currentPage.includes('index.html') || 
+                          currentPage === '/' || 
+                          currentPage.endsWith('/');
+        if (isIndexPage) return;
+        
+        // Если есть auth, ждём его готовности
+        if (window.auth) {
+            function waitForAuth() {
+                if (window.authUser !== undefined) {
+                    if (window.auth.isLoggedIn() && shouldShowDua()) {
+                        setTimeout(showDuaModal, 300);
+                    }
+                } else {
+                    setTimeout(waitForAuth, 200);
+                }
+            }
+            waitForAuth();
+        } else if (shouldShowDua()) {
             setTimeout(showDuaModal, 300);
-        } else {
-            console.log('⏸️ shouldShowDua() = false, не показываем дуа');
         }
     }
     

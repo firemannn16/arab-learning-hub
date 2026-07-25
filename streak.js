@@ -10,8 +10,6 @@
   const STREAK_KEY = 'arabStreak';
   const ACTIVITY_KEY = 'arabDailyActivity';
   const MIN_WORDS_PER_DAY = 5;
-  const SHARED_CODE_KEY = 'userProgressCode';
-  
   let firebaseLoaded = false;
   let syncInProgress = false;
 
@@ -21,7 +19,7 @@
       if (window.auth && window.auth.isLoggedIn && window.auth.isLoggedIn()) {
         return window.auth.getUserId();
       }
-      return localStorage.getItem(SHARED_CODE_KEY) || '';
+      return '';
     } catch (e) {
       return '';
     }

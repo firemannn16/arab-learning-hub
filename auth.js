@@ -2,7 +2,6 @@
   'use strict';
 
   const AUTH_STORAGE_KEY = 'arabAuthEmail';
-  const DEVICE_CODE_KEY = 'userProgressCode';
 
   let initialized = false;
   let authModal = null;
@@ -78,65 +77,10 @@
     window.authUser = user;
     if (user) {
       localStorage.setItem(AUTH_STORAGE_KEY, user.email);
-      migrateDeviceProgress(user.uid, user.email);
     } else {
       localStorage.removeItem(AUTH_STORAGE_KEY);
     }
     window.dispatchEvent(new CustomEvent('authChanged', { detail: { user } }));
-  }
-
-  async function migrateDeviceProgress(uid, email) {
-    const deviceCode = localStorage.getItem(DEVICE_CODE_KEY);
-    if (!deviceCode) return;
-    try {
-      let db = window.firestore;
-      if (!db) return;
-
-      // If modular API (no .collection()), use compat fallback
-      if (typeof db.collection !== 'function' && window.firebase && window.firebase.firestore) {
-        db = window.firebase.firestore();
-      }
-
-      const compat = typeof db.collection === 'function';
-      if (!compat) { console.log('Migration: no compat firestore, skipping'); return; }
-
-      const from = deviceCode;
-      const to = uid;
-
-      const dataTypes = [
-        { path: ['users', from, 'favorites', 'data'], target: ['users', to, 'favorites', 'data'] },
-        { path: ['users', from, 'streak', 'data'], target: ['users', to, 'streak', 'data'] }
-      ];
-
-      for (const item of dataTypes) {
-        // Check if uid path already has data — if so, do NOT overwrite
-        const targetSnap = await db.collection(item.target[0]).doc(item.target[1]).collection(item.target[2]).doc(item.target[3]).get();
-        if (targetSnap.exists) continue;
-        const snap = await db.collection(item.path[0]).doc(item.path[1]).collection(item.path[2]).doc(item.path[3]).get();
-        if (snap.exists) {
-          await db.collection(item.target[0]).doc(item.target[1]).collection(item.target[2]).doc(item.target[3]).set(snap.data(), { merge: true });
-        }
-      }
-
-      // Migrate all trainer progress (input, choice, phases, rules, etc.)
-      try {
-        const trainerDocs = await db.collection('users').doc(from).collection('trainers').get();
-        for (const td of trainerDocs.docs) {
-          const targetSnap = await db.collection('users').doc(to).collection('trainers').doc(td.id).get();
-          if (targetSnap.exists) continue;
-          await db.collection('users').doc(to).collection('trainers').doc(td.id).set(td.data(), { merge: true });
-        }
-      } catch(e) {
-        console.warn('Trainer migration error:', e);
-      }
-
-      // Save mapping in favorites/migration (favorites path is covered by existing rules)
-      await db.collection('users').doc(to).collection('favorites').doc('migration').set({ migratedFrom: from, email }, { merge: true });
-
-      console.log('Progress migrated from', deviceCode, 'to', uid);
-    } catch (e) {
-      console.warn('Migration error:', e);
-    }
   }
 
   function buildModal() {
@@ -318,24 +262,20 @@
   function openModal() {
     if (!authModal) buildModal();
     switchView('login');
-    // Check if there is existing device progress to show
-    const code = localStorage.getItem(DEVICE_CODE_KEY);
     const progNotice = authModal.querySelector('#progressNotice');
     if (progNotice) progNotice.remove();
-    if (code) {
-      let favCount = 0;
-      try {
-        const fav = JSON.parse(localStorage.getItem('arabFavorites') || '[]');
-        favCount = fav.length;
-      } catch(e) {}
-      if (favCount > 0 || localStorage.getItem('arabStreak')) {
-        const notice = document.createElement('div');
-        notice.id = 'progressNotice';
-        notice.className = 'progress-notice';
-        notice.innerHTML = `Найден прогресс: ${favCount > 0 ? favCount + ' слов в избранном' : ''}${favCount > 0 && localStorage.getItem('arabStreak') ? ', ' : ''}${localStorage.getItem('arabStreak') ? 'есть серия дней' : ''}<br>Привяжите к аккаунту, чтобы не потерять.`;
-        const card = authModal.querySelector('.auth-card');
-        card.insertBefore(notice, card.querySelector('#authViewLogin'));
-      }
+    let favCount = 0;
+    try {
+      const fav = JSON.parse(localStorage.getItem('arabFavorites') || '[]');
+      favCount = fav.length;
+    } catch(e) {}
+    if (favCount > 0 || localStorage.getItem('arabStreak')) {
+      const notice = document.createElement('div');
+      notice.id = 'progressNotice';
+      notice.className = 'progress-notice';
+      notice.innerHTML = `Найден прогресс: ${favCount > 0 ? favCount + ' слов в избранном' : ''}${favCount > 0 && localStorage.getItem('arabStreak') ? ', ' : ''}${localStorage.getItem('arabStreak') ? 'есть серия дней' : ''}<br>Войдите, чтобы сохранить в облаке.`;
+      const card = authModal.querySelector('.auth-card');
+      card.insertBefore(notice, card.querySelector('#authViewLogin'));
     }
     authModal.classList.add('show');
   }

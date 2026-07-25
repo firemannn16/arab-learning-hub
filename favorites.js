@@ -17,7 +17,7 @@
       if (window.auth && window.auth.isLoggedIn && window.auth.isLoggedIn()) {
         return window.auth.getUserId();
       }
-      return localStorage.getItem('userProgressCode') || '';
+      return '';
     } catch (e) {
       return '';
     }
@@ -435,41 +435,11 @@
     if (!canUseFirebase()) return;
     try {
       let remote = await loadFavoritesFromFirebase();
-      let gotFromFallback = false;
-
-      if (!remote || !remote.items || !remote.items.length) {
-        try {
-          const oldCode = localStorage.getItem('userProgressCode');
-          if (window.firestore && typeof window.firestore.collection === 'function') {
-            let fallbackCode = oldCode;
-            if (window.authUser) {
-              try {
-                const metaSnap = await window.firestore.collection('users').doc(window.authUser.uid).collection('favorites').doc('migration').get();
-                if (metaSnap.exists && metaSnap.data().migratedFrom) {
-                  fallbackCode = metaSnap.data().migratedFrom;
-                }
-              } catch(e3) {}
-            }
-            if (fallbackCode && fallbackCode !== window.authUser?.uid) {
-              const oldSnap = await window.firestore.collection('users').doc(fallbackCode).collection('favorites').doc('data').get();
-              if (oldSnap.exists) {
-                const data = oldSnap.data();
-                if (data.items && data.items.length > 0) {
-                  remote = { items: data.items, updatedAt: data.updatedAt };
-                  gotFromFallback = true;
-                  await writeFavoritesToFirebase(data.items);
-                  console.log('⭐ Миграция из', fallbackCode, 'в uid:', data.items.length, 'слов');
-                }
-              }
-            }
-          }
-        } catch(e2) { console.warn('⭐ Fallback error:', e2); }
-      }
 
       const localItems = getFavorites();
       if (remote && remote.items && remote.items.length > 0) {
         saveFavorites(remote.items, { skipSync: true });
-        console.log('⭐ Избранное загружено из облака:', remote.items.length, 'слов', gotFromFallback ? '(из deviceCode)' : '');
+        console.log('⭐ Избранное загружено из облака:', remote.items.length, 'слов');
       } else if (localItems.length > 0) {
         await writeFavoritesToFirebase(localItems);
         console.log('⭐ Избранное отправлено в облако:', localItems.length, 'слов');
