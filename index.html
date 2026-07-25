@@ -66,6 +66,24 @@
     })();
     </script>
     <script src="auth.js"></script>
+    <script>
+      (function authGuard() {
+        document.documentElement.style.display = 'none';
+        function waitAndCheck() {
+          if (window.auth && window.authUser !== undefined) {
+            if (!window.auth.isLoggedIn()) {
+              document.documentElement.style.display = '';
+              window.auth.openModal();
+            } else {
+              document.documentElement.style.display = '';
+            }
+          } else {
+            setTimeout(waitAndCheck, 200);
+          }
+        }
+        waitAndCheck();
+      })();
+    </script>
     
     <style>
         * {
@@ -316,6 +334,7 @@
         .card-dictionary { border-top: 4px solid #fa709a; }
         .card-wordslist { border-top: 4px solid #64748b; }
         .card-rules { border-top: 4px solid #8b5cf6; }
+        .card-rules-test { border-top: 4px solid #f59e0b; }
         
         /* Блок цели */
         .streak-card {
@@ -446,13 +465,18 @@
 
         <div class="trainers-grid">
             <a href="phases.html" class="trainer-card card-phases">
-                <div class="trainer-icon">📊</div>
+                <div class="trainer-icon">📔</div>
                 <h3>Тренажер Тетрадь</h3>
             </a>
 
             <a href="dictionary.html" class="trainer-card card-dictionary">
                 <div class="trainer-icon">📚</div>
                 <h3>Словарь</h3>
+            </a>
+
+            <a href="rules-test.html" class="trainer-card card-rules-test">
+                <div class="trainer-icon">📝</div>
+                <h3>Тесты по правилам</h3>
             </a>
 
             <!-- Пустой Тренажер временно скрыт

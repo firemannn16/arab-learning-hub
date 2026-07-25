@@ -13,6 +13,24 @@
     <script src="favorites.js"></script>
     <script src="streak.js"></script>
     <script src="auth.js"></script>
+    <script>
+      (function authGuard() {
+        document.documentElement.style.display = 'none';
+        function waitAndCheck() {
+          if (window.auth && window.authUser !== undefined) {
+            if (!window.auth.isLoggedIn()) {
+              document.documentElement.style.display = '';
+              window.auth.openModal();
+            } else {
+              document.documentElement.style.display = '';
+            }
+          } else {
+            setTimeout(waitAndCheck, 200);
+          }
+        }
+        waitAndCheck();
+      })();
+    </script>
     <!-- Yandex.Metrika counter -->
 <script type="text/javascript">
     (function(m,e,t,r,i,k,a){
@@ -645,7 +663,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>🌙 Тренажер Тетрадь</h1>
+        <h1>📔 Тренажер Тетрадь</h1>
         
         <div class="mode-toggle">
             <span class="mode-text" id="mode-text">Формат: АРБ → РУС</span>
@@ -796,7 +814,7 @@
                 if (window.auth && window.auth.isLoggedIn && window.auth.isLoggedIn()) {
                     return window.auth.getUserId();
                 }
-                return localStorage.getItem('userProgressCode') || '';
+                return null;
             } catch (e) {
                 return '';
             }

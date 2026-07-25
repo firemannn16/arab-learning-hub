@@ -66,6 +66,24 @@
 <script src="sidebar-menu.js"></script>
 <script src="favorites.js"></script>
 <script src="auth.js"></script>
+<script>
+  (function authGuard() {
+    document.documentElement.style.display = 'none';
+    function waitAndCheck() {
+      if (window.auth && window.authUser !== undefined) {
+        if (!window.auth.isLoggedIn()) {
+          document.documentElement.style.display = '';
+          window.auth.openModal();
+        } else {
+          document.documentElement.style.display = '';
+        }
+      } else {
+        setTimeout(waitAndCheck, 200);
+      }
+    }
+    waitAndCheck();
+  })();
+</script>
 <script src="streak.js"></script>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="978e563f-ae7b-421e-ade1-b5773da3feb8"></script>
   

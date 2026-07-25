@@ -10,6 +10,24 @@
   <script src="service-worker-register.js"></script>
   <script src="sidebar-menu.js"></script>
   <script src="auth.js"></script>
+  <script>
+    (function authGuard() {
+      document.documentElement.style.display = 'none';
+      function waitAndCheck() {
+        if (window.auth && window.authUser !== undefined) {
+          if (!window.auth.isLoggedIn()) {
+            document.documentElement.style.display = '';
+            window.auth.openModal();
+          } else {
+            document.documentElement.style.display = '';
+          }
+        } else {
+          setTimeout(waitAndCheck, 200);
+        }
+      }
+      waitAndCheck();
+    })();
+  </script>
   <script src="favorites.js"></script>
   <script src="streak.js"></script>
   

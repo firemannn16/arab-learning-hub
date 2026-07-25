@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тесты по правилам — Арабский</title>
+    <script src="theme.js"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="dua.js"></script>
+    <script src="service-worker-register.js"></script>
+    <script src="sidebar-menu.js"></script>
+    <script src="favorites.js"></script>
+    <script src="streak.js"></script>
+    <script src="storage-protection.js"></script>
+
+<!-- Yandex.Metrika counter -->
+<script type="text/javascript">
+    (function(m,e,t,r,i,k,a){
+        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();
+        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=106432522', 'ym');
+
+    ym(106432522, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/106432522" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<!-- /Yandex.Metrika counter -->
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 20px;
+            padding-top: 80px;
+        }
+        .container { max-width: 700px; margin: 0 auto; }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.6rem;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+        }
+
+        .progress-bar {
+            background: white;
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        .progress-track {
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .rule-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            margin-bottom: 15px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .question-text {
+            font-size: 1.15rem;
+            color: #333;
+            line-height: 1.7;
+            margin-bottom: 20px;
+            white-space: pre-line;
+        }
+        .question-text .ar {
+            font-family: "Noto Naskh Arabic", Arial, sans-serif;
+            font-size: 1.3rem;
+            unicode-bidi: isolate;
+            background: linear-gradient(135deg, #e0e7ff 0%, #f0e6ff 100%);
+            padding: 2px 8px;
+            border-radius: 6px;
+            margin: 0 4px;
+        }
+
+        .answer-input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            transition: border-color 0.2s;
+            margin-bottom: 12px;
+        }
+        .answer-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            flex: 1;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            min-width: 120px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #333;
+        }
+        .btn-secondary:hover { background: #e5e7eb; }
+        .btn-success {
+            background: #22c55e;
+            color: white;
+        }
+        .btn-success:hover { opacity: 0.9; }
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+        .btn-warning:hover { opacity: 0.9; }
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        .btn-danger:hover { opacity: 0.9; }
+
+        .reference-block {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            background: #e0e7ff;
+            border: 1px solid #a5b4fc;
+            display: none;
+        }
+        .reference-block.show { display: block; }
+        .reference-title {
+            font-weight: 700;
+            color: #4338ca;
+            margin-bottom: 6px;
+        }
+        .reference-text {
+            font-size: 1.05rem;
+            color: #333;
+        }
+
+        .done-card {
+            text-align: center;
+            padding: 40px;
+        }
+        .done-icon { font-size: 4rem; margin-bottom: 15px; }
+        .done-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .bottom-bar {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .bottom-bar .btn {
+            flex: none;
+            padding: 10px 20px;
+            font-size: 0.9rem;
+        }
+
+        .hidden { display: none !important; }
+
+        /* Modal */
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .modal h3 { color: #333; margin-bottom: 10px; }
+        .modal p {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        .modal textarea {
+            width: 100%;
+            min-height: 250px;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            resize: vertical;
+            margin-bottom: 15px;
+        }
+        .modal textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .modal .json-status {
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            display: none;
+        }
+        .modal .json-status.success {
+            display: block;
+            background: #dcfce7;
+            color: #16a34a;
+            border: 1px solid #86efac;
+        }
+        .modal .json-status.error {
+            display: block;
+            background: #fee2e2;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+        }
+
+        @media (max-width: 600px) {
+            body { padding: 15px; padding-top: 75px; }
+            h1 { font-size: 1.4rem; }
+            .actions { flex-direction: column; }
+            .btn { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <script>
+    (function() {
+      const PASS = 'arab123';
+      if (localStorage.getItem('rulesTest_unlock') !== PASS && sessionStorage.getItem('rulesTest_unlock') !== PASS) {
+        const p = prompt('Введите пароль для доступа к тренажёру:');
+        if (p !== PASS) {
+          document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#666;font-size:1.2rem">Тренажер в стадии тестирования и доработки. Ожидайте.</div>';
+          throw new Error('Access denied');
+        }
+        sessionStorage.setItem('rulesTest_unlock', PASS);
+      }
+    })();
+    </script>
+    <div class="container">
+        <h1>Тесты по правилам</h1>
+        <p class="subtitle">Напишите ответ и нажмите «Ответить»</p>
+
+        <div id="quizScreen">
+            <div class="progress-bar">
+                <div class="progress-text">
+                    <span>Вопрос <span id="currentNum">1</span> из <span id="totalNum">0</span></span>
+                    <span>Осталось: <span id="remainingCount">0</span></span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="rule-badge" id="ruleBadge"></div>
+                <div class="question-text" id="questionText"></div>
+                <input type="text" class="answer-input" id="answerInput" autocomplete="off" placeholder="Введите ответ...">
+                <div class="actions">
+                    <button class="btn btn-primary" id="answerBtn" onclick="revealAnswer()">Ответить</button>
+                    <button class="btn btn-secondary hidden" id="nextBtn" onclick="nextQuestion()">Далее →</button>
+                </div>
+                <div class="reference-block" id="referenceBlock">
+                    <div class="reference-title">Эталон ответа</div>
+                    <div class="reference-text" id="referenceText"></div>
+                </div>
+            </div>
+
+            <div class="card done-card hidden" id="doneCard">
+                <div class="done-icon">✅</div>
+                <div class="done-title">Все вопросы пройдены!</div>
+                <button class="btn btn-primary" onclick="resetProgress()">🔄 Сбросить прогресс и начать заново</button>
+            </div>
+        </div>
+
+        <div class="bottom-bar">
+            <button class="btn btn-warning" onclick="showAddJsonModal()">➕ Ввести JSON</button>
+            <button class="btn btn-success" onclick="document.getElementById('fileInput').click()">📂 Загрузить JSON-файл</button>
+            <input type="file" id="fileInput" accept=".json" style="display:none" onchange="loadJsonFile(event)">
+            <button class="btn btn-danger" onclick="resetProgress()">🔄 Сбросить прогресс</button>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="overlay hidden" id="jsonModal">
+        <div class="modal">
+            <h3>📋 Добавить свои вопросы</h3>
+            <p>Вставьте JSON-массив с вопросами. Они сохранятся локально и добавятся к основным.</p>
+            <div class="json-status" id="jsonStatus"></div>
+            <textarea id="jsonTextarea" placeholder='[
+  {
+    "id": "my_01",
+    "rule": "Название правила",
+    "question": "Текст вопроса",
+    "reference": "Эталон ответа"
+  }
+]'></textarea>
+            <div class="modal-actions">
+                <button class="btn btn-success" onclick="addJsonText()">✅ Добавить</button>
+                <button class="btn btn-warning" onclick="clearCustomQuestions()">🗑️ Удалить мои вопросы</button>
+                <button class="btn btn-secondary" onclick="closeJsonModal()">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Сохранение последней страницы для PWA
+        localStorage.setItem('arabLastPage', 'rules-test.html');
+
+        let allQuestions = [];
+        let customQuestions = [];
+        let pendingQueue = [];
+        let currentIndex = 0;
+        let answeredIds = new Set();
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            customQuestions = loadCustomQuestions();
+            answeredIds = loadAnsweredIds();
+            await loadQuestions();
+            startExercise();
+        });
+
+        function loadCustomQuestions() {
+            try {
+                const data = localStorage.getItem('rulesTestCustomQuestions');
+                return data ? JSON.parse(data) : [];
+            } catch(e) {
+                return [];
+            }
+        }
+
+        function saveCustomQuestions() {
+            localStorage.setItem('rulesTestCustomQuestions', JSON.stringify(customQuestions));
+        }
+
+        function loadAnsweredIds() {
+            try {
+                const data = localStorage.getItem('rulesTestAnsweredIds');
+                return data ? new Set(JSON.parse(data)) : new Set();
+            } catch(e) {
+                return new Set();
+            }
+        }
+
+        function saveAnsweredIds() {
+            localStorage.setItem('rulesTestAnsweredIds', JSON.stringify([...answeredIds]));
+        }
+
+        async function loadQuestions() {
+            let fileQuestions = [];
+            try {
+                const resp = await fetch('questions.json?' + Date.now());
+                if (resp.ok) {
+                    fileQuestions = await resp.json();
+                }
+            } catch(e) {
+                console.warn('Ошибка загрузки questions.json:', e);
+            }
+            const seen = new Set();
+            allQuestions = [];
+            for (const q of [...fileQuestions, ...customQuestions]) {
+                if (!seen.has(q.id)) {
+                    seen.add(q.id);
+                    allQuestions.push(q);
+                }
+            }
+        }
+
+        function startExercise() {
+            pendingQueue = shuffleArray(allQuestions.filter(q => !answeredIds.has(q.id)));
+            currentIndex = 0;
+            document.getElementById('totalNum').textContent = allQuestions.length;
+            updateRemaining();
+            showQuestion();
+        }
+
+        function updateRemaining() {
+            document.getElementById('remainingCount').textContent = pendingQueue.length;
+        }
+
+        function showQuestion() {
+            if (currentIndex >= pendingQueue.length) {
+                document.getElementById('doneCard').classList.remove('hidden');
+                return;
+            }
+
+            const q = pendingQueue[currentIndex];
+
+            document.getElementById('currentNum').textContent = currentIndex + 1;
+            document.getElementById('totalNum').textContent = allQuestions.length;
+            document.getElementById('progressFill').style.width = ((allQuestions.length - pendingQueue.length + currentIndex) / allQuestions.length) * 100 + '%';
+
+            document.getElementById('ruleBadge').textContent = q.rule || 'Без правила';
+            document.getElementById('ruleBadge').style.display = q.rule ? '' : 'none';
+
+            document.getElementById('questionText').innerHTML = highlightArabic(q.question);
+
+            const input = document.getElementById('answerInput');
+            input.value = '';
+            input.disabled = false;
+            input.focus();
+
+            document.getElementById('answerBtn').classList.remove('hidden');
+            document.getElementById('nextBtn').classList.add('hidden');
+
+            const refBlock = document.getElementById('referenceBlock');
+            refBlock.classList.remove('show');
+
+            document.getElementById('doneCard').classList.add('hidden');
+        }
+
+        function revealAnswer() {
+            const input = document.getElementById('answerInput');
+            if (!input.value.trim()) return;
+
+            const q = pendingQueue[currentIndex];
+            answeredIds.add(q.id);
+            saveAnsweredIds();
+
+            document.getElementById('referenceText').textContent = q.reference;
+            document.getElementById('referenceBlock').classList.add('show');
+            document.getElementById('answerInput').disabled = true;
+            document.getElementById('answerBtn').classList.add('hidden');
+            document.getElementById('nextBtn').classList.remove('hidden');
+
+            updateRemaining();
+        }
+
+        function nextQuestion() {
+            currentIndex++;
+            showQuestion();
+        }
+
+        function resetProgress() {
+            if (!confirm('Сбросить прогресс? Отвеченные вопросы будут открыты заново.')) return;
+            answeredIds = new Set();
+            saveAnsweredIds();
+            startExercise();
+        }
+
+        function shuffleArray(a) {
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
+
+        function highlightArabic(text) {
+            return text.replace(/([\u0600-\u06FF][\u0600-\u06FF\s\u064B-\u0652]*[\u0600-\u06FF]|[\u0600-\u06FF])/g,
+                '<span class="ar">$1</span>');
+        }
+
+        document.getElementById('answerInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (!document.getElementById('nextBtn').classList.contains('hidden')) {
+                    nextQuestion();
+                } else {
+                    revealAnswer();
+                }
+            }
+        });
+
+        // ===== JSON: paste or file =====
+        function showAddJsonModal() {
+            document.getElementById('jsonModal').classList.remove('hidden');
+            document.getElementById('jsonStatus').className = 'json-status';
+            document.getElementById('jsonStatus').style.display = 'none';
+            document.getElementById('jsonTextarea').focus();
+        }
+
+        function closeJsonModal() {
+            document.getElementById('jsonModal').classList.add('hidden');
+        }
+
+        function mergeParsedQuestions(parsed) {
+            const existingIds = new Set(allQuestions.map(q => q.id));
+            const newItems = [];
+            for (const item of parsed) {
+                if (!item.id || !item.question || !item.reference) {
+                    throw new Error('У каждого объекта должны быть поля: id, question, reference');
+                }
+                if (!item.rule) item.rule = null;
+                if (!existingIds.has(item.id)) {
+                    existingIds.add(item.id);
+                    newItems.push(item);
+                }
+            }
+            if (newItems.length === 0) return;
+            customQuestions = [...customQuestions, ...newItems];
+            saveCustomQuestions();
+            allQuestions = [...allQuestions, ...newItems];
+        }
+
+        function addJsonText() {
+            const textarea = document.getElementById('jsonTextarea');
+            const status = document.getElementById('jsonStatus');
+            let parsed;
+
+            try {
+                parsed = JSON.parse(textarea.value);
+            } catch(e) {
+                status.className = 'json-status error';
+                status.textContent = '❌ Ошибка в JSON: ' + e.message;
+                status.style.display = '';
+                return;
+            }
+
+            if (!Array.isArray(parsed) || parsed.length === 0) {
+                status.className = 'json-status error';
+                status.textContent = '❌ Нужен непустой массив JSON';
+                status.style.display = '';
+                return;
+            }
+
+            const oldLen = customQuestions.length;
+            const oldAllLen = allQuestions.length;
+            try {
+                mergeParsedQuestions(parsed);
+            } catch(e) {
+                status.className = 'json-status error';
+                status.textContent = '❌ ' + e.message;
+                status.style.display = '';
+                return;
+            }
+            const added = allQuestions.length - oldAllLen;
+            status.className = 'json-status success';
+            status.textContent = added > 0
+                ? '✅ Добавлено ' + added + ' новых вопросов' + (parsed.length - added > 0 ? ', ' + (parsed.length - added) + ' пропущено (уже есть)' : '')
+                : '⚠️ Все ' + parsed.length + ' вопросов уже существуют (проверьте id)';
+            status.style.display = '';
+
+            textarea.value = '';
+            startExercise();
+        }
+
+        function loadJsonFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                let parsed;
+                try {
+                    parsed = JSON.parse(e.target.result);
+                } catch(err) {
+                    alert('❌ Ошибка в JSON-файле: ' + err.message);
+                    return;
+                }
+
+                if (!Array.isArray(parsed) || parsed.length === 0) {
+                    alert('❌ Файл должен содержать непустой массив JSON');
+                    return;
+                }
+
+                const oldLen = allQuestions.length;
+                try {
+                    mergeParsedQuestions(parsed);
+                } catch(err) {
+                    alert('❌ ' + err.message);
+                    return;
+                }
+                const added = allQuestions.length - oldLen;
+                alert(added > 0
+                    ? '✅ Добавлено ' + added + ' новых вопросов' + (parsed.length - added > 0 ? ', ' + (parsed.length - added) + ' пропущено (уже есть)' : '')
+                    : '⚠️ Все ' + parsed.length + ' вопросов уже существуют');
+                startExercise();
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function clearCustomQuestions() {
+            if (!confirm('Удалить все добавленные вопросы?')) return;
+
+            customQuestions = [];
+            saveCustomQuestions();
+
+            document.getElementById('jsonTextarea').value = '';
+            closeJsonModal();
+
+            loadQuestions().then(() => startExercise());
+        }
+
+        document.getElementById('jsonModal').addEventListener('click', e => {
+            if (e.target === e.currentTarget) closeJsonModal();
+        });
+    </script>
+</body>
+</html>

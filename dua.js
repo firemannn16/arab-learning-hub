@@ -3,7 +3,7 @@
 (function() {
     'use strict';
     
-    const FORTY_FIVE_MINUTES = 45 * 60 * 1000; // 45 минут в миллисекундах
+    const DUA_INTERVAL = 3 * 60 * 60 * 1000; // 3 часа в миллисекундах
     const STORAGE_KEY = 'lastDuaShown';
     
     // Флаг для предотвращения повторного показа
@@ -49,7 +49,7 @@
         
         const now = Date.now();
         const timePassed = now - parseInt(lastShown);
-        const result = timePassed > FORTY_FIVE_MINUTES;
+        const result = timePassed > DUA_INTERVAL;
         console.log(`➡️ shouldShowDua() = ${result} (прошло ${Math.round(timePassed / 1000)}с)`);
         
         return result;
@@ -155,9 +155,8 @@
             }
             
             .dua-arabic-small {
-                font-size: 26px;
-                white-space: nowrap;
-                line-height: 1.8;
+                font-size: 22px;
+                line-height: 1.7;
             }
             
             .dua-translation {
@@ -260,7 +259,7 @@
                 }
                 
                 .dua-arabic-small {
-                    font-size: 18px;
+                    font-size: 16px;
                 }
                 
                 .dua-translation {

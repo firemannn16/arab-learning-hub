@@ -191,12 +191,6 @@
           display: none;
         }
         #auth-modal .dark-theme & .error-msg { color: #f87171; }
-        #auth-modal .skip-link {
-          display: block; text-align: center; color: #999;
-          font-size: 0.85rem; cursor: pointer; padding: 8px;
-          margin-top: 4px;
-        }
-        #auth-modal .skip-link:hover { color: #666; }
         #auth-modal .divider {
           height: 1px; background: #e0e0e0; margin: 14px 0;
         }
@@ -226,8 +220,6 @@
           <input type="password" id="authPass" placeholder="Пароль" autocomplete="current-password">
           <button class="auth-btn" id="authLoginBtn">Войти</button>
           <button class="link-btn" id="authToRegister">Нет аккаунта? Зарегистрироваться</button>
-          <div class="divider"></div>
-          <span class="skip-link" id="authSkip">Продолжить без входа</span>
         </div>
         <div id="authViewRegister" style="display:none">
           <h2>Регистрация</h2>
@@ -238,8 +230,6 @@
           <input type="password" id="authRegPass2" placeholder="Повторите пароль" autocomplete="new-password">
           <button class="auth-btn" id="authRegisterBtn">Зарегистрироваться</button>
           <button class="link-btn" id="authToLogin">Уже есть аккаунт? Войти</button>
-          <div class="divider"></div>
-          <span class="skip-link" id="authSkip2">Продолжить без входа</span>
         </div>
       </div>
     `;
@@ -255,9 +245,6 @@
     authModal.querySelector('#authRegisterBtn').addEventListener('click', () => doRegister(regEmail.value, regPass.value, regPass2.value));
     authModal.querySelector('#authToRegister').addEventListener('click', () => switchView('register'));
     authModal.querySelector('#authToLogin').addEventListener('click', () => switchView('login'));
-    authModal.querySelector('#authSkip').addEventListener('click', closeModal);
-    authModal.querySelector('#authSkip2').addEventListener('click', closeModal);
-
     [emailInput, passInput].forEach(f => f.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(emailInput.value, passInput.value); }));
     [regEmail, regPass, regPass2].forEach(f => f.addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(regEmail.value, regPass.value, regPass2.value); }));
   }
@@ -361,7 +348,7 @@
 
   function getUserId() {
     if (window.authUser) return window.authUser.uid;
-    return localStorage.getItem(DEVICE_CODE_KEY) || 'anonymous';
+    return null;
   }
 
   function isLoggedIn() {

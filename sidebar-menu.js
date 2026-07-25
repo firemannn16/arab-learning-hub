@@ -14,8 +14,9 @@
   const menuItems = [
     // Добавляем ?home=1, чтобы при явном переходе на главную не было авторедиректа на последнюю страницу
     { name: 'Главная', href: 'index.html?home=1', icon: '🏠' },
-    { name: 'Тренажер Тетрадь', href: 'phases.html', icon: '📊' },
+    { name: 'Тренажер Тетрадь', href: 'phases.html', icon: '📔' },
     { name: 'Словарь', href: 'dictionary.html', icon: '📚' },
+    { name: 'Тесты по правилам', href: 'rules-test.html', icon: '📝' },
     // { name: 'Пустой Тренажер', href: 'simple.html', icon: '📝' },
     // { name: 'Тренажер Правил', href: 'rules.html', icon: '📚' },
     // { name: 'Тренажер Заучка + Практика', href: 'input.html', icon: '✍️' },
