@@ -292,7 +292,7 @@
       if (localStorage.getItem('rulesTest_unlock') !== PASS && sessionStorage.getItem('rulesTest_unlock') !== PASS) {
         const p = prompt('Введите пароль для доступа к тренажёру:');
         if (p !== PASS) {
-          document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#666;font-size:1.2rem">Тренажер в стадии тестирования и доработки. Ожидайте.</div>';
+          document.body.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;font-family:sans-serif;color:#666;font-size:1.2rem;background:#f5f7fa;z-index:99999">Тренажер в стадии тестирования и доработки. Ожидайте.</div>';
           throw new Error('Access denied');
         }
         sessionStorage.setItem('rulesTest_unlock', PASS);
