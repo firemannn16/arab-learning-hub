@@ -745,7 +745,6 @@
     /* ========== ОПРЕДЕЛЕНИЯ ПРАВИЛ ========== */
     .rules-defs-container { max-width: 700px; margin: 0 auto; }
     
-    /* Экран выбора тем (как в rules.html) */
     .topics-title {
       color: #333; text-align: center; margin: 20px 0 15px; font-size: 1.2rem;
     }
@@ -781,7 +780,6 @@
     body.dark-theme .topic-card:hover { background: #2d3748; border-left-color: #a78bfa; }
     body.dark-theme .topic-name { color: #e5e7eb; }
     
-    /* Карточка определения (как в rules.html) */
     .rules-defs-container .definition-card {
       background: white; border-radius: 15px; padding: 25px;
       margin-bottom: 15px; box-shadow: 0 3px 15px rgba(0,0,0,0.1);
@@ -3569,7 +3567,6 @@
     // Проверяем сохранённую сессию при загрузке страницы
     checkSavedSession();
 
-    // Приём ошибок из другого тренажёра (simple.html → заучивание)
     // ========== ПУСТОЙ ТРЕНАЖЁР ==========
     const emptyTrainer = {};
     (function() {
@@ -3806,7 +3803,6 @@
         resetTranslationButton();
         progressDiv.textContent = (currentIndex + 1) + '/' + total + ' слов пройдено – ' + mistakes.length + ' ошибок';
         answerInput.value = '';
-        answerInput.focus();
         const card = document.getElementById('empty-wordCard');
         card.style.animation = 'none';
         card.offsetHeight;

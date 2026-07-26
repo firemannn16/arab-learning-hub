@@ -1,0 +1,1687 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Заметки</title>
+    <script src="theme.js"></script>
+    <link rel="stylesheet" href="theme.css">
+    <script src="auth.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 15px;
+            padding-bottom: 30px;
+            max-width: 600px;
+            margin: 0 auto;
+            -webkit-text-size-adjust: 100%;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            color: #333;
+            margin: 0;
+            cursor: default;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .back-link {
+            font-size: 13px;
+            color: #999;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            text-decoration: none;
+        }
+        .back-link:hover { background: #f0f0f0; }
+        .back-link:active { background: #e0e0e0; }
+
+        .swap-btn {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .swap-btn:active {
+            background: #0b7dda;
+        }
+
+        .swap-btn:focus {
+            outline: none;
+        }
+
+        .stats {
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* Секция ввода */
+        .input-section {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .columns-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .column-section {
+            width: 100%;
+        }
+
+        .column-section.russian {
+            order: 1;
+        }
+
+        .column-section.arabic {
+            order: 2;
+        }
+
+        /* Режим реверса */
+        .columns-container.reversed .column-section.russian {
+            order: 2;
+        }
+
+        .columns-container.reversed .column-section.arabic {
+            order: 1;
+        }
+
+        .column-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .column-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .input-row input {
+            flex: 1;
+            padding: 16px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 17px;
+            line-height: 1.4;
+            min-height: 52px;
+            transition: border-color 0.2s;
+            -webkit-appearance: none;
+        }
+
+        .input-row input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .input-row.arabic input {
+            direction: rtl;
+            text-align: right;
+            font-family: 'Traditional Arabic', 'Arabic Typesetting', Arial;
+            font-size: 20px;
+            line-height: 2;
+            min-height: 68px;
+            padding: 20px 16px;
+        }
+
+        .add-column-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            font-size: 20px;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        .add-column-btn:active {
+            background: #45a049;
+        }
+
+        .add-column-btn:focus {
+            outline: none;
+        }
+
+        .remove-column-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        .remove-column-btn:active {
+            background: #da190b;
+        }
+
+        .remove-column-btn:focus {
+            outline: none;
+        }
+
+        .separator {
+            display: none;
+        }
+
+        .add-word-btn {
+            width: 100%;
+            padding: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .add-word-btn:active:not(:disabled) {
+            background: #45a049;
+        }
+
+        .add-word-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Список слов */
+        .words-section {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .words-section h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .words-list {
+            height: 400px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        .word-item {
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            transition: background 0.2s;
+        }
+
+        .word-item:hover {
+            background: #f9f9f9;
+        }
+
+        .word-text {
+            flex: 1;
+            font-size: 16px;
+            color: #333;
+            word-break: break-word;
+            cursor: pointer;
+        }
+
+        .word-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .edit-btn, .delete-btn {
+            background: transparent;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .edit-btn {
+            color: #2196F3;
+        }
+
+        .edit-btn:active {
+            background: #e3f2fd;
+        }
+
+        .delete-btn {
+            color: #f44336;
+        }
+
+        .delete-btn:active {
+            background: #ffebee;
+        }
+
+        .actions-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .copy-all-btn, .clear-all-btn {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .copy-all-btn {
+            background: #2196F3;
+            color: white;
+        }
+
+        .copy-all-btn:active {
+            background: #0b7dda;
+        }
+
+        .clear-all-btn {
+            background: #f44336;
+            color: white;
+        }
+
+        .clear-all-btn:active {
+            background: #da190b;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        /* Модальное окно для редактирования */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 15px;
+            font-size: 20px;
+            color: #333;
+        }
+
+        .modal-content input {
+            width: 100%;
+            padding: 16px 14px;
+            margin-top: 8px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 17px;
+            line-height: 1.4;
+            min-height: 52px;
+            box-sizing: border-box;
+            -webkit-appearance: none;
+        }
+
+        .modal-input-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .modal-input-row input {
+            flex: 1;
+            margin-top: 0;
+        }
+
+        .modal-add-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            width: 44px;
+            height: 52px;
+            border-radius: 8px;
+            font-size: 20px;
+            cursor: pointer;
+            flex-shrink: 0;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        .modal-add-btn:active {
+            background: #45a049;
+        }
+
+        .modal-add-btn:focus {
+            outline: none;
+        }
+
+        .modal-section {
+            margin-bottom: 20px;
+        }
+
+        .modal-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .modal-section-header strong {
+            color: #666;
+        }
+
+        .modal-content input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .save-btn {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .save-btn:active {
+            background: #45a049;
+        }
+
+        .cancel-btn {
+            background: #ccc;
+            color: #333;
+        }
+
+        .cancel-btn:active {
+            background: #b8b8b8;
+        }
+
+        /* Уведомление */
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 2000;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+
+        .notification.show {
+            display: block;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+
+        /* Автодополнение для арабских полей */
+        .autocomplete-wrapper {
+            position: relative;
+            flex: 1;
+            display: flex;
+        }
+
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+            max-height: 260px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        .autocomplete-dropdown.show {
+            display: block;
+        }
+
+        .autocomplete-dropdown::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .autocomplete-dropdown::-webkit-scrollbar-track {
+            background: #f5f5f5;
+            border-radius: 0 0 10px 0;
+        }
+
+        .autocomplete-dropdown::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
+        }
+
+        .autocomplete-dropdown::-webkit-scrollbar-thumb:hover {
+            background: #aaa;
+        }
+
+        .autocomplete-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.1s;
+            -webkit-tap-highlight-color: transparent;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .autocomplete-item.arabic {
+            direction: rtl;
+            text-align: right;
+            font-family: 'Traditional Arabic', 'Arabic Typesetting', Arial;
+            font-size: 18px;
+        }
+
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+
+        .autocomplete-item:hover,
+        .autocomplete-item.active {
+            background: #e3f2fd;
+        }
+
+        .autocomplete-more {
+            padding: 12px 16px;
+            cursor: pointer;
+            text-align: center;
+            color: #2196F3;
+            font-size: 14px;
+            font-weight: 600;
+            border-top: 1px solid #f0f0f0;
+            transition: background 0.1s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .autocomplete-more:hover,
+        .autocomplete-more:active {
+            background: #e3f2fd;
+        }
+
+        .autocomplete-scroll-hint {
+            text-align: center;
+            font-size: 11px;
+            color: #bbb;
+            padding: 4px 0;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        /* Импорт */
+        .import-btn {
+            background: #FF9800;
+            color: white;
+            border: none;
+            flex: 1;
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .import-btn:active {
+            background: #f57c00;
+        }
+
+        .import-textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 15px;
+            line-height: 1.6;
+            font-family: inherit;
+            resize: vertical;
+            box-sizing: border-box;
+            -webkit-appearance: none;
+        }
+
+        .import-textarea:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .import-hint {
+            font-size: 13px;
+            color: #999;
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+
+        .import-file-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .import-file-btn {
+            background: #e0e0e0;
+            color: #333;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .import-file-btn:active {
+            background: #ccc;
+        }
+
+        .import-file-name {
+            font-size: 13px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <script>
+    (function() {
+        document.documentElement.style.display = 'none';
+        function showPage() { document.documentElement.style.display = ''; }
+        function checkAuth() {
+            if (!window.auth || window.authUser === undefined) {
+                setTimeout(checkAuth, 100);
+                return;
+            }
+            if (!window.auth.isLoggedIn()) {
+                showPage();
+                window.auth.openModal();
+                return;
+            }
+            var allowed = ['komnenado@gmail.com', 'test@gmail.com'];
+            if (allowed.indexOf(window.auth.getUserEmail()) === -1) {
+                window.location.href = 'dictionary.html';
+                return;
+            }
+            showPage();
+        }
+        window.addEventListener('authChanged', function onAuth(e) {
+            if (e.detail.user) {
+                var allowed = ['komnenado@gmail.com', 'test@gmail.com'];
+                if (allowed.indexOf(window.auth.getUserEmail()) !== -1) {
+                    showPage();
+                } else {
+                    window.location.href = 'dictionary.html';
+                }
+            }
+        });
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', checkAuth);
+        } else {
+            checkAuth();
+        }
+    })();
+    </script>
+
+    <div class="header">
+        <div class="header-top">
+            <h1 id="noteTitle">📝 Записать слова</h1>
+            <div style="display:flex;gap:8px;align-items:center">
+                <span class="back-link" id="backToDictBtn">← Словарь</span>
+                <button class="swap-btn" id="swapBtn" title="Поменять порядок колонок">
+                    🔄
+                </button>
+            </div>
+        </div>
+        <div class="stats">
+            Всего слов: <span id="totalCount">0</span>
+        </div>
+    </div>
+
+    <div class="input-section">
+        <div class="columns-container" id="columnsContainer">
+            <div class="column-section russian">
+                <span class="column-label">🇷🇺 Русский:</span>
+                <div class="column-group" id="russianColumns">
+                    <div class="input-row">
+                        <div class="autocomplete-wrapper">
+                            <input 
+                                type="text" 
+                                placeholder="Введите слово" 
+                                data-lang="ru"
+                                inputmode="text"
+                                autocapitalize="sentences"
+                                autocorrect="on"
+                                spellcheck="true"
+                                autocomplete="off">
+                            <div class="autocomplete-dropdown"></div>
+                        </div>
+                        <button class="add-column-btn" data-lang="ru">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="separator">─────</div>
+
+            <div class="column-section arabic">
+                <span class="column-label">🇸🇦 العربية:</span>
+                <div class="column-group" id="arabicColumns">
+                    <div class="input-row arabic">
+                        <div class="autocomplete-wrapper">
+                            <input 
+                                type="text" 
+                                placeholder="اكتب الكلمة" 
+                                data-lang="ar"
+                                inputmode="text"
+                                autocapitalize="off"
+                                autocorrect="off"
+                                spellcheck="false"
+                                autocomplete="off">
+                            <div class="autocomplete-dropdown"></div>
+                        </div>
+                        <button class="add-column-btn" data-lang="ar">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button class="add-word-btn" id="addWordBtn" onclick="addWord()">
+            ➕ Добавить слово
+        </button>
+    </div>
+
+    <div class="words-section">
+        <h2>📚 Список слов</h2>
+        <div class="words-list" id="wordsList"></div>
+        <div class="actions-buttons">
+            <button class="copy-all-btn" onclick="copyAllWords()">
+                📋 Копировать
+            </button>
+            <button class="import-btn" onclick="openImportModal()">
+                📥 Импорт
+            </button>
+            <button class="clear-all-btn" onclick="clearAllWords()">
+                🗑️ Очистить
+            </button>
+        </div>
+    </div>
+
+    <!-- Модальное окно для редактирования -->
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <h3>✏️ Редактировать слово</h3>
+            <div id="editColumnsContainer"></div>
+            <div class="modal-buttons">
+                <button class="save-btn" onclick="saveEdit()">Сохранить</button>
+                <button class="cancel-btn" onclick="closeEditModal()">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для импорта -->
+    <div class="modal" id="importModal">
+        <div class="modal-content">
+            <h3>📥 Импорт слов</h3>
+            <p style="margin-bottom:10px;color:#666;font-size:14px;">Вставьте слова (по одному на строку) или загрузите .txt файл:</p>
+            <textarea class="import-textarea" id="importText" placeholder="слово&#10;слово - كلمة&#10;привет"></textarea>
+            <div class="import-file-row">
+                <button class="import-file-btn" onclick="document.getElementById('importFile').click()">📂 Выбрать файл</button>
+                <button class="import-file-btn" onclick="pasteFromClipboard()">📋 Вставить из буфера</button>
+                <span class="import-file-name" id="importFileName"></span>
+                <input type="file" id="importFile" accept=".txt,.csv" style="display:none">
+            </div>
+            <div class="import-hint">
+                Каждая строка — одно слово.<br>
+                Можно сразу с переводом: <b>слово - كلمة</b><br>
+                Строки с # в начале игнорируются.
+            </div>
+            <div class="modal-buttons">
+                <button class="save-btn" onclick="importWords()">Импортировать</button>
+                <button class="cancel-btn" onclick="closeImportModal()">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification" id="notification"></div>
+
+    <script>
+        let currentEditIndex = null;
+
+        function addColumn(lang) {
+            const container = document.getElementById(lang === 'ru' ? 'russianColumns' : 'arabicColumns');
+            const newRow = document.createElement('div');
+            newRow.className = 'input-row' + (lang === 'ar' ? ' arabic' : '');
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = 'autocomplete-wrapper';
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.dataset.lang = lang;
+            input.setAttribute('inputmode', 'text');
+            input.setAttribute('autocomplete', 'off');
+
+            if (lang === 'ar') {
+                input.placeholder = 'اكتب الكلمة';
+                input.setAttribute('autocapitalize', 'off');
+                input.setAttribute('autocorrect', 'off');
+                input.setAttribute('spellcheck', 'false');
+            } else {
+                input.placeholder = 'Введите слово';
+                input.setAttribute('autocapitalize', 'sentences');
+                input.setAttribute('autocorrect', 'on');
+                input.setAttribute('spellcheck', 'true');
+            }
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'autocomplete-dropdown';
+
+            wrapper.appendChild(input);
+            wrapper.appendChild(dropdown);
+            newRow.appendChild(wrapper);
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'remove-column-btn';
+            removeBtn.textContent = '✕';
+            newRow.appendChild(removeBtn);
+            container.appendChild(newRow);
+            
+            setupButtonHandler(removeBtn, () => removeColumn(removeBtn));
+            
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    input.focus();
+                    if (input.setSelectionRange) {
+                        input.setSelectionRange(input.value.length, input.value.length);
+                    }
+                });
+            });
+            
+            setupAutocomplete(input);
+            checkForm();
+        }
+
+        function removeColumn(btn) {
+            const row = btn.parentElement;
+            const container = row.parentElement;
+            
+            if (container.children.length > 1) {
+                const prevRow = row.previousElementSibling;
+                row.remove();
+                
+                if (prevRow) {
+                    const prevInput = prevRow.querySelector('input');
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            prevInput.focus();
+                            if (prevInput.setSelectionRange) {
+                                prevInput.setSelectionRange(prevInput.value.length, prevInput.value.length);
+                            }
+                        });
+                    });
+                }
+                
+                checkForm();
+            }
+        }
+
+        function getColumnValues(lang) {
+            const container = document.getElementById(lang === 'ru' ? 'russianColumns' : 'arabicColumns');
+            const inputs = container.querySelectorAll('input');
+            return Array.from(inputs)
+                .map(input => input.value.trim())
+                .filter(value => value !== '');
+        }
+
+        function checkForm() {
+            const ruValues = getColumnValues('ru');
+            const arValues = getColumnValues('ar');
+            const btn = document.getElementById('addWordBtn');
+            
+            btn.disabled = ruValues.length === 0 || arValues.length === 0;
+        }
+
+        document.addEventListener('input', (e) => {
+            if (e.target.tagName === 'INPUT') {
+                checkForm();
+            }
+        });
+
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+                e.preventDefault();
+                const addBtn = document.getElementById('addWordBtn');
+                if (!addBtn.disabled) {
+                    addWord();
+                }
+            }
+        });
+
+        function addWord() {
+            const ruValues = getColumnValues('ru');
+            const arValues = getColumnValues('ar');
+
+            if (ruValues.length === 0 || arValues.length === 0) return;
+
+            const ruPart = ruValues.join(', ');
+            const arPart = arValues.join(' - ');
+            const wordText = `${ruPart} - ${arPart}`;
+
+            const words = JSON.parse(localStorage.getItem('words') || '[]');
+            words.push(wordText);
+            localStorage.setItem('words', JSON.stringify(words));
+
+            clearForm();
+            
+            renderWords();
+            
+            showNotification('✓ Слово добавлено');
+        }
+
+        function clearForm() {
+            const ruContainer = document.getElementById('russianColumns');
+            const arContainer = document.getElementById('arabicColumns');
+            
+            while (ruContainer.children.length > 1) {
+                ruContainer.removeChild(ruContainer.lastChild);
+            }
+            while (arContainer.children.length > 1) {
+                arContainer.removeChild(arContainer.lastChild);
+            }
+            
+            document.querySelectorAll('input').forEach(input => input.value = '');
+            checkForm();
+        }
+
+        function renderWords() {
+            const wordsList = document.getElementById('wordsList');
+            const words = JSON.parse(localStorage.getItem('words') || '[]');
+            
+            document.getElementById('totalCount').textContent = words.length;
+
+            if (words.length === 0) {
+                wordsList.innerHTML = '<div class="empty-state">Пока нет слов</div>';
+                return;
+            }
+
+            wordsList.innerHTML = words.map((word, index) => `
+                <div class="word-item">
+                    <div class="word-text" onclick="editWord(${index})">${word}</div>
+                    <div class="word-actions">
+                        <button class="edit-btn" onclick="editWord(${index})">✏️</button>
+                        <button class="delete-btn" onclick="deleteWord(${index})">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function deleteWord(index) {
+            if (!confirm('Удалить это слово?')) return;
+            
+            const words = JSON.parse(localStorage.getItem('words') || '[]');
+            words.splice(index, 1);
+            localStorage.setItem('words', JSON.stringify(words));
+            renderWords();
+            showNotification('🗑️ Слово удалено');
+        }
+
+        function editWord(index) {
+            currentEditIndex = index;
+            const words = JSON.parse(localStorage.getItem('words') || '[]');
+            const word = words[index];
+            
+            const parts = word.split(' - ');
+            const ruParts = parts[0].split(', ');
+            const arParts = parts.slice(1);
+            
+            const container = document.getElementById('editColumnsContainer');
+            container.innerHTML = '';
+            
+            const ruGroup = document.createElement('div');
+            ruGroup.className = 'modal-section';
+            ruGroup.id = 'editRuSection';
+            
+            const ruHeader = document.createElement('div');
+            ruHeader.className = 'modal-section-header';
+            ruHeader.innerHTML = '<strong>🇷🇺 Русский:</strong>';
+            ruGroup.appendChild(ruHeader);
+            
+            ruParts.forEach((val, i) => {
+                const row = document.createElement('div');
+                row.className = 'modal-input-row';
+                const wrapper = document.createElement('div');
+                wrapper.className = 'autocomplete-wrapper';
+                wrapper.style.flex = '1';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = val;
+                input.style.width = '100%';
+                input.style.boxSizing = 'border-box';
+                input.dataset.lang = 'ru';
+                input.setAttribute('inputmode', 'text');
+                input.setAttribute('autocapitalize', 'sentences');
+                input.setAttribute('autocorrect', 'on');
+                input.setAttribute('spellcheck', 'true');
+                input.setAttribute('autocomplete', 'off');
+                wrapper.appendChild(input);
+                const dropdown = document.createElement('div');
+                dropdown.className = 'autocomplete-dropdown';
+                wrapper.appendChild(dropdown);
+                row.appendChild(wrapper);
+                ruGroup.appendChild(row);
+                setupAutocomplete(input);
+            });
+            
+            const ruAddBtn = document.createElement('button');
+            ruAddBtn.className = 'modal-add-btn';
+            ruAddBtn.textContent = '+';
+            ruAddBtn.dataset.lang = 'ru';
+            ruAddBtn.style.width = '100%';
+            ruAddBtn.style.marginTop = '8px';
+            ruGroup.appendChild(ruAddBtn);
+            setupButtonHandler(ruAddBtn, () => addModalField('ru'));
+            
+            container.appendChild(ruGroup);
+            
+            const arGroup = document.createElement('div');
+            arGroup.className = 'modal-section';
+            arGroup.id = 'editArSection';
+            
+            const arHeader = document.createElement('div');
+            arHeader.className = 'modal-section-header';
+            arHeader.innerHTML = '<strong>🇸🇦 العربية:</strong>';
+            arGroup.appendChild(arHeader);
+            
+            arParts.forEach((val, i) => {
+                const row = document.createElement('div');
+                row.className = 'modal-input-row';
+                const wrapper = document.createElement('div');
+                wrapper.className = 'autocomplete-wrapper';
+                wrapper.style.flex = '1';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = val;
+                input.style.direction = 'rtl';
+                input.style.textAlign = 'right';
+                input.style.fontFamily = "'Traditional Arabic', 'Arabic Typesetting', Arial";
+                input.style.fontSize = '20px';
+                input.style.lineHeight = '2';
+                input.style.minHeight = '68px';
+                input.style.padding = '20px 16px';
+                input.style.width = '100%';
+                input.style.boxSizing = 'border-box';
+                input.dataset.lang = 'ar';
+                input.setAttribute('inputmode', 'text');
+                input.setAttribute('autocapitalize', 'off');
+                input.setAttribute('autocorrect', 'off');
+                input.setAttribute('spellcheck', 'false');
+                input.setAttribute('autocomplete', 'off');
+                wrapper.appendChild(input);
+                const dropdown = document.createElement('div');
+                dropdown.className = 'autocomplete-dropdown';
+                wrapper.appendChild(dropdown);
+                row.appendChild(wrapper);
+                arGroup.appendChild(row);
+                setupAutocomplete(input);
+            });
+            
+            const arAddBtn = document.createElement('button');
+            arAddBtn.className = 'modal-add-btn';
+            arAddBtn.textContent = '+';
+            arAddBtn.dataset.lang = 'ar';
+            arAddBtn.style.width = '100%';
+            arAddBtn.style.marginTop = '8px';
+            arGroup.appendChild(arAddBtn);
+            setupButtonHandler(arAddBtn, () => addModalField('ar'));
+            
+            container.appendChild(arGroup);
+            
+            document.getElementById('editModal').classList.add('show');
+        }
+
+        function addModalField(lang) {
+            const section = document.getElementById(lang === 'ru' ? 'editRuSection' : 'editArSection');
+            const addBtn = section.querySelector('.modal-add-btn');
+            
+            const row = document.createElement('div');
+            row.className = 'modal-input-row';
+            let input;
+            
+            {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'autocomplete-wrapper';
+                wrapper.style.flex = '1';
+
+                input = document.createElement('input');
+                input.type = 'text';
+                input.dataset.lang = lang;
+                input.setAttribute('inputmode', 'text');
+                input.style.width = '100%';
+                input.style.boxSizing = 'border-box';
+                input.setAttribute('autocomplete', 'off');
+
+                if (lang === 'ar') {
+                    input.placeholder = 'اكتب الكلمة';
+                    input.style.direction = 'rtl';
+                    input.style.textAlign = 'right';
+                    input.style.fontFamily = "'Traditional Arabic', 'Arabic Typesetting', Arial";
+                    input.style.fontSize = '20px';
+                    input.style.lineHeight = '2';
+                    input.style.minHeight = '68px';
+                    input.style.padding = '20px 16px';
+                    input.setAttribute('autocapitalize', 'off');
+                    input.setAttribute('autocorrect', 'off');
+                    input.setAttribute('spellcheck', 'false');
+                } else {
+                    input.placeholder = 'Введите слово';
+                    input.setAttribute('autocapitalize', 'sentences');
+                    input.setAttribute('autocorrect', 'on');
+                    input.setAttribute('spellcheck', 'true');
+                }
+
+                const dropdown = document.createElement('div');
+                dropdown.className = 'autocomplete-dropdown';
+
+                wrapper.appendChild(input);
+                wrapper.appendChild(dropdown);
+                row.appendChild(wrapper);
+                section.insertBefore(row, addBtn);
+                setupAutocomplete(input);
+            }
+            
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    input.focus();
+                    if (input.setSelectionRange) {
+                        input.setSelectionRange(input.value.length, input.value.length);
+                    }
+                });
+            });
+        }
+
+        function saveEdit() {
+            const ruSection = document.getElementById('editRuSection');
+            const arSection = document.getElementById('editArSection');
+            
+            const ruInputs = Array.from(ruSection.querySelectorAll('input[data-lang="ru"]'));
+            const arInputs = Array.from(arSection.querySelectorAll('input[data-lang="ar"]'));
+            
+            const ruValues = ruInputs.map(i => i.value.trim()).filter(v => v !== '');
+            const arValues = arInputs.map(i => i.value.trim()).filter(v => v !== '');
+            
+            if (ruValues.length === 0 || arValues.length === 0) {
+                alert('Заполните хотя бы одно русское и одно арабское поле');
+                return;
+            }
+            
+            const ruPart = ruValues.join(', ');
+            const arPart = arValues.join(' - ');
+            const wordText = `${ruPart} - ${arPart}`;
+            
+            const words = JSON.parse(localStorage.getItem('words') || '[]');
+            words[currentEditIndex] = wordText;
+            localStorage.setItem('words', JSON.stringify(words));
+            
+            closeEditModal();
+            renderWords();
+            showNotification('✓ Слово обновлено');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('show');
+            currentEditIndex = null;
+        }
+
+        function copyAllWords() {
+            const words = JSON.parse(localStorage.getItem('words') || '[]');
+            
+            if (words.length === 0) {
+                showNotification('⚠️ Нет слов для копирования');
+                return;
+            }
+            
+            const text = words.join('\n');
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showNotification('📋 Скопировано в буфер обмена');
+                });
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showNotification('📋 Скопировано в буфер обмена');
+            }
+        }
+
+        function clearAllWords() {
+            const words = JSON.parse(localStorage.getItem('words') || '[]');
+            
+            if (words.length === 0) {
+                showNotification('⚠️ Список уже пуст');
+                return;
+            }
+            
+            if (!confirm(`Удалить все слова (${words.length} шт.)? Это действие нельзя отменить.`)) {
+                return;
+            }
+            
+            localStorage.removeItem('words');
+            renderWords();
+            showNotification('🗑️ Список очищен');
+        }
+
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 2000);
+        }
+
+        document.getElementById('editModal').addEventListener('click', (e) => {
+            if (e.target.id === 'editModal') {
+                closeEditModal();
+            }
+        });
+
+        document.getElementById('editModal').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+                e.preventDefault();
+                saveEdit();
+            }
+        });
+
+        function setupButtonHandler(button, callback) {
+            button.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                callback();
+            }, { passive: false });
+            
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                callback();
+            });
+        }
+
+        function initButtonHandlers() {
+            document.querySelectorAll('.add-column-btn').forEach(btn => {
+                const lang = btn.dataset.lang;
+                setupButtonHandler(btn, () => addColumn(lang));
+            });
+        }
+
+        function toggleColumnsOrder() {
+            const container = document.getElementById('columnsContainer');
+            const isReversed = container.classList.toggle('reversed');
+            
+            localStorage.setItem('columnsReversed', isReversed ? 'true' : 'false');
+            
+            const btn = document.getElementById('swapBtn');
+            btn.style.transform = 'rotate(180deg)';
+            setTimeout(() => {
+                btn.style.transform = 'rotate(0deg)';
+            }, 300);
+        }
+
+        function loadColumnsOrder() {
+            const isReversed = localStorage.getItem('columnsReversed') === 'true';
+            if (isReversed) {
+                document.getElementById('columnsContainer').classList.add('reversed');
+            }
+        }
+
+        function initSwapButton() {
+            const swapBtn = document.getElementById('swapBtn');
+            setupButtonHandler(swapBtn, toggleColumnsOrder);
+            
+            swapBtn.style.transition = 'transform 0.3s ease';
+        }
+
+        function openImportModal() {
+            document.getElementById('importText').value = '';
+            document.getElementById('importFileName').textContent = '';
+            document.getElementById('importFile').value = '';
+            document.getElementById('importModal').classList.add('show');
+            setTimeout(() => document.getElementById('importText').focus(), 300);
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').classList.remove('show');
+        }
+
+        async function pasteFromClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                document.getElementById('importText').value = text;
+            } catch {
+                document.getElementById('importText').focus();
+                document.execCommand('paste');
+            }
+        }
+
+        document.getElementById('importFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            document.getElementById('importFileName').textContent = file.name;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                document.getElementById('importText').value = ev.target.result;
+            };
+            reader.readAsText(file, 'UTF-8');
+        });
+
+        function importWords() {
+            const text = document.getElementById('importText').value.trim();
+            if (!text) {
+                alert('Вставьте слова или выберите файл');
+                return;
+            }
+
+            const lines = text.split('\n')
+                .map(l => l.trim())
+                .filter(l => l && !l.startsWith('#') && !l.startsWith('//'));
+
+            if (lines.length === 0) {
+                alert('Нет слов для импорта');
+                return;
+            }
+
+            const words = JSON.parse(localStorage.getItem('words') || '[]');
+            let added = 0;
+
+            for (const line of lines) {
+                if (line.includes(' - ')) {
+                    words.push(line);
+                } else {
+                    words.push(line + ' - ');
+                }
+                added++;
+            }
+
+            localStorage.setItem('words', JSON.stringify(words));
+            closeImportModal();
+            renderWords();
+            showNotification('📥 Импортировано слов: ' + added);
+        }
+
+        document.getElementById('importModal').addEventListener('click', (e) => {
+            if (e.target.id === 'importModal') closeImportModal();
+        });
+
+        // ========== АВТОДОПОЛНЕНИЕ ==========
+
+        const TASHKEEL_RE = /[\u064B-\u065F\u0670\u06D6-\u06ED\u08D4-\u08FF]/g;
+        function stripTashkeel(w) { return w.replace(TASHKEEL_RE, ''); }
+
+        let arabicWords = null;
+        let russianWords = null;
+
+        function searchWords(words, prefix, limit, offset) {
+            if (!words || !prefix) return { results: [], hasMore: false };
+            const totalPairs = words.length >>> 1;
+
+            let lo = 0, hi = totalPairs;
+            while (lo < hi) {
+                const mid = (lo + hi) >>> 1;
+                if (words[mid * 2 + 1].localeCompare(prefix, 'ar') < 0) lo = mid + 1;
+                else hi = mid;
+            }
+
+            let start = lo;
+            let skipped = 0;
+            while (start < totalPairs && skipped < offset) {
+                if (words[start * 2 + 1].startsWith(prefix)) skipped++;
+                else break;
+                start++;
+            }
+            if (skipped < offset) return { results: [], hasMore: false };
+
+            const results = [];
+            for (let i = start; i < totalPairs && results.length <= limit; i++) {
+                const w = words[i * 2 + 1];
+                if (w.startsWith(prefix)) results.push(words[i * 2]);
+                else break;
+            }
+
+            return {
+                results: results.slice(0, limit),
+                hasMore: results.length > limit
+            };
+        }
+
+        function setupAutocomplete(input) {
+            const wrapper = input.parentElement;
+            if (!wrapper.classList.contains('autocomplete-wrapper')) return;
+
+            const dropdown = wrapper.querySelector('.autocomplete-dropdown');
+            if (!dropdown) return;
+
+            const lang = input.dataset.lang;
+            const isArabic = lang === 'ar';
+            const wordList = () => isArabic ? arabicWords : russianWords;
+
+            let activeIndex = -1;
+            let currentResults = [];
+            let hideTimeout = null;
+            let searchPrefix = '';
+            let searchOffset = 0;
+
+            function showDropdown() {
+                dropdown.classList.add('show');
+            }
+
+            function hideDropdown() {
+                dropdown.classList.remove('show');
+                activeIndex = -1;
+            }
+
+            function renderResults(results, hasMore) {
+                currentResults = results;
+
+                let html = results.map((word, i) =>
+                    `<div class="autocomplete-item${isArabic ? ' arabic' : ''}" data-index="${i}">${word}</div>`
+                ).join('');
+
+                if (hasMore) {
+                    html += '<div class="autocomplete-more" data-action="more">Показать еще ↓</div>';
+                }
+
+                dropdown.innerHTML = html;
+
+                if (results.length > 0) {
+                    showDropdown();
+                    activeIndex = -1;
+                } else {
+                    hideDropdown();
+                }
+            }
+
+            function selectWord(word) {
+                input.value = word;
+                hideDropdown();
+                checkForm();
+                input.focus();
+            }
+
+            function loadMore() {
+                searchOffset += 8;
+                const { results, hasMore } = searchWords(wordList(), searchPrefix, 8, searchOffset);
+                renderResults([...currentResults, ...results], hasMore);
+            }
+
+            function handleDropdownClick(e) {
+                const more = e.target.closest('[data-action="more"]');
+                if (more) {
+                    e.preventDefault();
+                    clearTimeout(hideTimeout);
+                    loadMore();
+                    return;
+                }
+                const item = e.target.closest('.autocomplete-item');
+                if (item) {
+                    e.preventDefault();
+                    clearTimeout(hideTimeout);
+                    selectWord(currentResults[parseInt(item.dataset.index)]);
+                }
+            }
+
+            dropdown.addEventListener('mousedown', handleDropdownClick);
+
+            let touchStartY = 0;
+            dropdown.addEventListener('touchstart', (e) => {
+                clearTimeout(hideTimeout);
+                touchStartY = e.touches[0].clientY;
+            }, { passive: true });
+
+            dropdown.addEventListener('touchmove', () => {
+                clearTimeout(hideTimeout);
+            }, { passive: true });
+
+            dropdown.addEventListener('touchend', (e) => {
+                clearTimeout(hideTimeout);
+                const dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
+                if (dy > 10) return;
+                const more = e.target.closest('[data-action="more"]');
+                const item = e.target.closest('.autocomplete-item');
+                if (more || item) {
+                    e.preventDefault();
+                    if (more) loadMore();
+                    else selectWord(currentResults[parseInt(item.dataset.index)]);
+                }
+            });
+
+            input.addEventListener('input', () => {
+                clearTimeout(hideTimeout);
+                const val = input.value;
+                if (val.endsWith(' ')) { hideDropdown(); return; }
+                const trimmed = val.trim();
+                if (trimmed.length >= 1) {
+                    const prepared = isArabic ? stripTashkeel(trimmed) : trimmed;
+                    if (prepared) {
+                        searchPrefix = prepared;
+                        searchOffset = 0;
+                        const { results, hasMore } = searchWords(wordList(), prepared, 8, 0);
+                        renderResults(results, hasMore);
+                        return;
+                    }
+                }
+                hideDropdown();
+            });
+
+            input.addEventListener('keydown', (e) => {
+                const items = dropdown.querySelectorAll('.autocomplete-item:not([data-action])');
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    activeIndex = Math.min(activeIndex + 1, items.length - 1);
+                    updateActive(items);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    activeIndex = Math.max(activeIndex - 1, -1);
+                    updateActive(items);
+                } else if (e.key === 'Enter') {
+                    if (activeIndex >= 0 && activeIndex < currentResults.length) {
+                        e.preventDefault();
+                        selectWord(currentResults[activeIndex]);
+                    }
+                } else if (e.key === 'Escape' || e.key === ' ') {
+                    hideDropdown();
+                }
+            });
+
+            function updateActive(items) {
+                items.forEach((item, i) => item.classList.toggle('active', i === activeIndex));
+                if (activeIndex >= 0 && items[activeIndex]) {
+                    items[activeIndex].scrollIntoView({ block: 'nearest' });
+                }
+            }
+
+            input.addEventListener('blur', (e) => {
+                if (e.relatedTarget && wrapper.contains(e.relatedTarget)) return;
+                hideTimeout = setTimeout(hideDropdown, 300);
+            });
+
+            input.addEventListener('focus', () => {
+                clearTimeout(hideTimeout);
+                const val = input.value.trim();
+                if (val.length >= 1 && !val.includes(' ')) {
+                    const prepared = isArabic ? stripTashkeel(val) : val;
+                    if (prepared && wordList()) {
+                        searchPrefix = prepared;
+                        searchOffset = 0;
+                        const { results, hasMore } = searchWords(wordList(), prepared, 8, 0);
+                        renderResults(results, hasMore);
+                    }
+                }
+            });
+        }
+
+        async function initAutocomplete() {
+            try {
+                const [ar, ru] = await Promise.all([
+                    fetch('arabic-words.json').then(r => r.json()),
+                    fetch('russian-words.json').then(r => r.json())
+                ]);
+                arabicWords = ar;
+                russianWords = ru.flatMap(w => [w, w]);
+            } catch (err) {
+                console.warn('Ошибка загрузки словарей:', err);
+            }
+            document.querySelectorAll('input[data-lang="ar"], input[data-lang="ru"]').forEach(setupAutocomplete);
+        }
+
+        // Кнопка назад в словарь
+        document.getElementById('backToDictBtn').addEventListener('click', function() {
+            window.location.href = 'dictionary.html';
+        });
+
+        // Инициализация
+        loadColumnsOrder();
+        renderWords();
+        checkForm();
+        initButtonHandlers();
+        initSwapButton();
+        initAutocomplete();
+    </script>
+</body>
+</html>

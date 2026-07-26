@@ -9,6 +9,23 @@
 <link rel="stylesheet" href="theme.css">
 <script src="service-worker-register.js"></script>
 
+<script>
+(function() {
+  if (location.hash === '#note') {
+    var check = function() {
+      if (window.auth && window.authUser !== undefined) {
+        if (window.auth.isLoggedIn && ['komnenado@gmail.com','test@gmail.com'].indexOf(window.auth.getUserEmail()) !== -1) {
+          window.location.replace('note.html');
+        }
+      } else {
+        setTimeout(check, 100);
+      }
+    };
+    check();
+  }
+})();
+</script>
+
 <!-- Firebase для синхронизации (избранное и др.) -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -1101,12 +1118,39 @@ function enableEditMode(item) {
   });
 }
 
-/* ===== Settings panel ===== */
-document.getElementById('settingsBtn').addEventListener('click', () => {
-  const panel = document.getElementById('settingsPanel');
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  document.getElementById('ghTokenInput').value = getGitHubToken();
-});
+/* ===== Settings panel + hidden note access ===== */
+(function() {
+  const btn = document.getElementById('settingsBtn');
+  let timer = null;
+  var ALLOWED_EMAILS = ['komnenado@gmail.com', 'test@gmail.com'];
+
+  function goToNote() {
+    if (window.auth && window.auth.isLoggedIn && window.auth.isLoggedIn()) {
+      if (ALLOWED_EMAILS.indexOf(window.auth.getUserEmail()) !== -1) {
+        window.location.href = 'note.html';
+      }
+    }
+  }
+
+  btn.addEventListener('mousedown', () => {
+    timer = setTimeout(goToNote, 600);
+  });
+  btn.addEventListener('mouseup', () => { clearTimeout(timer); });
+  btn.addEventListener('mouseleave', () => { clearTimeout(timer); });
+
+  btn.addEventListener('touchstart', (e) => {
+    timer = setTimeout(goToNote, 600);
+  }, { passive: true });
+  btn.addEventListener('touchend', () => { clearTimeout(timer); });
+  btn.addEventListener('touchmove', () => { clearTimeout(timer); }, { passive: true });
+
+  btn.addEventListener('click', () => {
+    if (timer) { clearTimeout(timer); timer = null; }
+    const panel = document.getElementById('settingsPanel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    document.getElementById('ghTokenInput').value = getGitHubToken();
+  });
+})();
 
 document.getElementById('ghTokenSaveBtn').addEventListener('click', () => {
   const token = document.getElementById('ghTokenInput').value.trim();

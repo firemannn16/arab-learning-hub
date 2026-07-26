@@ -96,7 +96,6 @@
           .set(firebaseData, { merge: true });
         console.log('🔥 Streak синхронизирован с Firebase');
       }
-      // Используем modular API (как в choice.html)
       else if (window.firebaseModules && window.firebaseModules.doc) {
         const docRef = window.firebaseModules.doc(
           window.firestore, 

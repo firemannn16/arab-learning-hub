@@ -1030,8 +1030,6 @@
     isFlipped = false;
 
     const front = card.ar;
-    const note = notesMap[card.arKey];
-    const noteHtml = note ? `<div class="card-note"><span class="note-label">شرح</span><span class="note-text">${note}</span></div>` : '';
     const total = sessionTotal;
     const done = sessionDone;
     const pct = total > 0 ? ((done / total) * 100) : 0;
@@ -1062,7 +1060,6 @@
           <button class="fav-star ${window.isFavorite ? (window.isFavorite(card.line) ? 'active' : '') : ''}" id="favStar">${window.isFavorite && window.isFavorite(card.line) ? '⭐' : '☆'}</button>
           <div class="word-index">${done + 1}/${total}</div>
           <div class="front-text arabic" id="frontText">${front}</div>
-          ${noteHtml}
           <div class="tap-hint" id="tapHint">👆 нажмите, чтобы увидеть перевод</div>
           <div style="position:absolute;bottom:4px;left:16px;font-size:0.65rem;color:#94a3b8">${stateLabel}</div>
         </div>
@@ -1138,7 +1135,9 @@
     if (isFlipped) return;
     isFlipped = true;
     const back = card.ru;
-    document.getElementById('frontText').insertAdjacentHTML('afterend', `<div class="back-text" id="backText">${back}</div>`);
+    const note = notesMap[card.arKey];
+    const noteHtml = note ? `<div class="card-note"><span class="note-label">شرح</span><span class="note-text">${note}</span></div>` : '';
+    document.getElementById('frontText').insertAdjacentHTML('afterend', `<div class="back-text" id="backText">${back}</div>${noteHtml}`);
     document.getElementById('tapHint').textContent = '';
   }
 
