@@ -392,7 +392,7 @@
       
       <nav class="sidebar-menu" aria-label="Главное меню">
         <div class="sidebar-header">
-          <h2>Арабские Тренажеры</h2>
+           <h2>Тренажеры и другое</h2>
           <p>Выберите раздел</p>
         </div>
         

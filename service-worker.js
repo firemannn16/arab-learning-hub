@@ -16,7 +16,6 @@ const STATIC_CACHE = [
     './favorites.js',
     './service-worker-register.js',
     './storage-protection.js',
-    './streak.js',
     './theme.js',
     './theme.css',
     './manifest.json',

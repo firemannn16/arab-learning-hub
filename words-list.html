@@ -29,7 +29,7 @@
     })();
   </script>
   <script src="favorites.js"></script>
-  <script src="streak.js"></script>
+
   
   <!-- Yandex.Metrika counter -->
 <script type="text/javascript">
@@ -166,16 +166,6 @@
 
     .copy-all-btn:active {
       transform: translateY(0);
-    }
-
-    /* 🚫 Скрытый раздел "Все слова" (можно вернуть удалив display:none) */
-    #tabAll {
-      display: none !important;
-    }
-
-    /* 🚫 Скрытый раздел "По главам" (можно вернуть удалив display:none) */
-    #tabChapters {
-      display: none !important;
     }
 
     /* Табы */
@@ -469,218 +459,7 @@
       font-size: 16px;
     }
 
-    /* ========== ПО ГЛАВАМ СТИЛИ ========== */
-    
-    .chapters-container {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-      overflow: hidden;
-    }
 
-    .volumes-list {
-      padding: 10px;
-    }
-
-    .volume-item {
-      margin-bottom: 8px;
-      border-radius: 10px;
-      overflow: hidden;
-      border: 1px solid #e5e7eb;
-      transition: all 0.2s;
-    }
-
-    .volume-header {
-      padding: 15px 20px;
-      background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 16px;
-      font-weight: 600;
-      color: #333;
-      transition: all 0.2s;
-    }
-
-    .volume-header:hover {
-      background: linear-gradient(135deg, #e5e7eb 0%, #e0e4ff 100%);
-    }
-
-    .volume-arrow {
-      transition: transform 0.3s;
-      font-size: 14px;
-      color: #667eea;
-    }
-
-    .volume-item.expanded .volume-arrow {
-      transform: rotate(90deg);
-    }
-
-    .chapters-list {
-      background: white;
-      max-height: 0;
-      overflow: hidden;
-      transition: max-height 0.3s ease;
-    }
-
-    .volume-item.expanded .chapters-list {
-      max-height: 1000px;
-    }
-
-    .chapter-item {
-      padding: 12px 20px 12px 40px;
-      border-top: 1px solid #f0f0f0;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .chapter-item:hover {
-      background: #f8f9ff;
-    }
-
-    .chapter-item.active {
-      background: linear-gradient(135deg, #f0f4ff 0%, #e8f0ff 100%);
-      border-left: 3px solid #667eea;
-    }
-
-    .chapter-word-count {
-      font-size: 13px;
-      color: #6b7280;
-      background: #f3f4f6;
-      padding: 3px 10px;
-      border-radius: 12px;
-    }
-
-    .chapter-words-section {
-      margin-top: 15px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-      overflow: hidden;
-    }
-
-    .chapter-words-header {
-      padding: 15px 20px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .chapter-words-title {
-      font-size: 18px;
-      font-weight: 600;
-      margin: 0;
-      flex: 1;
-    }
-
-    .chapter-words-header-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-
-    .copy-chapter-btn {
-      padding: 8px 16px;
-      background: rgba(255,255,255,0.2);
-      color: white;
-      border: 1px solid rgba(255,255,255,0.3);
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .copy-chapter-btn:hover {
-      background: rgba(255,255,255,0.3);
-    }
-
-    .close-chapter-btn {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      border: 1px solid rgba(255,255,255,0.3);
-      background: rgba(255,255,255,0.15);
-      color: white;
-      font-size: 16px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-    }
-
-    .close-chapter-btn:hover {
-      background: rgba(255,255,255,0.3);
-    }
-
-    .chapter-words-container {
-      /* Переиспользуем стили word-item */
-    }
-
-    /* Темная тема для вкладки "По главам" */
-    body.dark-theme .chapters-container {
-      background: #1f2937;
-    }
-
-    body.dark-theme .volume-item {
-      border-color: #374151;
-    }
-
-    body.dark-theme .volume-header {
-      background: linear-gradient(135deg, #2d3748 0%, #374151 100%);
-      color: #e5e7eb;
-    }
-
-    body.dark-theme .volume-header:hover {
-      background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
-    }
-
-    body.dark-theme .volume-arrow {
-      color: #818cf8;
-    }
-
-    body.dark-theme .chapters-list {
-      background: #1f2937;
-    }
-
-    body.dark-theme .chapter-item {
-      border-top-color: #374151;
-      color: #e5e7eb;
-    }
-
-    body.dark-theme .chapter-item:hover {
-      background: #2d3748;
-    }
-
-    body.dark-theme .chapter-item.active {
-      background: linear-gradient(135deg, #2d3748 0%, #374151 100%);
-      border-left-color: #818cf8;
-    }
-
-    body.dark-theme .chapter-word-count {
-      background: #374151;
-      color: #9ca3af;
-    }
-
-    body.dark-theme .chapter-words-section {
-      background: #1f2937;
-    }
-
-    body.dark-theme .chapter-words-header {
-      background: linear-gradient(135deg, #4338ca 0%, #6b21a8 100%);
-    }
 
     /* ========== ПУСТОЙ ТРЕНАЖЁР СТИЛИ ========== */
     .empty-container {
@@ -1646,14 +1425,8 @@
         </div>
       </div>
       <div class="tabs">
-        <button class="tab-btn" id="tabAll" onclick="showTab('all')" style="display:none">
-          📚 Все слова <span class="tab-badge" id="allCount">0</span>
-        </button>
         <button class="tab-btn active" id="tabFavorites" onclick="showTab('favorites')">
           ⭐ Избранное <span class="tab-badge" id="favCount">0</span>
-        </button>
-        <button class="tab-btn" id="tabChapters" onclick="showTab('chapters')">
-          📖 По главам
         </button>
         <button class="tab-btn" id="tabLearn" onclick="showTab('learn')">
           🎯 Заучивание
@@ -1684,32 +1457,6 @@
       <div class="loading">
         <div class="loading-spinner"></div>
         Загрузка слов...
-      </div>
-    </div>
-
-    <!-- Контейнер для глав -->
-    <div class="chapters-container" id="chaptersContainer" style="display: none;">
-      <!-- Слова выбранной главы (сверху) -->
-      <div class="chapter-words-section" id="chapterWordsSection" style="display: none;">
-        <div class="chapter-words-header">
-          <h3 class="chapter-words-title" id="chapterWordsTitle">Глава 1 - Том 1</h3>
-          <div class="chapter-words-header-actions">
-            <button class="copy-chapter-btn" id="copyChapterBtn" onclick="copyChapterWords()">
-              📋 Копировать всё
-            </button>
-            <button class="close-chapter-btn" onclick="closeChapterWords()" title="Закрыть">✕</button>
-          </div>
-        </div>
-        <div class="chapter-words-container" id="chapterWordsContainer">
-          <!-- Слова отобразятся здесь -->
-        </div>
-      </div>
-
-      <div class="volumes-list" id="volumesList">
-        <div class="loading">
-          <div class="loading-spinner"></div>
-          Загрузка глав...
-        </div>
       </div>
     </div>
 
@@ -1860,15 +1607,15 @@
 
       <h3>Ошибки:</h3>
       <div id="empty-mistake-list"></div>
-      <div id="empty-copy-mistakes-container" class="hidden">
-        <button id="empty-copy-mistakes" class="copy-btn">Копировать ошибки</button>
-        <span id="empty-copy-success" class="copy-success hidden">Скопировано!</span>
-      </div>
-
       <div id="empty-after-session" class="hidden">
-        <button id="empty-retry-all" class="button">Пройти заново</button>
-        <button id="empty-start-mistakes" class="button hidden">Работа над ошибками</button>
-        <button id="empty-learn-mistakes" class="button hidden" style="background:#e8f0ff;border:1px solid #667eea;color:#4338ca;">🎯 Заучить ошибки</button>
+        <div style="display:flex;gap:12px;justify-content:center;margin-top:12px;">
+          <button id="empty-retry-all" class="sticker-btn" title="Пройти заново">🔄</button>
+          <button id="empty-copy-mistakes" class="sticker-btn" title="Копировать ошибки">📋</button>
+          <button id="empty-learn-mistakes" class="sticker-btn" title="Заучить ошибки">🎯</button>
+        </div>
+        <div style="text-align:center;margin-top:8px;">
+          <span id="empty-copy-success" class="copy-success hidden">Скопировано!</span>
+        </div>
       </div>
     </div>
 
@@ -1916,8 +1663,8 @@
     
     <div class="empty-state hidden" id="defEmptyState">
       <span>📖</span>
-      <h2>Нет определений</h2>
-      <p>Определения не загружены</p>
+      <h2 id="defEmptyTitle">Нет определений</h2>
+      <p id="defEmptyText">Определения не загружены. Проверьте файл definitions.json</p>
     </div>
   </div>
 
@@ -1931,19 +1678,12 @@
   <div class="toast" id="toast">Скопировано!</div>
 
   <script>
-    let allWordsText = '';
-    let allWords = [];
     let notesMap = {};
     let currentTab = 'favorites';
     let selectedWords = new Set(); // Выбранные слова для копирования
     let rulesDefs = [];
     let defSelectedVolume = null;
     let defSelectedPart = null;
-
-    // ========== ПО ГЛАВАМ - Переменные ==========
-    let chaptersData = null;
-    let currentChapterWords = [];
-    let currentChapterTitle = '';
 
     // ========== ЗАУЧИВАНИЕ - Переменные ==========
     let learnWords = [];           // Слова для заучивания [{arabic: '...', translation: '...'}, ...]
@@ -2029,215 +1769,7 @@
       }, 2000);
     }
 
-    // ========== ПО ГЛАВАМ - Функции ==========
 
-    // Загрузка и парсинг chapters.txt
-    async function loadChapters() {
-      const volumesList = document.getElementById('volumesList');
-      
-      try {
-        const response = await fetch('chapters.txt');
-        if (!response.ok) throw new Error('Файл chapters.txt не найден');
-        
-        const text = await response.text();
-        chaptersData = parseChaptersTxt(text);
-        
-        renderVolumes();
-      } catch (error) {
-        console.error('Ошибка загрузки глав:', error);
-        volumesList.innerHTML = '<div class="error">❌ Не удалось загрузить список глав</div>';
-      }
-    }
-
-    // Парсинг chapters.txt
-    function parseChaptersTxt(text) {
-      const lines = text.split('\n');
-      const result = { томы: [] };
-      
-      let currentTom = null;
-      let currentGlava = null;
-      
-      for (const line of lines) {
-        const trimmed = line.trim();
-        
-        if (!trimmed) continue; // Пропускаем пустые строки
-        
-        // Том: начинается с "# ТОМ"
-        if (trimmed.startsWith('# ТОМ')) {
-          const tomNumber = parseInt(trimmed.match(/\d+/)[0]);
-          currentTom = {
-            id: `том${tomNumber}`,
-            название: `Том ${tomNumber}`,
-            иконка: ['📕', '📗', '📘', '📙'][tomNumber - 1] || '📕',
-            главы: []
-          };
-          result.томы.push(currentTom);
-          currentGlava = null;
-        }
-        // Глава: начинается с "## ГЛАВА"
-        else if (trimmed.startsWith('## ГЛАВА')) {
-          const glavaNumber = parseInt(trimmed.match(/\d+/)[0]);
-          currentGlava = {
-            номер: glavaNumber,
-            название: `Глава ${glavaNumber}`,
-            слова: []
-          };
-          if (currentTom) {
-            currentTom.главы.push(currentGlava);
-          }
-        }
-        // Слово: содержит любое тире (-, –, —)
-        else if (/[-–—]/.test(trimmed) && currentGlava) {
-          currentGlava.слова.push(trimmed);
-        }
-      }
-      
-      return result;
-    }
-
-    // Отрисовка томов
-    function renderVolumes() {
-      const volumesList = document.getElementById('volumesList');
-      
-      if (!chaptersData || chaptersData.томы.length === 0) {
-        volumesList.innerHTML = '<div class="empty-state"><div class="icon">📚</div><p>Нет данных о главах</p></div>';
-        return;
-      }
-      
-      let html = '';
-      
-      chaptersData.томы.forEach((том, volumeIndex) => {
-        html += `
-          <div class="volume-item" id="volume-${том.id}">
-            <div class="volume-header" onclick="toggleVolume('${том.id}')">
-              <span>${том.иконка} ${том.название}</span>
-              <span class="volume-arrow">▶</span>
-            </div>
-            <div class="chapters-list" id="chapters-${том.id}">
-        `;
-        
-        том.главы.forEach((глава, chapterIndex) => {
-          const count = глава.слова.length;
-          html += `
-            <div class="chapter-item" id="chapter-${том.id}-${глава.номер}" 
-                 onclick="showChapterWords('${том.id}', ${глава.номер})">
-              <span>${глава.название}</span>
-              <span class="chapter-word-count">${count} слов</span>
-            </div>
-          `;
-        });
-        
-        html += `
-            </div>
-          </div>
-        `;
-      });
-      
-      volumesList.innerHTML = html;
-    }
-
-    // Переключить раскрытие тома
-    function toggleVolume(volumeId) {
-      const volumeItem = document.getElementById(`volume-${volumeId}`);
-      volumeItem.classList.toggle('expanded');
-    }
-
-    // Показать слова главы
-    function showChapterWords(volumeId, chapterNumber) {
-      // Найти нужную главу
-      const том = chaptersData.томы.find(t => t.id === volumeId);
-      if (!том) return;
-      
-      const глава = том.главы.find(г => г.номер === chapterNumber);
-      if (!глава) return;
-      
-      // Сохранить текущие слова
-      currentChapterWords = глава.слова;
-      currentChapterTitle = `${глава.название} - ${том.название}`;
-      
-      // Обновить заголовок
-      document.getElementById('chapterWordsTitle').textContent = currentChapterTitle;
-      
-      // Убрать active со всех глав
-      document.querySelectorAll('.chapter-item').forEach(item => {
-        item.classList.remove('active');
-      });
-      
-      // Добавить active к текущей главе
-      document.getElementById(`chapter-${volumeId}-${chapterNumber}`).classList.add('active');
-      
-      // Показать секцию слов
-      document.getElementById('chapterWordsSection').style.display = 'block';
-      
-      // Отрендерить слова
-      renderChapterWords(глава.слова);
-      
-      // Плавная прокрутка к словам (теперь сверху)
-      setTimeout(() => {
-        document.getElementById('chapterWordsSection').scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'start' 
-        });
-      }, 100);
-    }
-
-    // Закрыть секцию слов главы
-    function closeChapterWords() {
-      document.getElementById('chapterWordsSection').style.display = 'none';
-      document.querySelectorAll('.chapter-item').forEach(item => {
-        item.classList.remove('active');
-      });
-      currentChapterWords = [];
-      currentChapterTitle = '';
-      selectedWords.clear();
-      updateSelectionBar();
-    }
-
-    // Отрисовка слов главы
-    function renderChapterWords(words) {
-      const container = document.getElementById('chapterWordsContainer');
-      
-      // Очистить выбор
-      selectedWords.clear();
-      updateSelectionBar();
-      
-      if (words.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="icon">📝</div><p>Нет слов в этой главе</p></div>';
-        return;
-      }
-      
-      let html = '';
-      words.forEach((word) => {
-        const cleanWord = word.trim();
-        if (cleanWord) {
-          const isFav = isFavorite(cleanWord);
-          const isSelected = selectedWords.has(cleanWord);
-          html += `
-            <div class="word-item ${isSelected ? 'selected' : ''}" data-text="${escapeHtml(cleanWord).replace(/"/g, '&quot;')}">
-              <div class="select-circle ${isSelected ? 'selected' : ''}" onclick="toggleWordSelection(event, this)"></div>
-              <span class="word-text">${escapeHtml(cleanWord)}</span>
-              <div class="word-actions">
-                <button class="star-btn ${isFav ? 'active' : ''}" onclick="toggleStar(event, this)" title="${isFav ? 'Убрать из избранного' : 'В избранное'}">
-                  ${isFav ? '⭐' : '☆'}
-                </button>
-                <span class="copy-icon" onclick="copyWord(event, this.parentElement.parentElement)">📋</span>
-              </div>
-            </div>
-          `;
-        }
-      });
-      
-      container.innerHTML = html;
-    }
-
-    // Копировать все слова главы
-    async function copyChapterWords() {
-      if (currentChapterWords.length === 0) return;
-      
-      const text = currentChapterWords.join('\n');
-      await copyText(text);
-      showToast(`Скопировано ${currentChapterWords.length} слов из главы!`);
-    }
 
     // Копировать текст
     async function copyText(text) {
@@ -2267,16 +1799,23 @@
     // ========== ОПРЕДЕЛЕНИЯ ПРАВИЛ ==========
 
     // Загрузка определений из definitions.json
+    let rulesDefsLoadPromise = null;
     async function loadRulesDefs() {
-      try {
-        const response = await fetch('definitions.json?' + Date.now());
-        if (!response.ok) throw new Error('Файл не найден');
-        rulesDefs = await response.json();
-        console.log('📖 Загружено определений:', rulesDefs.length);
-      } catch (e) {
-        console.warn('Ошибка загрузки definitions.json:', e);
-        rulesDefs = [];
+      if (!rulesDefsLoadPromise) {
+        rulesDefsLoadPromise = (async () => {
+          try {
+            const response = await fetch('definitions.json?' + Date.now());
+            if (!response.ok) throw new Error('Файл не найден');
+            rulesDefs = await response.json();
+            console.log('📖 Загружено определений:', rulesDefs.length);
+          } catch (e) {
+            console.warn('Ошибка загрузки definitions.json:', e);
+            rulesDefs = [];
+          }
+        })();
       }
+      await rulesDefsLoadPromise;
+      renderDefVolumes();
     }
 
     // Нормализация определений (для совместимости)
@@ -2295,13 +1834,12 @@
       document.getElementById('defEmptyState').classList.add('hidden');
 
       const category = document.getElementById('rulesDefsCategory').value;
-      let filtered = rulesDefs;
-      if (category !== 'all') {
-        filtered = rulesDefs.filter(d => d.category === category);
-      }
+      const filtered = category === 'all' ? rulesDefs : rulesDefs.filter(d => d.category === category);
 
       if (filtered.length === 0) {
         document.getElementById('defVolumesList').innerHTML = '';
+        document.getElementById('defEmptyTitle').textContent = 'Нет определений';
+        document.getElementById('defEmptyText').textContent = 'Определения не загружены. Всего записей: ' + rulesDefs.length + ', отфильтровано: 0';
         document.getElementById('defEmptyState').classList.remove('hidden');
         return;
       }
@@ -2340,10 +1878,7 @@
       document.getElementById('currentVolumeName').textContent = `${icon} ${vol} том`;
 
       const category = document.getElementById('rulesDefsCategory').value;
-      let filtered = rulesDefs;
-      if (category !== 'all') {
-        filtered = rulesDefs.filter(d => d.category === category);
-      }
+      const filtered = category === 'all' ? rulesDefs : rulesDefs.filter(d => d.category === category);
 
       const normalized = filtered.map(normalizeDef);
       const parts = {};
@@ -2377,10 +1912,7 @@
       document.getElementById('currentPartName').textContent = `${icon} ${defSelectedVolume} том — ${pt} часть`;
 
       const category = document.getElementById('rulesDefsCategory').value;
-      let filtered = rulesDefs;
-      if (category !== 'all') {
-        filtered = rulesDefs.filter(d => d.category === category);
-      }
+      const filtered = category === 'all' ? rulesDefs : rulesDefs.filter(d => d.category === category);
 
       const normalized = filtered.map(normalizeDef);
       const defs = normalized.filter(d => d.volume === defSelectedVolume && d.part === pt);
@@ -2621,99 +2153,71 @@
 
     // Переключение табов
     function showTab(tab) {
-      // Вкладки "Все слова" и "По главам" скрыты — перенаправляем на "Избранное"
-      if (tab === 'all' || tab === 'chapters') tab = 'favorites';
       currentTab = tab;
       
-      document.getElementById('tabAll').classList.toggle('active', tab === 'all');
       document.getElementById('tabFavorites').classList.toggle('active', tab === 'favorites');
-      document.getElementById('tabChapters').classList.toggle('active', tab === 'chapters');
       document.getElementById('tabLearn').classList.toggle('active', tab === 'learn');
       document.getElementById('tabEmpty').classList.toggle('active', tab === 'empty');
       document.getElementById('tabRulesDefs').classList.toggle('active', tab === 'rulesdefs');
       
       // Показать/скрыть контейнеры
-      document.getElementById('wordsContainer').style.display = (tab === 'all' || tab === 'favorites') ? 'block' : 'none';
-      document.getElementById('chaptersContainer').style.display = tab === 'chapters' ? 'block' : 'none';
+      document.getElementById('wordsContainer').style.display = tab === 'favorites' ? 'block' : 'none';
       document.getElementById('learnContainer').style.display = tab === 'learn' ? 'block' : 'none';
       document.getElementById('emptyContainer').style.display = tab === 'empty' ? 'block' : 'none';
       document.getElementById('rulesDefsContainer').style.display = tab === 'rulesdefs' ? 'block' : 'none';
       
-      // Скрыть header-info на вкладках заучивания, глав, пустого тренажёра и определений правил
-      document.querySelector('.header-info').style.display = (tab === 'learn' || tab === 'chapters' || tab === 'empty' || tab === 'rulesdefs') ? 'none' : 'flex';
+      // Скрыть header-info на вкладках заучивания, пустого тренажёра и определений правил
+      document.querySelector('.header-info').style.display = (tab === 'learn' || tab === 'empty' || tab === 'rulesdefs') ? 'none' : 'flex';
       
       // При переходе на другую вкладку — сброс заучивания (но не localStorage)
       if (tab !== 'learn') {
-        resetLearning();
+        try { resetLearning(); } catch (e) { console.warn('resetLearning error:', e); }
       }
       
-      // При переходе на вкладку заучивания — проверить сохранённую сессию (без кнопки "позже")
-      // Но только если не пришли из resumeSession (где уже выбрали "Продолжить")
+      // При переходе на вкладку заучивания — проверить сохранённую сессию
       if (tab === 'learn') {
         if (skipSessionCheck) {
-          skipSessionCheck = false; // Сбрасываем флаг
+          skipSessionCheck = false;
         } else {
           checkSavedSessionOnLearnTab();
         }
       }
       
-      // При переходе на вкладку глав - загрузить данные
-      if (tab === 'chapters' && !chaptersData) {
-        loadChapters();
-      }
-      
-      if (tab === 'all' || tab === 'favorites') {
-        // Очищаем выбор при переключении вкладок
+      if (tab === 'favorites') {
         selectedWords.clear();
         updateSelectionBar();
         renderWords();
         updateCounts();
       }
       
-      // Пустой тренажёр — отложенная проверка сессии
       if (tab === 'empty') {
         if (typeof emptyTrainer.onShow === 'function') emptyTrainer.onShow();
       }
       
-      // Определения правил — загрузить если ещё не
       if (tab === 'rulesdefs') {
-        if (rulesDefs.length === 0) {
-          loadRulesDefs().then(() => renderDefVolumes());
-        } else {
-          renderDefVolumes();
-        }
+        loadRulesDefs();
       }
     }
 
     // Обновить счётчики
     function updateCounts() {
-      document.getElementById('allCount').textContent = allWords.length;
       document.getElementById('favCount').textContent = getFavoritesCount();
-      
-      if (currentTab === 'all') {
-        document.getElementById('wordCount').textContent = `${allWords.length} слов`;
-      } else {
-        document.getElementById('wordCount').textContent = `${getFavoritesCount()} избранных`;
-      }
+      document.getElementById('wordCount').textContent = `${getFavoritesCount()} избранных`;
     }
 
     // Отрисовка слов
     function renderWords() {
       const container = document.getElementById('wordsContainer');
-      let wordsToShow = currentTab === 'all' ? allWords : getFavorites();
+      const wordsToShow = getFavorites();
       
       if (wordsToShow.length === 0) {
-        if (currentTab === 'favorites') {
-          container.innerHTML = `
-            <div class="empty-state">
-              <div class="icon">⭐</div>
-              <p>Нет избранных слов</p>
-              <p style="font-size: 14px; margin-top: 8px;">Добавляйте слова в избранное из тренажеров</p>
-            </div>
-          `;
-        } else {
-          container.innerHTML = '<div class="error">Нет слов для отображения</div>';
-        }
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">⭐</div>
+            <p>Нет избранных слов</p>
+            <p style="font-size: 14px; margin-top: 8px;">Добавляйте слова в избранное из тренажеров</p>
+          </div>
+        `;
         return;
       }
 
@@ -2838,42 +2342,16 @@
     }
 
     async function loadWords() {
-      const container = document.getElementById('wordsContainer');
-      const copyAllBtn = document.getElementById('copyAllBtn');
-
-      try {
-        const response = await fetch('words.txt');
-        if (!response.ok) throw new Error('Файл не найден');
-        
-        const text = await response.text();
-        allWordsText = text;
-        
-        allWords = text.split('\n').filter(line => line.trim() && !line.trim().startsWith('#'));
-        
-        copyAllBtn.disabled = false;
-        
-        renderWords();
-        updateCounts();
-
-      } catch (error) {
-        console.error('Ошибка загрузки:', error);
-        container.innerHTML = '<div class="error">❌ Не удалось загрузить список слов</div>';
-        document.getElementById('wordCount').textContent = 'Ошибка';
-      }
+      renderWords();
+      updateCounts();
     }
 
     // Копировать всё
     document.getElementById('copyAllBtn').addEventListener('click', async () => {
-      let textToCopy;
-      if (currentTab === 'all') {
-        textToCopy = allWordsText;
-      } else {
-        textToCopy = getFavoritesAsText();
-      }
-      
+      const textToCopy = getFavoritesAsText();
       if (textToCopy) {
         await copyText(textToCopy);
-        showToast(currentTab === 'all' ? 'Весь список скопирован!' : 'Избранное скопировано!');
+        showToast('Избранное скопировано!');
       }
     });
 
@@ -2948,20 +2426,7 @@
       }
     });
 
-    // Клик на строку в контейнере глав - копировать
-    document.addEventListener('click', async (e) => {
-      const chapterWordsContainer = document.getElementById('chapterWordsContainer');
-      if (!chapterWordsContainer.contains(e.target)) return;
-      
-      const wordItem = e.target.closest('.word-item');
-      if (wordItem && !e.target.closest('.star-btn') && !e.target.closest('.copy-icon') && !e.target.closest('.select-circle')) {
-        const text = wordItem.getAttribute('data-text');
-        await copyText(text);
-        wordItem.classList.add('copied');
-        setTimeout(() => wordItem.classList.remove('copied'), 500);
-        showToast('Скопировано!');
-      }
-    });
+
 
     // Загружаем при старте
     loadWords();
@@ -3557,7 +3022,7 @@
       const pauseBtn = document.getElementById('pauseBtn');
       if (pauseBtn) { pauseBtn.innerHTML = '⏸️'; pauseBtn.title = 'Пауза'; }
       const testPauseBtn = document.getElementById('testPauseBtn');
-      btn.innerHTML = isPaused ? '? ����������' : '??';
+      if (testPauseBtn) { testPauseBtn.innerHTML = '⏸️'; testPauseBtn.title = 'Пауза'; }
     }
 
     // Инициализация picker при загрузке
@@ -3655,7 +3120,6 @@
         mistakeLines.forEach(function(line) {
           mistakeListDiv.innerHTML += '<div>' + escapeHtml(line) + '</div>';
         });
-        if (mistakeLines.length > 0) copyMistakesContainer.classList.remove('hidden');
         nextWord();
       }
 
@@ -3670,7 +3134,6 @@
       const trainer = document.getElementById('empty-trainer');
       const wordListTextarea = document.getElementById('empty-word-list');
       const loadListBtn = document.getElementById('empty-load-list');
-      const startMistakesBtn = document.getElementById('empty-start-mistakes');
       const retryAllBtn = document.getElementById('empty-retry-all');
       const learnMistakesBtn = document.getElementById('empty-learn-mistakes');
       const arabicWordH2 = document.getElementById('empty-arabic-word');
@@ -3682,7 +3145,6 @@
       const correctListDiv = document.getElementById('empty-correct-list');
       const mistakeListDiv = document.getElementById('empty-mistake-list');
       const afterSession = document.getElementById('empty-after-session');
-      const copyMistakesContainer = document.getElementById('empty-copy-mistakes-container');
       const copyMistakesBtn = document.getElementById('empty-copy-mistakes');
       const copySuccess = document.getElementById('empty-copy-success');
 
@@ -3726,22 +3188,14 @@
         btn.title = 'Показать перевод';
       }
 
-      function startSession(useMistakes) {
-        if (!useMistakes) {
-          mistakes = []; mistakeLines = [];
-          startMistakesBtn.classList.add('hidden');
-          learnMistakesBtn.classList.add('hidden');
-          sessionWords = allWords.slice();
-        } else {
-          sessionWords = mistakes.slice();
-          mistakes = []; mistakeLines = [];
-        }
+      function startSession() {
+        mistakes = []; mistakeLines = [];
+        sessionWords = allWords.slice();
         shuffle(sessionWords);
         total = sessionWords.length;
         currentIndex = 0;
         correctListDiv.innerHTML = '';
         mistakeListDiv.innerHTML = '';
-        copyMistakesContainer.classList.add('hidden');
         trainer.style.display = '';
         submitBtn.disabled = false;
         oralBtn.disabled = false;
@@ -3758,7 +3212,7 @@
         if (allWords.length === 0) { alert('Не удалось распознать слова. Проверьте формат.'); return; }
         saveWordList(text);
         loader.style.display = 'none';
-        startSession(false);
+        startSession();
       });
 
       const loadFavoritesBtn = document.getElementById('empty-load-favorites');
@@ -3787,11 +3241,6 @@
           submitBtn.disabled = true;
           oralBtn.disabled = true;
           forgotBtn.disabled = true;
-          if (mistakes.length) {
-            startMistakesBtn.classList.remove('hidden');
-            learnMistakesBtn.classList.remove('hidden');
-            copyMistakesContainer.classList.remove('hidden');
-          }
           afterSession.classList.remove('hidden');
           clearSession();
           return;
@@ -3812,7 +3261,6 @@
         mistakes.push(it);
         mistakeLines.push(it.originalLine);
         mistakeListDiv.innerHTML += '<div>' + escapeHtml(it.originalLine) + '</div>';
-        if (mistakes.length > 0) copyMistakesContainer.classList.remove('hidden');
       }
 
       function showWrongModal(arabicText, ruText, onClose) {
@@ -3848,8 +3296,7 @@
         modalTimer = setTimeout(function() { cleanup(); if (onClose) onClose(); }, 17000);
       }
 
-      startMistakesBtn.addEventListener('click', function() { if (mistakes.length) startSession(true); });
-      retryAllBtn.addEventListener('click', function() { clearSession(); startSession(false); });
+      retryAllBtn.addEventListener('click', function() { clearSession(); startSession(); });
       learnMistakesBtn.addEventListener('click', function() {
         if (!mistakeLines.length) return;
         try { localStorage.setItem('arabLearnMistakes', JSON.stringify(mistakeLines)); } catch (e) {}
@@ -3866,7 +3313,6 @@
         const ok = it.rusVariants.some(function(v) { return v === ans || v === norm; });
         if (ok) {
           correctListDiv.innerHTML += '<div>' + escapeHtml(it.originalLine) + '</div>';
-          if (typeof recordWordAnswer === 'function') recordWordAnswer();
           currentIndex++;
           saveSession();
           nextWord();
@@ -3880,7 +3326,6 @@
       function handleOralAnswer() {
         const it = sessionWords[currentIndex];
         correctListDiv.innerHTML += '<div>' + escapeHtml(it.originalLine) + '</div>';
-        if (typeof recordWordAnswer === 'function') recordWordAnswer();
         currentIndex++;
         saveSession();
         nextWord();

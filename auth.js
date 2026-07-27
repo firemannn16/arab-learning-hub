@@ -34,7 +34,7 @@
       if (!firebase.apps || !firebase.apps.length) {
         try { firebase.initializeApp(firebaseConfig); } catch(e) { console.warn('Auth init:', e.message); }
       }
-      // Init Firestore globally (needed by favorites.js, streak.js)
+      // Init Firestore globally (needed by favorites.js)
       try {
         if (!window.firestore) {
           window.firestore = firebase.firestore();
@@ -135,6 +135,7 @@
           display: none;
         }
         #auth-modal .dark-theme & .error-msg { color: #f87171; }
+        #auth-modal .dark-theme & .success-msg { color: #4ade80; }
         #auth-modal .divider {
           height: 1px; background: #e0e0e0; margin: 14px 0;
         }
@@ -162,6 +163,7 @@
           <div class="error-msg" id="authError"></div>
           <input type="email" id="authEmail" placeholder="Email" autocomplete="email">
           <input type="password" id="authPass" placeholder="Пароль" autocomplete="current-password">
+          <button class="link-btn" id="authForgot" style="text-align:right;margin:-4px 0 12px;font-size:0.85rem">Забыли пароль?</button>
           <button class="auth-btn" id="authLoginBtn">Войти</button>
           <button class="link-btn" id="authToRegister">Нет аккаунта? Зарегистрироваться</button>
         </div>
@@ -175,6 +177,15 @@
           <button class="auth-btn" id="authRegisterBtn">Зарегистрироваться</button>
           <button class="link-btn" id="authToLogin">Уже есть аккаунт? Войти</button>
         </div>
+        <div id="authViewReset" style="display:none">
+          <h2>Восстановление пароля</h2>
+          <div class="sub">Введите email, и мы отправим ссылку для сброса пароля</div>
+          <div class="error-msg" id="authResetError"></div>
+          <div class="success-msg" id="authResetSuccess" style="display:none;color:#16a34a;font-size:0.9rem;margin-bottom:12px;"></div>
+          <input type="email" id="authResetEmail" placeholder="Email" autocomplete="email">
+          <button class="auth-btn" id="authResetBtn">Отправить ссылку</button>
+          <button class="link-btn" id="authResetBack">← Вернуться ко входу</button>
+        </div>
       </div>
     `;
     document.body.appendChild(authModal);
@@ -185,21 +196,31 @@
     const regPass = authModal.querySelector('#authRegPass');
     const regPass2 = authModal.querySelector('#authRegPass2');
 
+    const resetEmail = authModal.querySelector('#authResetEmail');
+
     authModal.querySelector('#authLoginBtn').addEventListener('click', () => doLogin(emailInput.value, passInput.value));
     authModal.querySelector('#authRegisterBtn').addEventListener('click', () => doRegister(regEmail.value, regPass.value, regPass2.value));
+    authModal.querySelector('#authForgot').addEventListener('click', () => switchView('reset'));
+    authModal.querySelector('#authResetBtn').addEventListener('click', () => doResetPassword(resetEmail.value));
+    authModal.querySelector('#authResetBack').addEventListener('click', () => switchView('login'));
     authModal.querySelector('#authToRegister').addEventListener('click', () => switchView('register'));
     authModal.querySelector('#authToLogin').addEventListener('click', () => switchView('login'));
     [emailInput, passInput].forEach(f => f.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(emailInput.value, passInput.value); }));
     [regEmail, regPass, regPass2].forEach(f => f.addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(regEmail.value, regPass.value, regPass2.value); }));
+    resetEmail.addEventListener('keydown', e => { if (e.key === 'Enter') doResetPassword(resetEmail.value); });
   }
 
   function switchView(view) {
     const login = authModal.querySelector('#authViewLogin');
     const register = authModal.querySelector('#authViewRegister');
+    const reset = authModal.querySelector('#authViewReset');
     login.style.display = view === 'login' ? '' : 'none';
     register.style.display = view === 'register' ? '' : 'none';
+    reset.style.display = view === 'reset' ? '' : 'none';
     authModal.querySelector('#authError').style.display = 'none';
     authModal.querySelector('#authRegError').style.display = 'none';
+    authModal.querySelector('#authResetError').style.display = 'none';
+    authModal.querySelector('#authResetSuccess').style.display = 'none';
   }
 
   function setLoading(btnId, loading) {
@@ -209,7 +230,8 @@
       btn.innerHTML = '<span class="auth-loader"></span> Подождите...';
     } else {
       btn.disabled = false;
-      btn.textContent = btnId === 'authLoginBtn' ? 'Войти' : 'Зарегистрироваться';
+      const labels = { 'authLoginBtn': 'Войти', 'authRegisterBtn': 'Зарегистрироваться', 'authResetBtn': 'Отправить ссылку' };
+      btn.textContent = labels[btnId] || '';
     }
   }
 
@@ -250,6 +272,25 @@
       showError('authRegError', msgs[e.code] || 'Ошибка регистрации. Попробуйте позже.');
     } finally {
       setLoading('authRegisterBtn', false);
+    }
+  }
+
+  async function doResetPassword(email) {
+    const errorEl = authModal.querySelector('#authResetError');
+    const successEl = authModal.querySelector('#authResetSuccess');
+    errorEl.style.display = 'none';
+    successEl.style.display = 'none';
+    if (!email) { showError('authResetError', 'Введите email'); return; }
+    setLoading('authResetBtn', true);
+    try {
+      await window.firebaseAuth.sendPasswordResetEmail(email);
+      successEl.innerHTML = 'Ссылка для сброса пароля отправлена на ' + email + '<br><small style="opacity:0.75">Если письмо не пришло — проверьте папку «Спам»</small>';
+      successEl.style.display = 'block';
+    } catch (e) {
+      const msgs = { 'auth/user-not-found': 'Пользователь с таким email не найден', 'auth/invalid-email': 'Неверный email' };
+      showError('authResetError', msgs[e.code] || 'Ошибка. Попробуйте позже.');
+    } finally {
+      setLoading('authResetBtn', false);
     }
   }
 

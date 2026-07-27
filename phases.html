@@ -11,7 +11,7 @@
     <script src="storage-protection.js"></script>
     <script src="sidebar-menu.js"></script>
     <script src="favorites.js"></script>
-    <script src="streak.js"></script>
+
     <script src="auth.js"></script>
     <script>
       (function authGuard() {
@@ -762,7 +762,7 @@
             useFetchStreams: false
         });
         
-        // ✅ Делаем Firebase доступным глобально для streak.js
+        // ✅ Делаем Firebase доступным глобально
         window.firestore = db;
         window.firebaseEnabled = true;
         
@@ -2128,7 +2128,7 @@
                 row.classList.add('revealed');
                 
                 markWordAsOpened(word);
-                if(typeof recordWordAnswer === 'function') recordWordAnswer(); // Записываем для серии дней
+
                 updateStats();
             }
         });
