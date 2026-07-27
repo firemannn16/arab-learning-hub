@@ -815,7 +815,13 @@ function saveWordEdit(id, ru, gloss, arabicVariants, note) {
 }
 
 function rebuildWordsTxt() {
-  return entries.map(e => {
+  const seen = new Set();
+  return entries.filter(e => {
+    const key = (e.ru + '|' + (e.gloss || '') + '|' + e.arabicVariants.join('|')).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map(e => {
     const ruPart = e.ru + (e.gloss ? ` (${e.gloss})` : '');
     const arPart = e.arabicVariants.join(' - ');
     return `${ruPart} - ${arPart}`;
@@ -865,8 +871,8 @@ async function updateWordOnGitHub(entry, isRevert) {
         }
         throw new Error(`Ошибка PUT ${putRes.status}`);
       }
-      if (isRevert) delete pendingEdits[entry.id];
-      else saveEditsToStorage();
+      delete pendingEdits[entry.id];
+      saveEditsToStorage();
       return true;
     } catch(e) {
       if (attempt === 2) {
