@@ -105,6 +105,7 @@
             font-family: "Noto Naskh Arabic", Arial, sans-serif;
             font-size: 1.3rem;
             unicode-bidi: isolate;
+            white-space: nowrap;
             background: linear-gradient(135deg, #e0e7ff 0%, #f0e6ff 100%);
             padding: 2px 8px;
             border-radius: 6px;
@@ -330,6 +331,33 @@
             align-items: center;
         }
 
+        .eval-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        .btn-sm {
+            flex: none;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            min-width: 0;
+        }
+        .btn-eval {
+            flex: none;
+            width: 52px;
+            padding: 10px 0;
+            font-size: 1.2rem;
+            min-width: 0;
+            opacity: 0.85;
+        }
+        .btn-eval.selected {
+            opacity: 1;
+            transform: scale(1.1);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.4);
+        }
+        #nextBtn:disabled { opacity: 0.5; cursor: default; }
+
         @media (max-width: 600px) {
             body { padding: 15px; padding-top: 75px; }
             h1 { font-size: 1.4rem; }
@@ -373,11 +401,15 @@
                 <input type="text" class="answer-input" id="answerInput" autocomplete="off" placeholder="Введите ответ...">
                 <div class="actions">
                     <button class="btn btn-primary" id="answerBtn" onclick="revealAnswer()">Ответить</button>
-                    <button class="btn btn-secondary hidden" id="nextBtn" onclick="nextQuestion()">Далее →</button>
                 </div>
                 <div class="reference-block" id="referenceBlock">
                     <div class="reference-title">Эталон ответа</div>
                     <div class="reference-text" id="referenceText"></div>
+                </div>
+                <div class="eval-actions hidden" id="evalActions">
+                    <button class="btn btn-secondary btn-sm" id="nextBtn" onclick="nextQuestion()">Далее →</button>
+                    <button class="btn btn-success btn-eval" id="correctBtn" onclick="toggleEval('correct')" title="Ответил верно">✅</button>
+                    <button class="btn btn-danger btn-eval" id="wrongBtn" onclick="toggleEval('wrong')" title="Ответил неверно">❌</button>
                 </div>
             </div>
 
@@ -385,6 +417,19 @@
                 <div class="done-icon">✅</div>
                 <div class="done-title">Все вопросы пройдены!</div>
                 <button class="btn btn-primary" onclick="resetProgress()">🔄 Сбросить прогресс и начать заново</button>
+            </div>
+        </div>
+
+        <!-- Модалка правил для повторения -->
+        <div class="overlay hidden" id="reviewModal">
+            <div class="modal">
+                <h3>📚 Правила для повторения</h3>
+                <p>Ты ответил неверно на вопросы по этим правилам:</p>
+                <div class="rules-list-content" id="reviewListContent"></div>
+                <div class="modal-actions" style="margin-top: 15px;">
+                    <button class="btn btn-secondary" onclick="copyReviewList()" style="flex:none;width:48px;padding:10px 0;font-size:1.1rem" title="Копировать список">📋</button>
+                    <button class="btn btn-primary" onclick="closeReviewModal()">Ок</button>
+                </div>
             </div>
         </div>
 
@@ -443,10 +488,13 @@
         let pendingQueue = [];
         let currentIndex = 0;
         let answeredIds = new Set();
+        let reviewRules = new Set();
+        let evalChoice = null;
 
         document.addEventListener('DOMContentLoaded', async () => {
             customQuestions = loadCustomQuestions();
             answeredIds = loadAnsweredIds();
+            reviewRules = loadReviewRules();
             await loadQuestions();
             startExercise();
         });
@@ -475,6 +523,19 @@
 
         function saveAnsweredIds() {
             localStorage.setItem('rulesTestAnsweredIds', JSON.stringify([...answeredIds]));
+        }
+
+        function loadReviewRules() {
+            try {
+                const data = localStorage.getItem('rulesTestReviewRules');
+                return data ? new Set(JSON.parse(data)) : new Set();
+            } catch(e) {
+                return new Set();
+            }
+        }
+
+        function saveReviewRules() {
+            localStorage.setItem('rulesTestReviewRules', JSON.stringify([...reviewRules]));
         }
 
         async function loadQuestions() {
@@ -512,6 +573,7 @@
         function showQuestion() {
             if (currentIndex >= pendingQueue.length) {
                 document.getElementById('doneCard').classList.remove('hidden');
+                if (reviewRules.size > 0) showReviewModal();
                 return;
             }
 
@@ -532,7 +594,10 @@
             input.focus();
 
             document.getElementById('answerBtn').classList.remove('hidden');
-            document.getElementById('nextBtn').classList.add('hidden');
+            document.getElementById('evalActions').classList.add('hidden');
+            document.getElementById('correctBtn').classList.remove('selected');
+            document.getElementById('wrongBtn').classList.remove('selected');
+            document.getElementById('nextBtn').disabled = false;
 
             const refBlock = document.getElementById('referenceBlock');
             refBlock.classList.remove('show');
@@ -552,13 +617,49 @@
             document.getElementById('referenceBlock').classList.add('show');
             document.getElementById('answerInput').disabled = true;
             document.getElementById('answerBtn').classList.add('hidden');
-            document.getElementById('nextBtn').classList.remove('hidden');
+            document.getElementById('evalActions').classList.remove('hidden');
+            document.getElementById('correctBtn').classList.remove('selected');
+            document.getElementById('wrongBtn').classList.remove('selected');
+            document.getElementById('nextBtn').disabled = true;
 
+            evalChoice = null;
             updateRemaining();
         }
 
+        function toggleEval(choice) {
+            const correctBtn = document.getElementById('correctBtn');
+            const wrongBtn = document.getElementById('wrongBtn');
+            const nextBtn = document.getElementById('nextBtn');
+
+            // Повторное нажатие на выбранную кнопку — отменяем выбор
+            if (evalChoice === choice) {
+                evalChoice = null;
+                correctBtn.classList.remove('selected');
+                wrongBtn.classList.remove('selected');
+                nextBtn.disabled = true;
+                return;
+            }
+
+            // Выбираем другую кнопку
+            evalChoice = choice;
+            correctBtn.classList.remove('selected');
+            wrongBtn.classList.remove('selected');
+            if (choice === 'correct') {
+                correctBtn.classList.add('selected');
+            } else {
+                wrongBtn.classList.add('selected');
+            }
+            nextBtn.disabled = false;
+        }
+
         function nextQuestion() {
+            const q = pendingQueue[currentIndex];
+            if (evalChoice === 'wrong' && q && q.rule) {
+                reviewRules.add(q.rule);
+                saveReviewRules();
+            }
             currentIndex++;
+            evalChoice = null;
             showQuestion();
         }
 
@@ -566,8 +667,43 @@
             if (!confirm('Сбросить прогресс? Отвеченные вопросы будут открыты заново.')) return;
             answeredIds = new Set();
             saveAnsweredIds();
+            reviewRules = new Set();
+            saveReviewRules();
             startExercise();
         }
+
+        function showReviewModal() {
+            const content = document.getElementById('reviewListContent');
+            const rules = [...reviewRules];
+            content.innerHTML = rules.length > 0
+                ? rules.map((rule, i) =>
+                    `<div class="rules-list-item"><div class="rules-list-item-inner"><span class="rules-list-num">${i + 1}</span>${rule}</div></div>`
+                  ).join('')
+                : '<p style="color:#666">Нет правил для повторения — всё верно!</p>';
+            document.getElementById('reviewModal').classList.remove('hidden');
+        }
+
+        function closeReviewModal() {
+            document.getElementById('reviewModal').classList.add('hidden');
+        }
+
+        function copyReviewList() {
+            const rules = [...reviewRules];
+            if (rules.length === 0) {
+                alert('Список пуст');
+                return;
+            }
+            const text = rules.map((r, i) => `${i + 1}. ${r}`).join('\n');
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Список правил скопирован');
+            }).catch(() => {
+                alert('❌ Не удалось скопировать');
+            });
+        }
+
+        document.getElementById('reviewModal').addEventListener('click', e => {
+            if (e.target === e.currentTarget) closeReviewModal();
+        });
 
         function shuffleArray(a) {
             for (let i = a.length - 1; i > 0; i--) {
@@ -585,9 +721,10 @@
         document.getElementById('answerInput').addEventListener('keydown', e => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                if (!document.getElementById('nextBtn').classList.contains('hidden')) {
+                const nextBtn = document.getElementById('nextBtn');
+                if (!nextBtn.classList.contains('hidden') && !nextBtn.disabled) {
                     nextQuestion();
-                } else {
+                } else if (!document.getElementById('answerBtn').classList.contains('hidden')) {
                     revealAnswer();
                 }
             }
