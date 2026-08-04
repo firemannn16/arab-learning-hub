@@ -814,31 +814,20 @@ function saveWordEdit(id, ru, gloss, arabicVariants, note) {
   }
 }
 
-function rebuildWordsTxt() {
-  const seen = new Set();
-  return entries.filter(e => {
-    const key = (e.ru + '|' + (e.gloss || '') + '|' + e.arabicVariants.join('|')).toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  }).map(e => {
-    const ruPart = e.ru + (e.gloss ? ` (${e.gloss})` : '');
-    const arPart = e.arabicVariants.join(' - ');
-    return `${ruPart} - ${arPart}`;
-  }).join('\n');
+function rawLineOf(e) {
+  const ruPart = e.ru + (e.gloss ? ` (${e.gloss})` : '');
+  const arPart = e.arabicVariants.join(' - ');
+  return `${ruPart} - ${arPart}`;
 }
 
-async function updateWordOnGitHub(entry, isRevert) {
-  const token = getGitHubToken();
-  if (!token) {
-    showTemporaryNotify('Введите GitHub токен в настройках');
-    return false;
-  }
-  const updatedContent = rebuildWordsTxt();
-  const label = isRevert
-    ? `Отменено: ${entry.ru} — ${entry.arabicVariants.join(', ')}`
-    : `Исправлено: ${entry.ru} — ${entry.arabicVariants.join(', ')}`;
+function normalizeRawLine(line) {
+  return String(line).trim()
+    .replace(/[\u2010-\u2015\u2013\u2014\u2212]+/g, '-')
+    .replace(/\s*-\s*/g, ' - ')
+    .toLowerCase();
+}
 
+async function pushSingleLineUpdate(token, targetLine, replacementLine, label, isDeletion, idFallback) {
   const putUrl = `https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`;
 
   // До 3 попыток при конфликте SHA
@@ -851,6 +840,27 @@ async function updateWordOnGitHub(entry, isRevert) {
       });
       if (!getRes.ok) throw new Error(`Ошибка GET ${getRes.status}`);
       const fileData = await getRes.json();
+      const txt = base64Decode(fileData.content);
+      const lineEnding = txt.includes('\r\n') ? '\r\n' : '\n';
+      const hadTrailingNL = txt.endsWith('\n');
+      let lines = txt.split(/\r\n|\n/);
+      if (hadTrailingNL && lines[lines.length - 1] === '') lines.pop();
+
+      // Ищем строку по содержимому (не по браузерному порядку)
+      const target = targetLine ? normalizeRawLine(targetLine) : null;
+      let idx = target ? lines.findIndex(l => normalizeRawLine(l) === target) : -1;
+      if (idx === -1 && idFallback != null) {
+        idx = Math.min(idFallback - 1, lines.length - 1);
+      }
+      if (idx === -1) {
+        showTemporaryNotify('Не удалось найти строку в words.txt');
+        return false;
+      }
+
+      if (isDeletion) lines.splice(idx, 1);
+      else lines[idx] = replacementLine;
+
+      const updatedContent = lines.join(lineEnding) + (hadTrailingNL ? lineEnding : '');
 
       const putRes = await fetch(putUrl, {
         method: 'PUT',
@@ -871,8 +881,6 @@ async function updateWordOnGitHub(entry, isRevert) {
         }
         throw new Error(`Ошибка PUT ${putRes.status}`);
       }
-      delete pendingEdits[entry.id];
-      saveEditsToStorage();
       return true;
     } catch(e) {
       if (attempt === 2) {
@@ -883,6 +891,30 @@ async function updateWordOnGitHub(entry, isRevert) {
     }
   }
   return false;
+}
+
+async function updateWordOnGitHub(entry, isRevert, originalLine, idFallback) {
+  const token = getGitHubToken();
+  if (!token) {
+    showTemporaryNotify('Введите GitHub токен в настройках');
+    return false;
+  }
+  const label = isRevert
+    ? `Отменено: ${entry.ru} — ${entry.arabicVariants.join(', ')}`
+    : `Исправлено: ${entry.ru} — ${entry.arabicVariants.join(', ')}`;
+  const ok = await pushSingleLineUpdate(
+    token,
+    originalLine || rawLineOf(entry),
+    rawLineOf(entry),
+    label,
+    false,
+    idFallback
+  );
+  if (ok) {
+    delete pendingEdits[entry.id];
+    saveEditsToStorage();
+  }
+  return ok;
 }
 
 /* ===== Notes management ===== */
@@ -975,47 +1007,9 @@ async function deleteWord(item) {
   // Rebuild IDs sequentially
   entries.forEach((e, i) => e.id = i + 1);
 
-  // Rebuild words.txt and push to GitHub
-  const updatedContent = rebuildWordsTxt();
+  // Точечно удаляем строку из текущего words.txt на GitHub
   const label = `Удалено: ${item.ru}`;
-
-  let success = false;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const getUrl = `https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}?ref=${GH_BRANCH}`;
-      const getRes = await fetch(getUrl, {
-        headers: { 'Authorization': `token ${token}` },
-        cache: 'no-cache'
-      });
-      if (!getRes.ok) throw new Error(`Ошибка GET ${getRes.status}`);
-      const fileData = await getRes.json();
-
-      const putRes = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `token ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: label,
-          content: base64Encode(updatedContent),
-          sha: fileData.sha,
-          branch: GH_BRANCH
-        })
-      });
-      if (!putRes.ok) {
-        if (putRes.status === 409 && attempt < 2) continue;
-        throw new Error(`Ошибка PUT ${putRes.status}`);
-      }
-      success = true;
-      break;
-    } catch(e) {
-      if (attempt === 2) {
-        console.error('GitHub API error:', e);
-        showTemporaryNotify('Ошибка GitHub: ' + e.message);
-      }
-    }
-  }
+  const success = await pushSingleLineUpdate(token, rawLineOf(item), null, label, true, item.id);
 
   if (success) {
     // Remove note from notes.json if exists
@@ -1104,8 +1098,9 @@ function enableEditMode(item) {
     };
 
     // Сначала обновляем entries, потом отправляем на GitHub
+    const originalLine = rawLineOf(item);
     saveWordEdit(item.id, newRu, newGloss, arabicParts, newNote);
-    const ok = await updateWordOnGitHub(updatedEntry, false);
+    const ok = await updateWordOnGitHub(updatedEntry, false, originalLine, item.id);
     if (ok) {
       // Сохраняем примечание в notes.json
       const arKey = arabicParts[0] || item.id.toString();
