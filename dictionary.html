@@ -513,6 +513,57 @@ window.onDictStarClick = function(e, btn) {
 };
 
 /* ===== search logic with prioritization & fuzzy ===== */
+function matchRadius(len) {
+  return Math.max(1, Math.floor(len / 3));
+}
+
+function scoreRussian(e, qRu) {
+  const ru = e._ru_norm;
+  if (ru.startsWith(qRu)) return 1000;
+  if (ru.includes(qRu)) return 600;
+  if (qRu.length >= 3) {
+    const d = levenshtein(qRu, ru.substring(0, Math.min(ru.length, qRu.length + 2)));
+    if (d <= matchRadius(qRu.length)) return Math.max(1, 300 - d * 30);
+  }
+  return 0;
+}
+
+function scoreArabic(e, qAr, qq, qRu) {
+  let best = 0;
+  // Точное совпадение с огласовками — самый сильный сигнал (напр. «مَلَّ»)
+  if (qq) {
+    for (let j = 0; j < e._arabic_norm.length; j++) {
+      if (e.arabicVariants[j] && e.arabicVariants[j].includes(qq)) {
+        best = 980 + qAr.length;
+        break;
+      }
+    }
+  }
+  if (best < 900) {
+    for (let j = 0; j < e._arabic_norm.length; j++) {
+      const an = e._arabic_norm[j];
+      let s = 0;
+      if (an.startsWith(qAr)) {
+        s = 900 + qAr.length;
+      } else if (an.includes(qAr)) {
+        s = 500 + qAr.length;
+      }
+      if (s > best) best = s;
+      if (best >= 900) break;
+    }
+  }
+  if (!best && e._ru_norm.includes(qRu)) best = 420;
+  if (!best && qAr.length >= 3) {
+    const maxD = matchRadius(qAr.length);
+    for (let j = 0; j < e._arabic_norm.length; j++) {
+      const an = e._arabic_norm[j];
+      const d = levenshtein(qAr, an.substring(0, Math.min(an.length, qAr.length + 2)));
+      if (d <= maxD) { best = Math.max(1, 220 - d * 25); break; }
+    }
+  }
+  return best;
+}
+
 function performSearch(q) {
   const qq = q.trim();
   if (qq === lastQuery) return lastResults;
@@ -526,75 +577,16 @@ function performSearch(q) {
   const qAr = normalizeArabic(qq);
   const useCyr = isCyrillic(qq);
 
-  // Results with priorities
-  const exactStart = [];
-  const exactMatch = [];
-  const fuzzyMatch = [];
-
-  for (let i = 0; i < entries.length; i++) {
-    const e = entries[i];
-    let matched = false;
-    let priority = 0;
-
-    if (useCyr) {
-      // Russian search
-      if (e._ru_norm.startsWith(qRu)) {
-        exactStart.push(e);
-        matched = true;
-      } else if (e._ru_norm.includes(qRu)) {
-        exactMatch.push(e);
-        matched = true;
-      } else {
-        // Fuzzy match for Russian
-        const dist = levenshtein(qRu, e._ru_norm.substring(0, qRu.length + 2));
-        if (dist <= 2 && qRu.length > 2) {
-          fuzzyMatch.push(e);
-          matched = true;
-        }
-      }
-    } else {
-      // Arabic search
-      let foundInArabic = false;
-      for (let j = 0; j < e._arabic_norm.length; j++) {
-        const arNorm = e._arabic_norm[j];
-        if (arNorm.startsWith(qAr)) {
-          exactStart.push(e);
-          foundInArabic = true;
-          break;
-        } else if (arNorm.includes(qAr)) {
-          exactMatch.push(e);
-          foundInArabic = true;
-          break;
-        } else if (e.arabicVariants[j] && e.arabicVariants[j].includes(qq)) {
-          // Direct match with diacritics
-          exactMatch.push(e);
-          foundInArabic = true;
-          break;
-        }
-      }
-      
-      if (!foundInArabic) {
-        // Try Russian as fallback
-        if (e._ru_norm.includes(qRu)) {
-          exactMatch.push(e);
-          foundInArabic = true;
-        }
-      }
-      
-      if (!foundInArabic && qAr.length > 2) {
-        // Fuzzy for Arabic
-        for (let j = 0; j < e._arabic_norm.length; j++) {
-          const dist = levenshtein(qAr, e._arabic_norm[j].substring(0, qAr.length + 2));
-          if (dist <= 2) {
-            fuzzyMatch.push(e);
-            break;
-          }
-        }
-      }
-    }
+  const scored = [];
+  const N = entries.length;
+  for (let i = 0; i < N; i++) {
+    const s = useCyr
+      ? scoreRussian(entries[i], qRu)
+      : scoreArabic(entries[i], qAr, qq, qRu);
+    if (s > 0) scored.push({ i, s });
   }
-
-  lastResults = [...exactStart, ...exactMatch, ...fuzzyMatch];
+  scored.sort((a, b) => b.s - a.s || a.i - b.i);
+  lastResults = scored.map(x => entries[x.i]);
   return lastResults;
 }
 
