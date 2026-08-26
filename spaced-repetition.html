@@ -601,10 +601,6 @@
   const LOGS_KEY = 'arabSrLogs';
   const BOOST_NEW_KEY = 'arabSrBoostNew';
   const BOOST_REVIEW_KEY = 'arabSrBoostReview';
-  const EXHAUSTED_NEW_KEY = 'arabSrExhaustedNew';
-  const EXHAUSTED_REVIEW_KEY = 'arabSrExhaustedReview';
-  let exhaustedNewAt = null;
-  let exhaustedReviewAt = null;
 
   let allWords = [];
   let notesMap = {};
@@ -723,85 +719,6 @@
   function saveBoostReview(val) {
     boostReview = val;
     localStorage.setItem(BOOST_REVIEW_KEY, JSON.stringify({ date: srDayKey(), boost: val }));
-  }
-  function loadExhaustedTimestamps() {
-    try {
-      const d = JSON.parse(localStorage.getItem(EXHAUSTED_NEW_KEY));
-      if (d && d.ts) exhaustedNewAt = d.ts; else exhaustedNewAt = null;
-    } catch(e) { exhaustedNewAt = null; }
-    try {
-      const d = JSON.parse(localStorage.getItem(EXHAUSTED_REVIEW_KEY));
-      if (d && d.ts) exhaustedReviewAt = d.ts; else exhaustedReviewAt = null;
-    } catch(e) { exhaustedReviewAt = null; }
-  }
-  function saveExhaustedNew(ts) {
-    exhaustedNewAt = ts;
-    if (ts) localStorage.setItem(EXHAUSTED_NEW_KEY, JSON.stringify({ ts: ts }));
-    else localStorage.removeItem(EXHAUSTED_NEW_KEY);
-  }
-  function saveExhaustedReview(ts) {
-    exhaustedReviewAt = ts;
-    if (ts) localStorage.setItem(EXHAUSTED_REVIEW_KEY, JSON.stringify({ ts: ts }));
-    else localStorage.removeItem(EXHAUSTED_REVIEW_KEY);
-  }
-  function msUntilExhaustionReset(exhaustedAt) {
-    if (!exhaustedAt) return 0;
-    const resetAt = exhaustedAt + 24 * 3600000;
-    return Math.max(0, resetAt - Date.now());
-  }
-
-  // Таймер обратного отсчёта до полуночи МСК
-  function msUntilMoscowMidnight() {
-    const now = Date.now();
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Europe/Moscow',
-      year: 'numeric', month: '2-digit', day: '2-digit'
-    }).formatToParts(new Date(now));
-    const y = parseInt(parts.find(p => p.type === 'year').value);
-    const m = parseInt(parts.find(p => p.type === 'month').value) - 1;
-    const d = parseInt(parts.find(p => p.type === 'day').value);
-    const moscowMidnightUtc = Date.UTC(y, m, d + 1, 0, 0, 0) - 3 * 3600000;
-    return Math.max(0, moscowMidnightUtc - now);
-  }
-  function formatCountdown(ms) {
-    const totalSec = Math.ceil(ms / 1000);
-    const h = Math.floor(totalSec / 3600);
-    const m = Math.floor((totalSec % 3600) / 60);
-    const s = totalSec % 60;
-    return h + 'ч ' + String(m).padStart(2,'0') + 'м ' + String(s).padStart(2,'0') + 'с';
-  }
-  let settingsTimerInterval = null;
-  function startSettingsTimer() {
-    stopSettingsTimer();
-    settingsTimerInterval = setInterval(() => {
-      let needRerender = false;
-      if (exhaustedNewAt && msUntilExhaustionReset(exhaustedNewAt) <= 0) {
-        todayCount = 0; saveTodayCount();
-        newTodayCount = 0; saveNewTodayCount();
-        saveExhaustedNew(null);
-        needRerender = true;
-      }
-      if (exhaustedReviewAt && msUntilExhaustionReset(exhaustedReviewAt) <= 0) {
-        todayCount = 0; saveTodayCount();
-        reviewTodayCount = 0; saveReviewTodayCount();
-        saveExhaustedReview(null);
-        needRerender = true;
-      }
-      if (needRerender) { renderLimitInfo(); return; }
-      const newExh = document.getElementById('limitNewExhausted');
-      const revExh = document.getElementById('maxReviewsExhausted');
-      if (newExh && newExh.style.display !== 'none') {
-        const timerEl = newExh.querySelector('.setting-timer');
-        if (timerEl) timerEl.textContent = formatCountdown(msUntilExhaustionReset(exhaustedNewAt));
-      }
-      if (revExh && revExh.style.display !== 'none') {
-        const timerEl = revExh.querySelector('.setting-timer');
-        if (timerEl) timerEl.textContent = formatCountdown(msUntilExhaustionReset(exhaustedReviewAt));
-      }
-    }, 1000);
-  }
-  function stopSettingsTimer() {
-    if (settingsTimerInterval) { clearInterval(settingsTimerInterval); settingsTimerInterval = null; }
   }
 
   // Сколько всего повторений сегодня
@@ -924,7 +841,6 @@
     loadNewTodayCount();
     loadReviewTodayCount();
     loadBoostLimits();
-    loadExhaustedTimestamps();
     loadLogs();
     // Миграция на настоящий FSRS-5: старые веса обучены на кривой модели — сбрасываем
     const fsrsV2Done = localStorage.getItem('sr_fsrs_v2') === '1';
@@ -1077,20 +993,10 @@
         todayCount = 0; saveTodayCount();
         newTodayCount = 0; saveNewTodayCount();
         reviewTodayCount = 0; saveReviewTodayCount();
-        saveExhaustedNew(null);
-        saveExhaustedReview(null);
+        boostNew = 0; saveBoostNew(0);
+        boostReview = 0; saveBoostReview(0);
       }
     } catch(e) {}
-    if (exhaustedNewAt && msUntilExhaustionReset(exhaustedNewAt) <= 0) {
-      todayCount = 0; saveTodayCount();
-      newTodayCount = 0; saveNewTodayCount();
-      saveExhaustedNew(null);
-    }
-    if (exhaustedReviewAt && msUntilExhaustionReset(exhaustedReviewAt) <= 0) {
-      todayCount = 0; saveTodayCount();
-      reviewTodayCount = 0; saveReviewTodayCount();
-      saveExhaustedReview(null);
-    }
     const effectiveNewLimit = limitNew + boostNew;
     const effectiveReviewLimit = maxReviews + boostReview;
     newCardsLeft = Math.max(0, effectiveNewLimit - newTodayCount);
@@ -1331,6 +1237,8 @@
       window.__keyHandlerInstalled = true;
       document.addEventListener('keydown', function globalKeyHandler(e) {
         if (['1','2','3','4'].includes(e.key) && window.__currentCard) {
+          const tag = document.activeElement?.tagName;
+          if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
           const rating = parseInt(e.key) - 1;
           const c = window.__currentCard;
           window.__currentCard = null;
@@ -1407,12 +1315,10 @@
       if (cards[idx].state === window.FSRS_STATE.NEW) {
         newTodayCount++;
         saveNewTodayCount();
-        if (newTodayCount >= limitNew && limitNew > 0 && !exhaustedNewAt) saveExhaustedNew(now);
       }
       if (cards[idx].state === window.FSRS_STATE.REVIEW) {
         reviewTodayCount++;
         saveReviewTodayCount();
-        if (!unlimitedReviews && reviewTodayCount >= maxReviews && maxReviews > 0 && !exhaustedReviewAt) saveExhaustedReview(now);
       }
       cards[idx] = updated;
     }
@@ -1538,8 +1444,6 @@
     boostNew = 0; boostReview = 0;
     localStorage.removeItem(BOOST_NEW_KEY);
     localStorage.removeItem(BOOST_REVIEW_KEY);
-    saveExhaustedNew(null);
-    saveExhaustedReview(null);
     try {
       if (window.auth && window.authUser) {
         await saveCardsToFirestore(cards);
@@ -1953,7 +1857,6 @@
     document.getElementById('maxReviewsRow').style.display = unlimitedReviews ? 'none' : 'block';
     renderLimitInfo();
     modal.style.display = 'flex';
-    startSettingsTimer();
   }
 
   function renderLimitInfo() {
@@ -1969,7 +1872,7 @@
     newInfoEl.innerHTML = infoHtml;
     if (newDailyExhausted) {
       newExhEl.style.display = 'block';
-      newExhEl.innerHTML = '<div class="setting-exhausted"><div class="setting-exhausted-text">Лимит исчерпан, сброс через:</div><div class="setting-exhausted-row"><span class="setting-timer">' + formatCountdown(msUntilExhaustionReset(exhaustedNewAt)) + '</span><button class="setting-boost-btn" id="boostNewBtn">Добавить ещё</button></div></div>';
+      newExhEl.innerHTML = '<div class="setting-exhausted"><div class="setting-exhausted-text">Лимит исчерпан, сброс в 00:00 (по мск)</div><div class="setting-exhausted-row"><button class="setting-boost-btn" id="boostNewBtn">Добавить ещё</button></div></div>';
       document.getElementById('boostNewBtn').addEventListener('click', () => openBoostModal('new'));
     } else {
       newExhEl.style.display = 'none';
@@ -1988,7 +1891,7 @@
       revInfoEl.innerHTML = revInfoHtml;
       if (revDailyExhausted) {
         revExhEl.style.display = 'block';
-        revExhEl.innerHTML = '<div class="setting-exhausted"><div class="setting-exhausted-text">Лимит исчерпан, сброс через:</div><div class="setting-exhausted-row"><span class="setting-timer">' + formatCountdown(msUntilExhaustionReset(exhaustedReviewAt)) + '</span><button class="setting-boost-btn" id="boostReviewBtn">Добавить ещё</button></div></div>';
+        revExhEl.innerHTML = '<div class="setting-exhausted"><div class="setting-exhausted-text">Лимит исчерпан, сброс в 00:00 (по мск)</div><div class="setting-exhausted-row"><button class="setting-boost-btn" id="boostReviewBtn">Добавить ещё</button></div></div>';
         document.getElementById('boostReviewBtn').addEventListener('click', () => openBoostModal('review'));
       } else {
         revExhEl.style.display = 'none';
@@ -2003,11 +1906,11 @@
     const input = document.getElementById('boostInput');
     if (type === 'new') {
       title.textContent = 'Добавить новых карт';
-      desc.textContent = 'Ежедневный лимит: ' + limitNew + '. Сколько добавить?';
+      desc.textContent = 'Вы добавили сегодня: ' + boostNew;
       input.value = '';
     } else {
       title.textContent = 'Добавить повторений';
-      desc.textContent = 'Ежедневный лимит: ' + maxReviews + '. Сколько добавить?';
+      desc.textContent = 'Вы добавили сегодня: ' + boostReview;
       input.value = '';
     }
     input.focus();
@@ -2040,7 +1943,6 @@
     maxReviews = Math.max(0, parseInt(document.getElementById('maxReviewsInput').value) || 0);
     unlimitedReviews = document.getElementById('unlimitedReviews').checked;
     saveSettingsToStorage();
-    stopSettingsTimer();
     document.getElementById('settingsModal').style.display = 'none';
   });
   document.getElementById('unlimitedReviews').addEventListener('change', function() {
@@ -2048,18 +1950,15 @@
     renderLimitInfo();
   });
   document.getElementById('settingsBackBtn').addEventListener('click', () => {
-    stopSettingsTimer();
     document.getElementById('settingsModal').style.display = 'none';
   });
   document.getElementById('statsBtn').addEventListener('click', () => {
-    stopSettingsTimer();
     document.getElementById('settingsModal').style.display = 'none';
     renderStats();
     document.getElementById('statsModal').style.display = 'flex';
   });
-  document.getElementById('optimizeBtn').addEventListener('click', () => { stopSettingsTimer(); optimizeFSRS(); });
+  document.getElementById('optimizeBtn').addEventListener('click', () => optimizeFSRS());
   document.getElementById('forecastBtn').addEventListener('click', () => {
-    stopSettingsTimer();
     document.getElementById('settingsModal').style.display = 'none';
     renderForecast();
     document.getElementById('forecastModal').style.display = 'flex';
@@ -2084,7 +1983,6 @@
     showWordsByDifficulty(parseInt(el.dataset.diffBin), el.dataset.dlabel);
   });
   document.getElementById('resetBtn').addEventListener('click', () => {
-    stopSettingsTimer();
     showConfirm(
       'Сбросить весь прогресс?',
       'Это действие удалит весь прогресс обучения для этой колоды на всех ваших устройствах. Все интервалы повторения, даты изучения и статистика будут сброшены. Отменить это действие невозможно.',
@@ -2095,7 +1993,7 @@
     );
   });
   document.getElementById('settingsModal').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) { stopSettingsTimer(); e.target.style.display = 'none'; }
+    if (e.target === e.currentTarget) e.target.style.display = 'none';
   });
 
   // Синхронизация при смене auth
