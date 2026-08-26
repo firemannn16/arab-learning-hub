@@ -975,7 +975,8 @@
     // Повторяемые — самые просроченные первые
     reviewCards.sort((a, b) => (a.due || now) - (b.due || now));
     if (!unlimitedReviews && maxReviews > 0) {
-      reviewCards.splice(maxReviews);
+      const reviewRemaining = Math.max(0, maxReviews - todayCount);
+      reviewCards.splice(reviewRemaining);
     }
     // Новые — перемешать
     for (let i = newCards.length - 1; i > 0; i--) {
@@ -988,10 +989,6 @@
       ...newCards.slice(0, newCardsLeft),
       ...learningCards
     ];
-    const dailyRemaining = Math.max(0, limitNew - todayCount);
-    if (queue.length > dailyRemaining) {
-      queue.length = dailyRemaining;
-    }
     currentIndex = 0;
     sessionTotal = queue.length;
     sessionDone = 0;
