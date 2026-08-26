@@ -496,6 +496,7 @@
 
     <div class="setting-row">
       <div class="setting-label">Новых карт в день:</div>
+      <input type="number" id="limitNewInput" min="0" max="999" style="width:100%;padding:10px;border-radius:8px;border:2px solid #d1d5db;font-size:1rem;text-align:center">
       <div id="limitNewInfo"></div>
       <div id="limitNewExhausted" style="display:none"></div>
     </div>
@@ -508,6 +509,7 @@
     </div>
     <div class="setting-row" id="maxReviewsRow">
       <div class="setting-label">Макс повторений в день:</div>
+      <input type="number" id="maxReviewsInput" min="0" max="999" style="width:100%;padding:10px;border-radius:8px;border:2px solid #d1d5db;font-size:1rem;text-align:center">
       <div id="maxReviewsInfo"></div>
       <div id="maxReviewsExhausted" style="display:none"></div>
     </div>
@@ -525,7 +527,7 @@
     <h3 id="boostTitle" style="margin:0 0 4px;font-size:1rem;text-align:center"></h3>
     <p id="boostDesc" style="font-size:0.8rem;color:#6b7280;text-align:center;margin:0 0 12px"></p>
     <div class="boost-input-row">
-      <input type="number" id="boostInput" min="1" max="999" placeholder="Новый лимит">
+      <input type="number" id="boostInput" min="1" max="999" placeholder="Сколько добавить">
     </div>
     <button id="boostSaveBtn" class="boost-save-btn">Сохранить</button>
     <button id="boostCancelBtn" style="width:100%;padding:10px;border:none;border-radius:10px;background:transparent;color:#6b7280;font-size:0.9rem;cursor:pointer;margin-top:8px">Отмена</button>
@@ -599,6 +601,10 @@
   const LOGS_KEY = 'arabSrLogs';
   const BOOST_NEW_KEY = 'arabSrBoostNew';
   const BOOST_REVIEW_KEY = 'arabSrBoostReview';
+  const EXHAUSTED_NEW_KEY = 'arabSrExhaustedNew';
+  const EXHAUSTED_REVIEW_KEY = 'arabSrExhaustedReview';
+  let exhaustedNewAt = null;
+  let exhaustedReviewAt = null;
 
   let allWords = [];
   let notesMap = {};
@@ -718,6 +724,31 @@
     boostReview = val;
     localStorage.setItem(BOOST_REVIEW_KEY, JSON.stringify({ date: srDayKey(), boost: val }));
   }
+  function loadExhaustedTimestamps() {
+    try {
+      const d = JSON.parse(localStorage.getItem(EXHAUSTED_NEW_KEY));
+      if (d && d.ts) exhaustedNewAt = d.ts; else exhaustedNewAt = null;
+    } catch(e) { exhaustedNewAt = null; }
+    try {
+      const d = JSON.parse(localStorage.getItem(EXHAUSTED_REVIEW_KEY));
+      if (d && d.ts) exhaustedReviewAt = d.ts; else exhaustedReviewAt = null;
+    } catch(e) { exhaustedReviewAt = null; }
+  }
+  function saveExhaustedNew(ts) {
+    exhaustedNewAt = ts;
+    if (ts) localStorage.setItem(EXHAUSTED_NEW_KEY, JSON.stringify({ ts: ts }));
+    else localStorage.removeItem(EXHAUSTED_NEW_KEY);
+  }
+  function saveExhaustedReview(ts) {
+    exhaustedReviewAt = ts;
+    if (ts) localStorage.setItem(EXHAUSTED_REVIEW_KEY, JSON.stringify({ ts: ts }));
+    else localStorage.removeItem(EXHAUSTED_REVIEW_KEY);
+  }
+  function msUntilExhaustionReset(exhaustedAt) {
+    if (!exhaustedAt) return 0;
+    const resetAt = exhaustedAt + 24 * 3600000;
+    return Math.max(0, resetAt - Date.now());
+  }
 
   // Таймер обратного отсчёта до полуночи МСК
   function msUntilMoscowMidnight() {
@@ -740,32 +771,32 @@
     return h + 'ч ' + String(m).padStart(2,'0') + 'м ' + String(s).padStart(2,'0') + 'с';
   }
   let settingsTimerInterval = null;
-  let lastTimerDayKey = null;
   function startSettingsTimer() {
     stopSettingsTimer();
-    lastTimerDayKey = srDayKey();
     settingsTimerInterval = setInterval(() => {
-      const currentDayKey = srDayKey();
-      if (currentDayKey !== lastTimerDayKey) {
-        lastTimerDayKey = currentDayKey;
+      let needRerender = false;
+      if (exhaustedNewAt && msUntilExhaustionReset(exhaustedNewAt) <= 0) {
         todayCount = 0; saveTodayCount();
         newTodayCount = 0; saveNewTodayCount();
-        reviewTodayCount = 0; saveReviewTodayCount();
-        loadBoostLimits();
-        renderLimitInfo();
-        return;
+        saveExhaustedNew(null);
+        needRerender = true;
       }
-      const ms = msUntilMoscowMidnight();
-      const text = formatCountdown(ms);
+      if (exhaustedReviewAt && msUntilExhaustionReset(exhaustedReviewAt) <= 0) {
+        todayCount = 0; saveTodayCount();
+        reviewTodayCount = 0; saveReviewTodayCount();
+        saveExhaustedReview(null);
+        needRerender = true;
+      }
+      if (needRerender) { renderLimitInfo(); return; }
       const newExh = document.getElementById('limitNewExhausted');
       const revExh = document.getElementById('maxReviewsExhausted');
       if (newExh && newExh.style.display !== 'none') {
         const timerEl = newExh.querySelector('.setting-timer');
-        if (timerEl) timerEl.textContent = text;
+        if (timerEl) timerEl.textContent = formatCountdown(msUntilExhaustionReset(exhaustedNewAt));
       }
       if (revExh && revExh.style.display !== 'none') {
         const timerEl = revExh.querySelector('.setting-timer');
-        if (timerEl) timerEl.textContent = text;
+        if (timerEl) timerEl.textContent = formatCountdown(msUntilExhaustionReset(exhaustedReviewAt));
       }
     }, 1000);
   }
@@ -893,6 +924,7 @@
     loadNewTodayCount();
     loadReviewTodayCount();
     loadBoostLimits();
+    loadExhaustedTimestamps();
     loadLogs();
     // Миграция на настоящий FSRS-5: старые веса обучены на кривой модели — сбрасываем
     const fsrsV2Done = localStorage.getItem('sr_fsrs_v2') === '1';
@@ -1045,9 +1077,20 @@
         todayCount = 0; saveTodayCount();
         newTodayCount = 0; saveNewTodayCount();
         reviewTodayCount = 0; saveReviewTodayCount();
-        loadBoostLimits();
+        saveExhaustedNew(null);
+        saveExhaustedReview(null);
       }
     } catch(e) {}
+    if (exhaustedNewAt && msUntilExhaustionReset(exhaustedNewAt) <= 0) {
+      todayCount = 0; saveTodayCount();
+      newTodayCount = 0; saveNewTodayCount();
+      saveExhaustedNew(null);
+    }
+    if (exhaustedReviewAt && msUntilExhaustionReset(exhaustedReviewAt) <= 0) {
+      todayCount = 0; saveTodayCount();
+      reviewTodayCount = 0; saveReviewTodayCount();
+      saveExhaustedReview(null);
+    }
     const effectiveNewLimit = limitNew + boostNew;
     const effectiveReviewLimit = maxReviews + boostReview;
     newCardsLeft = Math.max(0, effectiveNewLimit - newTodayCount);
@@ -1364,10 +1407,12 @@
       if (cards[idx].state === window.FSRS_STATE.NEW) {
         newTodayCount++;
         saveNewTodayCount();
+        if (newTodayCount >= limitNew && limitNew > 0 && !exhaustedNewAt) saveExhaustedNew(now);
       }
       if (cards[idx].state === window.FSRS_STATE.REVIEW) {
         reviewTodayCount++;
         saveReviewTodayCount();
+        if (!unlimitedReviews && reviewTodayCount >= maxReviews && maxReviews > 0 && !exhaustedReviewAt) saveExhaustedReview(now);
       }
       cards[idx] = updated;
     }
@@ -1493,6 +1538,8 @@
     boostNew = 0; boostReview = 0;
     localStorage.removeItem(BOOST_NEW_KEY);
     localStorage.removeItem(BOOST_REVIEW_KEY);
+    saveExhaustedNew(null);
+    saveExhaustedReview(null);
     try {
       if (window.auth && window.authUser) {
         await saveCardsToFirestore(cards);
@@ -1900,6 +1947,8 @@
   function openSettings() {
     loadBoostLimits();
     const modal = document.getElementById('settingsModal');
+    document.getElementById('limitNewInput').value = limitNew;
+    document.getElementById('maxReviewsInput').value = maxReviews;
     document.getElementById('unlimitedReviews').checked = unlimitedReviews;
     document.getElementById('maxReviewsRow').style.display = unlimitedReviews ? 'none' : 'block';
     renderLimitInfo();
@@ -1908,30 +1957,38 @@
   }
 
   function renderLimitInfo() {
-    const newEffective = limitNew + boostNew;
-    const newRemaining = Math.max(0, newEffective - newTodayCount);
-    const newExhausted = newRemaining <= 0 && newEffective > 0;
+    const newDailyRemaining = Math.max(0, limitNew - newTodayCount);
+    const newBoostRemaining = Math.max(0, boostNew - Math.max(0, newTodayCount - limitNew));
+    const newDailyExhausted = newDailyRemaining <= 0 && limitNew > 0;
     const newInfoEl = document.getElementById('limitNewInfo');
     const newExhEl = document.getElementById('limitNewExhausted');
-    newInfoEl.innerHTML = '<div class="setting-limit-info"><span>Лимит <b>' + newEffective + '</b></span><span class="setting-limit-remaining">Осталось: ' + newRemaining + '</span></div>';
-    if (newExhausted) {
+    let infoHtml = '<div class="setting-limit-info"><span>Ежедневный лимит: <b>' + limitNew + '</b></span><span class="setting-limit-remaining">Осталось: ' + newDailyRemaining + '</span></div>';
+    if (boostNew > 0) {
+      infoHtml += '<div class="setting-limit-info"><span>Добавлено: <b>' + boostNew + '</b></span><span class="setting-limit-remaining">Осталось: ' + newBoostRemaining + '</span></div>';
+    }
+    newInfoEl.innerHTML = infoHtml;
+    if (newDailyExhausted) {
       newExhEl.style.display = 'block';
-      newExhEl.innerHTML = '<div class="setting-exhausted"><div class="setting-exhausted-text">Лимит исчерпан, лимит сбросится через:</div><div class="setting-exhausted-row"><span class="setting-timer">' + formatCountdown(msUntilMoscowMidnight()) + '</span><button class="setting-boost-btn" id="boostNewBtn">Добавить ещё</button></div></div>';
+      newExhEl.innerHTML = '<div class="setting-exhausted"><div class="setting-exhausted-text">Лимит исчерпан, сброс через:</div><div class="setting-exhausted-row"><span class="setting-timer">' + formatCountdown(msUntilExhaustionReset(exhaustedNewAt)) + '</span><button class="setting-boost-btn" id="boostNewBtn">Добавить ещё</button></div></div>';
       document.getElementById('boostNewBtn').addEventListener('click', () => openBoostModal('new'));
     } else {
       newExhEl.style.display = 'none';
     }
 
     if (!unlimitedReviews) {
-      const revEffective = maxReviews + boostReview;
-      const revRemaining = Math.max(0, revEffective - reviewTodayCount);
-      const revExhausted = revRemaining <= 0 && revEffective > 0;
+      const revDailyRemaining = Math.max(0, maxReviews - reviewTodayCount);
+      const revBoostRemaining = Math.max(0, boostReview - Math.max(0, reviewTodayCount - maxReviews));
+      const revDailyExhausted = revDailyRemaining <= 0 && maxReviews > 0;
       const revInfoEl = document.getElementById('maxReviewsInfo');
       const revExhEl = document.getElementById('maxReviewsExhausted');
-      revInfoEl.innerHTML = '<div class="setting-limit-info"><span>Лимит <b>' + revEffective + '</b></span><span class="setting-limit-remaining">Осталось: ' + revRemaining + '</span></div>';
-      if (revExhausted) {
+      let revInfoHtml = '<div class="setting-limit-info"><span>Ежедневный лимит: <b>' + maxReviews + '</b></span><span class="setting-limit-remaining">Осталось: ' + revDailyRemaining + '</span></div>';
+      if (boostReview > 0) {
+        revInfoHtml += '<div class="setting-limit-info"><span>Добавлено: <b>' + boostReview + '</b></span><span class="setting-limit-remaining">Осталось: ' + revBoostRemaining + '</span></div>';
+      }
+      revInfoEl.innerHTML = revInfoHtml;
+      if (revDailyExhausted) {
         revExhEl.style.display = 'block';
-        revExhEl.innerHTML = '<div class="setting-exhausted"><div class="setting-exhausted-text">Лимит исчерпан, лимит сбросится через:</div><div class="setting-exhausted-row"><span class="setting-timer">' + formatCountdown(msUntilMoscowMidnight()) + '</span><button class="setting-boost-btn" id="boostReviewBtn">Добавить ещё</button></div></div>';
+        revExhEl.innerHTML = '<div class="setting-exhausted"><div class="setting-exhausted-text">Лимит исчерпан, сброс через:</div><div class="setting-exhausted-row"><span class="setting-timer">' + formatCountdown(msUntilExhaustionReset(exhaustedReviewAt)) + '</span><button class="setting-boost-btn" id="boostReviewBtn">Добавить ещё</button></div></div>';
         document.getElementById('boostReviewBtn').addEventListener('click', () => openBoostModal('review'));
       } else {
         revExhEl.style.display = 'none';
@@ -1945,16 +2002,15 @@
     const desc = document.getElementById('boostDesc');
     const input = document.getElementById('boostInput');
     if (type === 'new') {
-      title.textContent = 'Добавить лимит новых карт';
-      desc.textContent = 'Текущий лимит: ' + (limitNew + boostNew) + '. Введите новый общий лимит.';
-      input.value = limitNew + boostNew;
+      title.textContent = 'Добавить новых карт';
+      desc.textContent = 'Ежедневный лимит: ' + limitNew + '. Сколько добавить?';
+      input.value = '';
     } else {
-      title.textContent = 'Добавить лимит повторений';
-      desc.textContent = 'Текущий лимит: ' + (maxReviews + boostReview) + '. Введите новый общий лимит.';
-      input.value = maxReviews + boostReview;
+      title.textContent = 'Добавить повторений';
+      desc.textContent = 'Ежедневный лимит: ' + maxReviews + '. Сколько добавить?';
+      input.value = '';
     }
     input.focus();
-    input.select();
     modal.style.display = 'flex';
     modal._boostType = type;
   }
@@ -1962,12 +2018,12 @@
   document.getElementById('boostSaveBtn').addEventListener('click', () => {
     const modal = document.getElementById('boostModal');
     const type = modal._boostType;
-    const newVal = parseInt(document.getElementById('boostInput').value) || 0;
-    if (newVal < 1) return;
+    const addVal = parseInt(document.getElementById('boostInput').value) || 0;
+    if (addVal < 1) return;
     if (type === 'new') {
-      saveBoostNew(Math.max(0, newVal - limitNew));
+      saveBoostNew(boostNew + addVal);
     } else {
-      saveBoostReview(Math.max(0, newVal - maxReviews));
+      saveBoostReview(boostReview + addVal);
     }
     modal.style.display = 'none';
     renderLimitInfo();
@@ -1980,6 +2036,8 @@
   });
 
   document.getElementById('settingsSaveBtn').addEventListener('click', () => {
+    limitNew = Math.max(0, parseInt(document.getElementById('limitNewInput').value) || 0);
+    maxReviews = Math.max(0, parseInt(document.getElementById('maxReviewsInput').value) || 0);
     unlimitedReviews = document.getElementById('unlimitedReviews').checked;
     saveSettingsToStorage();
     stopSettingsTimer();
