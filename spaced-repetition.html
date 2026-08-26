@@ -988,6 +988,10 @@
       ...newCards.slice(0, newCardsLeft),
       ...learningCards
     ];
+    const dailyRemaining = Math.max(0, limitNew - todayCount);
+    if (queue.length > dailyRemaining) {
+      queue.length = dailyRemaining;
+    }
     currentIndex = 0;
     sessionTotal = queue.length;
     sessionDone = 0;
