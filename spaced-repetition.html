@@ -281,6 +281,57 @@
   .deck-settings-btn:hover { color: #4b5563; }
   .dark-theme .deck-settings-btn { color: #64748b; }
   .dark-theme .deck-settings-btn:hover { color: #94a3b8; }
+
+  /* Settings limit rows */
+  .setting-row { margin-bottom: 16px; }
+  .setting-label { font-size: 0.9rem; color: #1f2937; margin-bottom: 6px; }
+  .dark-theme .setting-label { color: #e0e0e0; }
+  .setting-limit-info {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.85rem; color: #6b7280; margin-bottom: 4px;
+  }
+  .dark-theme .setting-limit-info { color: #94a3b8; }
+  .setting-limit-remaining { font-weight: 600; color: #2563eb; }
+  .dark-theme .setting-limit-remaining { color: #60a5fa; }
+  .setting-exhausted {
+    background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 8px;
+  }
+  .dark-theme .setting-exhausted { background: #450a0a; border-color: #7f1d1d; }
+  .setting-exhausted-text {
+    font-size: 0.8rem; color: #dc2626; margin-bottom: 6px;
+  }
+  .dark-theme .setting-exhausted-text { color: #fca5a5; }
+  .setting-exhausted-row {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .setting-timer {
+    font-size: 0.8rem; font-weight: 600; color: #dc2626; font-variant-numeric: tabular-nums;
+  }
+  .dark-theme .setting-timer { color: #fca5a5; }
+  .setting-boost-btn {
+    padding: 5px 12px; border: none; border-radius: 8px;
+    background: #2563eb; color: #fff; font-size: 0.78rem; font-weight: 600;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .setting-boost-btn:hover { background: #1d4ed8; }
+
+  /* Boost modal */
+  .boost-input-row {
+    display: flex; gap: 8px; align-items: center; margin: 16px 0;
+  }
+  .boost-input-row input {
+    flex: 1; padding: 10px 12px; border-radius: 8px;
+    border: 2px solid #d1d5db; font-size: 1rem; text-align: center;
+  }
+  .dark-theme .boost-input-row input {
+    background: #334155; border-color: #475569; color: #e0e0e0;
+  }
+  .boost-save-btn {
+    width: 100%; padding: 12px; border: none; border-radius: 10px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer;
+  }
   .limit-btn {
     margin: 4px 4px 0; padding: 6px 14px; border: none;
     border-radius: 6px; background: #667eea; color: #fff;
@@ -288,64 +339,6 @@
   }
   .limit-btn:hover { opacity: 0.85; }
   .limit-btn-primary { background: #7c3aed; }
-
-  /* Extra words section */
-  .extra-words-section {
-    width: 100%; max-width: 480px; margin-top: 16px;
-    background: #fff; border: 1px solid #e5e7eb;
-    border-radius: 16px; padding: 18px 20px;
-  }
-  .dark-theme .extra-words-section { background: #1e293b; border-color: #334155; }
-  .extra-words-title {
-    text-align: center; font-size: 0.95rem;
-    font-weight: 600; margin-bottom: 12px; color: #1f2937;
-  }
-  .dark-theme .extra-words-title { color: #e0e0e0; }
-  .extra-words-input-row {
-    display: flex; gap: 8px; margin-bottom: 8px;
-    align-items: center;
-  }
-  .extra-words-input-row input {
-    flex: 1; padding: 8px 12px; border-radius: 8px;
-    border: 1.5px solid #d1d5db; font-size: 0.85rem;
-    background: #fff; color: #1f2937;
-  }
-  .dark-theme .extra-words-input-row input {
-    background: #334155; border-color: #475569; color: #e0e0e0;
-  }
-  .extra-words-input-row input::placeholder { color: #9ca3af; }
-  .extra-add-btn {
-    width: 36px; height: 36px; border-radius: 50%;
-    border: none; background: #22c55e; color: #fff;
-    font-size: 1.3rem; cursor: pointer; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.2s;
-  }
-  .extra-add-btn:hover { background: #16a34a; }
-  .extra-word-item {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 0; border-bottom: 1px solid #f3f4f6;
-    font-size: 0.85rem;
-  }
-  .dark-theme .extra-word-item { border-bottom-color: #1e293b; }
-  .extra-word-item .ew-text { flex: 1; color: #1f2937; }
-  .dark-theme .extra-word-item .ew-text { color: #e0e0e0; }
-  .extra-word-item .ew-remove {
-    background: none; border: none; color: #ef4444;
-    cursor: pointer; font-size: 1rem; padding: 2px;
-  }
-  .extra-word-item .ew-remove:hover { color: #dc2626; }
-  .extra-study-btn {
-    width: 100%; padding: 12px; margin-top: 12px;
-    border: none; border-radius: 10px;
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    color: #fff; font-size: 0.95rem; font-weight: 600;
-    cursor: pointer; transition: transform 0.15s;
-  }
-  .extra-study-btn:hover { transform: translateY(-1px); }
-  .extra-study-btn:active { transform: translateY(0); }
-  .extra-word-found { color: #22c55e; font-size: 0.75rem; }
-  .extra-word-notfound { color: #ef4444; font-size: 0.75rem; }
 
   .deck-card-footer {
     display: flex; justify-content: flex-end; align-items: center;
@@ -500,23 +493,42 @@
       <button class="settings-back-btn" id="settingsBackBtn" title="Назад">←</button>
       <h2 style="margin:0;font-size:1.15rem">Настройки</h2>
     </div>
-    <label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <span>Новых карт в день:</span>
-      <input type="number" id="limitNew" min="1" max="200" value="50" style="width:80px;padding:6px;border-radius:8px;border:2px solid #e0e0e0;text-align:center;font-size:1rem">
-    </label>
-    <label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <span>Повторов без лимита:</span>
-      <input type="checkbox" id="unlimitedReviews" checked style="width:20px;height:20px">
-    </label>
-    <label id="maxReviewsRow" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <span>Макс повторений в день:</span>
-      <input type="number" id="maxReviews" min="0" max="500" value="0" style="width:80px;padding:6px;border-radius:8px;border:2px solid #e0e0e0;text-align:center;font-size:1rem">
-    </label>
-    <button id="settingsSaveBtn" class="big-btn" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer">Сохранить</button>
+
+    <div class="setting-row">
+      <div class="setting-label">Новых карт в день:</div>
+      <div id="limitNewInfo"></div>
+      <div id="limitNewExhausted" style="display:none"></div>
+    </div>
+
+    <div class="setting-row" style="margin-bottom:8px">
+      <label style="display:flex;justify-content:space-between;align-items:center">
+        <span class="setting-label" style="margin-bottom:0">Повторов без лимита:</span>
+        <input type="checkbox" id="unlimitedReviews" style="width:20px;height:20px">
+      </label>
+    </div>
+    <div class="setting-row" id="maxReviewsRow">
+      <div class="setting-label">Макс повторений в день:</div>
+      <div id="maxReviewsInfo"></div>
+      <div id="maxReviewsExhausted" style="display:none"></div>
+    </div>
+
+    <button id="settingsSaveBtn" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer;margin-top:12px">Сохранить</button>
     <button id="statsBtn" class="reset-btn" style="color:#2563eb;border-color:#93c5fd;margin-top:16px">Статистика</button>
     <button id="forecastBtn" class="reset-btn" style="color:#0891b2;border-color:#67e8f9">Прогноз нагрузки</button>
     <button id="optimizeBtn" class="reset-btn" style="color:#7c3aed;border-color:#c4b5fd">FSRS Оптимизатор</button>
     <button id="resetBtn" class="reset-btn">Сбросить прогресс</button>
+  </div>
+</div>
+
+<div id="boostModal" class="modal-overlay" style="display:none">
+  <div class="modal-content" style="max-width:320px">
+    <h3 id="boostTitle" style="margin:0 0 4px;font-size:1rem;text-align:center"></h3>
+    <p id="boostDesc" style="font-size:0.8rem;color:#6b7280;text-align:center;margin:0 0 12px"></p>
+    <div class="boost-input-row">
+      <input type="number" id="boostInput" min="1" max="999" placeholder="Новый лимит">
+    </div>
+    <button id="boostSaveBtn" class="boost-save-btn">Сохранить</button>
+    <button id="boostCancelBtn" style="width:100%;padding:10px;border:none;border-radius:10px;background:transparent;color:#6b7280;font-size:0.9rem;cursor:pointer;margin-top:8px">Отмена</button>
   </div>
 </div>
 
@@ -583,8 +595,10 @@
   const SETTINGS_KEY = 'arabSrSettings';
   const TODAY_KEY = 'arabSrToday';
   const NEW_TODAY_KEY = 'arabSrNewToday';
+  const REVIEW_TODAY_KEY = 'arabSrReviewToday';
   const LOGS_KEY = 'arabSrLogs';
-  const EXTRA_WORDS_KEY = 'arabSrExtraWords';
+  const BOOST_NEW_KEY = 'arabSrBoostNew';
+  const BOOST_REVIEW_KEY = 'arabSrBoostReview';
 
   let allWords = [];
   let notesMap = {};
@@ -594,6 +608,7 @@
   let isFlipped = false;
   let todayCount = 0;
   let newTodayCount = 0;
+  let reviewTodayCount = 0;
   let limitNew = 50;
   let unlimitedReviews = true;
   let maxReviews = 0;
@@ -604,7 +619,6 @@
   let sessionDone = 0;
   let logs = [];
   let undoStack = [];
-  let extraWords = [];
 
   // Час смены дня (как в Anki): день заканчивается в 4 утра.
   // Карта со сроком "завтра" доступна с начала дня, а не с точного времени ответа.
@@ -670,6 +684,95 @@
     localStorage.setItem(NEW_TODAY_KEY, JSON.stringify({ date: srDayKey(), count: newTodayCount }));
   }
 
+  function loadReviewTodayCount() {
+    try {
+      const d = JSON.parse(localStorage.getItem(REVIEW_TODAY_KEY));
+      if (d && d.date === srDayKey()) reviewTodayCount = d.count || 0;
+      else reviewTodayCount = 0;
+    } catch(e) { reviewTodayCount = 0; }
+  }
+  function saveReviewTodayCount() {
+    localStorage.setItem(REVIEW_TODAY_KEY, JSON.stringify({ date: srDayKey(), count: reviewTodayCount }));
+  }
+
+  // Boost лимиты (дополнительные к основным)
+  let boostNew = 0;
+  let boostReview = 0;
+  function loadBoostLimits() {
+    try {
+      const d = JSON.parse(localStorage.getItem(BOOST_NEW_KEY));
+      if (d) boostNew = d.boost || 0;
+      else boostNew = 0;
+    } catch(e) { boostNew = 0; }
+    try {
+      const d = JSON.parse(localStorage.getItem(BOOST_REVIEW_KEY));
+      if (d) boostReview = d.boost || 0;
+      else boostReview = 0;
+    } catch(e) { boostReview = 0; }
+  }
+  function saveBoostNew(val) {
+    boostNew = val;
+    localStorage.setItem(BOOST_NEW_KEY, JSON.stringify({ date: srDayKey(), boost: val }));
+  }
+  function saveBoostReview(val) {
+    boostReview = val;
+    localStorage.setItem(BOOST_REVIEW_KEY, JSON.stringify({ date: srDayKey(), boost: val }));
+  }
+
+  // Таймер обратного отсчёта до полуночи МСК
+  function msUntilMoscowMidnight() {
+    const now = Date.now();
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Moscow',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(new Date(now));
+    const y = parseInt(parts.find(p => p.type === 'year').value);
+    const m = parseInt(parts.find(p => p.type === 'month').value) - 1;
+    const d = parseInt(parts.find(p => p.type === 'day').value);
+    const moscowMidnightUtc = Date.UTC(y, m, d + 1, 0, 0, 0) - 3 * 3600000;
+    return Math.max(0, moscowMidnightUtc - now);
+  }
+  function formatCountdown(ms) {
+    const totalSec = Math.ceil(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    return h + 'ч ' + String(m).padStart(2,'0') + 'м ' + String(s).padStart(2,'0') + 'с';
+  }
+  let settingsTimerInterval = null;
+  let lastTimerDayKey = null;
+  function startSettingsTimer() {
+    stopSettingsTimer();
+    lastTimerDayKey = srDayKey();
+    settingsTimerInterval = setInterval(() => {
+      const currentDayKey = srDayKey();
+      if (currentDayKey !== lastTimerDayKey) {
+        lastTimerDayKey = currentDayKey;
+        todayCount = 0; saveTodayCount();
+        newTodayCount = 0; saveNewTodayCount();
+        reviewTodayCount = 0; saveReviewTodayCount();
+        loadBoostLimits();
+        renderLimitInfo();
+        return;
+      }
+      const ms = msUntilMoscowMidnight();
+      const text = formatCountdown(ms);
+      const newExh = document.getElementById('limitNewExhausted');
+      const revExh = document.getElementById('maxReviewsExhausted');
+      if (newExh && newExh.style.display !== 'none') {
+        const timerEl = newExh.querySelector('.setting-timer');
+        if (timerEl) timerEl.textContent = text;
+      }
+      if (revExh && revExh.style.display !== 'none') {
+        const timerEl = revExh.querySelector('.setting-timer');
+        if (timerEl) timerEl.textContent = text;
+      }
+    }, 1000);
+  }
+  function stopSettingsTimer() {
+    if (settingsTimerInterval) { clearInterval(settingsTimerInterval); settingsTimerInterval = null; }
+  }
+
   // Сколько всего повторений сегодня
   function loadTodayCount() {
     try {
@@ -680,21 +783,6 @@
   }
   function saveTodayCount() {
     localStorage.setItem(TODAY_KEY, JSON.stringify({ date: srDayKey(), count: todayCount }));
-  }
-
-  function loadExtraWords() {
-    try {
-      const d = JSON.parse(localStorage.getItem(EXTRA_WORDS_KEY));
-      if (d && d.date === srDayKey() && Array.isArray(d.words)) extraWords = d.words;
-      else extraWords = [];
-    } catch(e) { extraWords = []; }
-  }
-  function saveExtraWords() {
-    localStorage.setItem(EXTRA_WORDS_KEY, JSON.stringify({ date: srDayKey(), words: extraWords }));
-  }
-  function clearExtraWords() {
-    extraWords = [];
-    localStorage.removeItem(EXTRA_WORDS_KEY);
   }
 
   function loadCardsLocal() {
@@ -803,7 +891,8 @@
     loadSettings();
     loadTodayCount();
     loadNewTodayCount();
-    loadExtraWords();
+    loadReviewTodayCount();
+    loadBoostLimits();
     loadLogs();
     // Миграция на настоящий FSRS-5: старые веса обучены на кривой модели — сбрасываем
     const fsrsV2Done = localStorage.getItem('sr_fsrs_v2') === '1';
@@ -949,7 +1038,19 @@
   // 3) Изучаемые (learning) — после новых
   function buildQueue() {
     const now = Date.now();
-    newCardsLeft = Math.max(0, limitNew - newTodayCount);
+    const currentDayKey = srDayKey();
+    try {
+      const d = JSON.parse(localStorage.getItem(TODAY_KEY));
+      if (!d || d.date !== currentDayKey) {
+        todayCount = 0; saveTodayCount();
+        newTodayCount = 0; saveNewTodayCount();
+        reviewTodayCount = 0; saveReviewTodayCount();
+        loadBoostLimits();
+      }
+    } catch(e) {}
+    const effectiveNewLimit = limitNew + boostNew;
+    const effectiveReviewLimit = maxReviews + boostReview;
+    newCardsLeft = Math.max(0, effectiveNewLimit - newTodayCount);
 
     const learningCards = [];
     const reviewCards = [];
@@ -974,8 +1075,8 @@
     learningCards.sort((a, b) => (a.due || now) - (b.due || now));
     // Повторяемые — самые просроченные первые
     reviewCards.sort((a, b) => (a.due || now) - (b.due || now));
-    if (!unlimitedReviews && maxReviews > 0) {
-      const reviewRemaining = Math.max(0, maxReviews - todayCount);
+    if (!unlimitedReviews && effectiveReviewLimit > 0) {
+      const reviewRemaining = Math.max(0, effectiveReviewLimit - reviewTodayCount);
       reviewCards.splice(reviewRemaining);
     }
     // Новые — перемешать
@@ -1007,34 +1108,6 @@
     const area = document.getElementById('mainArea');
     const stats = getStats();
 
-    const hasDue = stats.due > 0 || stats.new > 0 || stats.learning > 0;
-    const limitExhausted = !hasDue && stats.today >= (limitNew || 50);
-
-    let extraWordsHtml = '';
-    if (limitExhausted) {
-      const wordsListHtml = extraWords.length > 0 ? extraWords.map((w, i) => {
-        const match = cards.find(c => c.ar === w.ar || c.ru === w.ru);
-        return `<div class="extra-word-item">
-          <span class="ew-text">${w.ru} – ${w.ar}</span>
-          ${match ? '<span class="extra-word-found">✓</span>' : '<span class="extra-word-notfound">не найдено</span>'}
-          <button class="ew-remove" data-extra-idx="${i}">✕</button>
-        </div>`;
-      }).join('') : '';
-
-      extraWordsHtml = `
-        <div class="extra-words-section" id="extraWordsSection">
-          <div class="extra-words-title">Доп. слова на сегодня</div>
-          <div id="extraWordsList">${wordsListHtml}</div>
-          <div class="extra-words-input-row">
-            <input type="text" id="extraRuInput" placeholder="Русское слово">
-            <input type="text" id="extraArInput" placeholder="Арабское слово">
-            <button class="extra-add-btn" id="extraAddBtn">+</button>
-          </div>
-          ${extraWords.length > 0 ? '<button class="extra-study-btn" id="extraStudyBtn">Учить доп. слова</button>' : ''}
-        </div>
-      `;
-    }
-
     area.innerHTML = `
       <div class="deck-card">
         <div class="deck-card-body">
@@ -1051,7 +1124,6 @@
           <button class="deck-settings-btn" id="settingsBtn" title="Настройки">⚙️</button>
         </div>
       </div>
-      ${extraWordsHtml}
     `;
 
     document.getElementById('studyBtn').addEventListener('click', () => {
@@ -1081,73 +1153,6 @@
       if (link) { e.preventDefault(); openSettings(); return; }
     });
     document.getElementById('settingsBtn').addEventListener('click', openSettings);
-
-    if (limitExhausted) setupExtraWordsUI();
-  }
-
-  function setupExtraWordsUI() {
-    const addBtn = document.getElementById('extraAddBtn');
-    const ruInput = document.getElementById('extraRuInput');
-    const arInput = document.getElementById('extraArInput');
-    const listEl = document.getElementById('extraWordsList');
-
-    if (addBtn) addBtn.addEventListener('click', () => {
-      const ru = (ruInput.value || '').trim();
-      const ar = (arInput.value || '').trim();
-      if (!ru || !ar) return;
-      extraWords.push({ ru, ar });
-      saveExtraWords();
-      ruInput.value = '';
-      arInput.value = '';
-      renderDeckSelection();
-    });
-
-    if (ruInput && arInput) {
-      [ruInput, arInput].forEach(input => {
-        input.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') addBtn.click();
-        });
-      });
-    }
-
-    if (listEl) listEl.querySelectorAll('.ew-remove').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const idx = parseInt(btn.dataset.extraIdx);
-        extraWords.splice(idx, 1);
-        saveExtraWords();
-        renderDeckSelection();
-      });
-    });
-
-    const studyBtn = document.getElementById('extraStudyBtn');
-    if (studyBtn) studyBtn.addEventListener('click', () => {
-      buildExtraQueue();
-      if (queue.length === 0) {
-        const section = document.getElementById('extraWordsSection');
-        if (section) {
-          const msg = document.createElement('div');
-          msg.style.cssText = 'text-align:center;padding:8px;color:#94a3b8;font-size:0.85rem;margin-top:8px';
-          msg.textContent = 'Все доп. слова уже в очереди или не найдены';
-          section.appendChild(msg);
-          setTimeout(() => msg.remove(), 3000);
-        }
-        return;
-      }
-      render();
-    });
-  }
-
-  function buildExtraQueue() {
-    queue = [];
-    extraWords.forEach(w => {
-      const match = cards.find(c => c.ar === w.ar || c.ru === w.ru);
-      if (match && !queue.some(q => q.id === match.id)) {
-        queue.push(match);
-      }
-    });
-    currentIndex = 0;
-    sessionTotal = queue.length;
-    sessionDone = 0;
   }
 
   function render() {
@@ -1356,10 +1361,13 @@
 
     const idx = cards.findIndex(c => c.id === card.id);
     if (idx !== -1) {
-      // Если была новая — считаем в лимит новых
       if (cards[idx].state === window.FSRS_STATE.NEW) {
         newTodayCount++;
         saveNewTodayCount();
+      }
+      if (cards[idx].state === window.FSRS_STATE.REVIEW) {
+        reviewTodayCount++;
+        saveReviewTodayCount();
       }
       cards[idx] = updated;
     }
@@ -1414,6 +1422,10 @@
     if (u.wasNew) {
       newTodayCount = Math.max(0, newTodayCount - 1);
       saveNewTodayCount();
+    }
+    if (u.card.state === window.FSRS_STATE.REVIEW) {
+      reviewTodayCount = Math.max(0, reviewTodayCount - 1);
+      saveReviewTodayCount();
     }
 
     saveCardsLocal(cards);
@@ -1476,7 +1488,11 @@
     saveTodayCount();
     newTodayCount = 0;
     saveNewTodayCount();
-    clearExtraWords();
+    reviewTodayCount = 0;
+    saveReviewTodayCount();
+    boostNew = 0; boostReview = 0;
+    localStorage.removeItem(BOOST_NEW_KEY);
+    localStorage.removeItem(BOOST_REVIEW_KEY);
     try {
       if (window.auth && window.authUser) {
         await saveCardsToFirestore(cards);
@@ -1882,34 +1898,110 @@
 
   // Настройки
   function openSettings() {
+    loadBoostLimits();
     const modal = document.getElementById('settingsModal');
-    document.getElementById('limitNew').value = limitNew;
     document.getElementById('unlimitedReviews').checked = unlimitedReviews;
-    document.getElementById('maxReviews').value = maxReviews;
-    document.getElementById('maxReviewsRow').style.display = unlimitedReviews ? 'none' : 'flex';
+    document.getElementById('maxReviewsRow').style.display = unlimitedReviews ? 'none' : 'block';
+    renderLimitInfo();
     modal.style.display = 'flex';
+    startSettingsTimer();
   }
 
+  function renderLimitInfo() {
+    const newEffective = limitNew + boostNew;
+    const newRemaining = Math.max(0, newEffective - newTodayCount);
+    const newExhausted = newRemaining <= 0 && newEffective > 0;
+    const newInfoEl = document.getElementById('limitNewInfo');
+    const newExhEl = document.getElementById('limitNewExhausted');
+    newInfoEl.innerHTML = '<div class="setting-limit-info"><span>Лимит <b>' + newEffective + '</b></span><span class="setting-limit-remaining">Осталось: ' + newRemaining + '</span></div>';
+    if (newExhausted) {
+      newExhEl.style.display = 'block';
+      newExhEl.innerHTML = '<div class="setting-exhausted"><div class="setting-exhausted-text">Лимит исчерпан, лимит сбросится через:</div><div class="setting-exhausted-row"><span class="setting-timer">' + formatCountdown(msUntilMoscowMidnight()) + '</span><button class="setting-boost-btn" id="boostNewBtn">Добавить ещё</button></div></div>';
+      document.getElementById('boostNewBtn').addEventListener('click', () => openBoostModal('new'));
+    } else {
+      newExhEl.style.display = 'none';
+    }
+
+    if (!unlimitedReviews) {
+      const revEffective = maxReviews + boostReview;
+      const revRemaining = Math.max(0, revEffective - reviewTodayCount);
+      const revExhausted = revRemaining <= 0 && revEffective > 0;
+      const revInfoEl = document.getElementById('maxReviewsInfo');
+      const revExhEl = document.getElementById('maxReviewsExhausted');
+      revInfoEl.innerHTML = '<div class="setting-limit-info"><span>Лимит <b>' + revEffective + '</b></span><span class="setting-limit-remaining">Осталось: ' + revRemaining + '</span></div>';
+      if (revExhausted) {
+        revExhEl.style.display = 'block';
+        revExhEl.innerHTML = '<div class="setting-exhausted"><div class="setting-exhausted-text">Лимит исчерпан, лимит сбросится через:</div><div class="setting-exhausted-row"><span class="setting-timer">' + formatCountdown(msUntilMoscowMidnight()) + '</span><button class="setting-boost-btn" id="boostReviewBtn">Добавить ещё</button></div></div>';
+        document.getElementById('boostReviewBtn').addEventListener('click', () => openBoostModal('review'));
+      } else {
+        revExhEl.style.display = 'none';
+      }
+    }
+  }
+
+  function openBoostModal(type) {
+    const modal = document.getElementById('boostModal');
+    const title = document.getElementById('boostTitle');
+    const desc = document.getElementById('boostDesc');
+    const input = document.getElementById('boostInput');
+    if (type === 'new') {
+      title.textContent = 'Добавить лимит новых карт';
+      desc.textContent = 'Текущий лимит: ' + (limitNew + boostNew) + '. Введите новый общий лимит.';
+      input.value = limitNew + boostNew;
+    } else {
+      title.textContent = 'Добавить лимит повторений';
+      desc.textContent = 'Текущий лимит: ' + (maxReviews + boostReview) + '. Введите новый общий лимит.';
+      input.value = maxReviews + boostReview;
+    }
+    input.focus();
+    input.select();
+    modal.style.display = 'flex';
+    modal._boostType = type;
+  }
+
+  document.getElementById('boostSaveBtn').addEventListener('click', () => {
+    const modal = document.getElementById('boostModal');
+    const type = modal._boostType;
+    const newVal = parseInt(document.getElementById('boostInput').value) || 0;
+    if (newVal < 1) return;
+    if (type === 'new') {
+      saveBoostNew(Math.max(0, newVal - limitNew));
+    } else {
+      saveBoostReview(Math.max(0, newVal - maxReviews));
+    }
+    modal.style.display = 'none';
+    renderLimitInfo();
+  });
+  document.getElementById('boostCancelBtn').addEventListener('click', () => {
+    document.getElementById('boostModal').style.display = 'none';
+  });
+  document.getElementById('boostModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) e.target.style.display = 'none';
+  });
+
   document.getElementById('settingsSaveBtn').addEventListener('click', () => {
-    limitNew = parseInt(document.getElementById('limitNew').value) || 50;
     unlimitedReviews = document.getElementById('unlimitedReviews').checked;
-    maxReviews = parseInt(document.getElementById('maxReviews').value) || 0;
     saveSettingsToStorage();
+    stopSettingsTimer();
     document.getElementById('settingsModal').style.display = 'none';
   });
   document.getElementById('unlimitedReviews').addEventListener('change', function() {
-    document.getElementById('maxReviewsRow').style.display = this.checked ? 'none' : 'flex';
+    document.getElementById('maxReviewsRow').style.display = this.checked ? 'none' : 'block';
+    renderLimitInfo();
   });
   document.getElementById('settingsBackBtn').addEventListener('click', () => {
+    stopSettingsTimer();
     document.getElementById('settingsModal').style.display = 'none';
   });
   document.getElementById('statsBtn').addEventListener('click', () => {
+    stopSettingsTimer();
     document.getElementById('settingsModal').style.display = 'none';
     renderStats();
     document.getElementById('statsModal').style.display = 'flex';
   });
-  document.getElementById('optimizeBtn').addEventListener('click', optimizeFSRS);
+  document.getElementById('optimizeBtn').addEventListener('click', () => { stopSettingsTimer(); optimizeFSRS(); });
   document.getElementById('forecastBtn').addEventListener('click', () => {
+    stopSettingsTimer();
     document.getElementById('settingsModal').style.display = 'none';
     renderForecast();
     document.getElementById('forecastModal').style.display = 'flex';
@@ -1934,6 +2026,7 @@
     showWordsByDifficulty(parseInt(el.dataset.diffBin), el.dataset.dlabel);
   });
   document.getElementById('resetBtn').addEventListener('click', () => {
+    stopSettingsTimer();
     showConfirm(
       'Сбросить весь прогресс?',
       'Это действие удалит весь прогресс обучения для этой колоды на всех ваших устройствах. Все интервалы повторения, даты изучения и статистика будут сброшены. Отменить это действие невозможно.',
@@ -1944,7 +2037,7 @@
     );
   });
   document.getElementById('settingsModal').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) e.target.style.display = 'none';
+    if (e.target === e.currentTarget) { stopSettingsTimer(); e.target.style.display = 'none'; }
   });
 
   // Синхронизация при смене auth
