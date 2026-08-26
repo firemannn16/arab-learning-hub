@@ -521,6 +521,7 @@
     <button id="forecastBtn" class="reset-btn" style="color:#0891b2;border-color:#67e8f9">Прогноз нагрузки</button>
     <button id="optimizeBtn" class="reset-btn" style="color:#7c3aed;border-color:#c4b5fd">FSRS Оптимизатор</button>
     <button id="resetBtn" class="reset-btn">Сбросить прогресс</button>
+    <button id="fakeDayBtn" class="reset-btn" style="color:#0891b2;border-color:#67e8f9;margin-top:8px">[тест] Сменить день</button>
   </div>
 </div>
 
@@ -2003,6 +2004,14 @@
       () => {},
       () => { resetProgress(); }
     );
+  });
+  document.getElementById('fakeDayBtn').addEventListener('click', () => {
+    todayCount = 0; saveTodayCount();
+    newTodayCount = 0; saveNewTodayCount();
+    reviewTodayCount = 0; saveReviewTodayCount();
+    boostNew = 0; saveBoostNew(0);
+    boostReview = 0; saveBoostReview(0);
+    renderLimitInfo();
   });
   document.getElementById('settingsModal').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) e.target.style.display = 'none';
