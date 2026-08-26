@@ -362,7 +362,6 @@
 
   /* Study back button */
   .study-back-btn {
-    position: absolute; top: 14px; left: 12px; z-index: 20;
     background: none; border: none;
     font-size: 1.3rem; color: #94a3b8; cursor: pointer;
     padding: 4px 8px; line-height: 1;
@@ -374,7 +373,6 @@
 
   /* Undo button (top-right, touch-friendly) */
   .undo-btn {
-    position: absolute; top: 10px; right: 12px; z-index: 20;
     background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
     font-size: 1.4rem; color: #4b5563; cursor: pointer;
     width: 44px; height: 44px; line-height: 1;
@@ -386,6 +384,10 @@
   .undo-btn.undo-disabled { opacity: 0.3; pointer-events: none; }
   .dark-theme .undo-btn { background: #1e293b; border-color: #334155; color: #94a3b8; }
   .dark-theme .undo-btn:hover { color: #e0e0e0; }
+  .study-top-row {
+    display: flex; justify-content: space-between; align-items: center;
+    max-width: 500px; width: 100%; margin-bottom: 8px;
+  }
 
   .done-home-btn {
     display: inline-block; margin-top: 24px; padding: 12px 28px;
@@ -997,9 +999,9 @@
         boostReview = 0; saveBoostReview(0);
       }
     } catch(e) {}
-    const effectiveNewLimit = limitNew + boostNew;
-    const effectiveReviewLimit = maxReviews + boostReview;
-    newCardsLeft = Math.max(0, effectiveNewLimit - newTodayCount);
+    const effectiveNewLimit = limitNew > 0 ? limitNew + boostNew : 0;
+    const effectiveReviewLimit = maxReviews > 0 ? maxReviews + boostReview : 0;
+    newCardsLeft = effectiveNewLimit > 0 ? Math.max(0, effectiveNewLimit - newTodayCount) : 0;
 
     const learningCards = [];
     const reviewCards = [];
@@ -1024,9 +1026,13 @@
     learningCards.sort((a, b) => (a.due || now) - (b.due || now));
     // Повторяемые — самые просроченные первые
     reviewCards.sort((a, b) => (a.due || now) - (b.due || now));
-    if (!unlimitedReviews && effectiveReviewLimit > 0) {
-      const reviewRemaining = Math.max(0, effectiveReviewLimit - reviewTodayCount);
-      reviewCards.splice(reviewRemaining);
+    if (!unlimitedReviews) {
+      if (effectiveReviewLimit > 0) {
+        const reviewRemaining = Math.max(0, effectiveReviewLimit - reviewTodayCount);
+        reviewCards.splice(reviewRemaining);
+      } else {
+        reviewCards.splice(0);
+      }
     }
     // Новые — перемешать
     for (let i = newCards.length - 1; i > 0; i--) {
@@ -1081,7 +1087,9 @@
       if (queue.length === 0) {
         const msg = document.getElementById('studyMsg');
         if (msg) {
-          if (hasLearning.length > 0 && stats.due === 0 && (stats.new === 0 || newCardsLeft <= 0)) {
+          if (hasLearning.length === 0) {
+            msg.innerHTML = '📖 Нет изучаемых карточек.<br><span style="font-size:0.8rem">Изучаемые карты появятся после ответа на новые.</span>';
+          } else if (hasLearning.length > 0 && stats.due === 0 && (stats.new === 0 || newCardsLeft <= 0)) {
             const nextDue = Math.min(...hasLearning.map(c => c.due || Infinity));
             const waitSec = Math.max(1, Math.round((nextDue - Date.now()) / 1000));
             msg.innerHTML = '⏳ Изучаемые карты вернутся через ' + (waitSec > 60 ? Math.round(waitSec/60) + ' мин' : waitSec + ' сек') + '.<br><span style="font-size:0.8rem">Они появятся в очереди автоматически.</span>';
@@ -1187,8 +1195,10 @@
     else if (card.state === window.FSRS_STATE.REVIEW) stateLabel = '🔁 Повторение';
 
     area.innerHTML = `
-      <button class="study-back-btn" id="studyBackBtn" title="Назад">←</button>
-      <button class="undo-btn ${undoStack.length === 0 ? 'undo-disabled' : ''}" id="undoBtn" title="Отменить последний ответ">↶</button>
+      <div class="study-top-row">
+        <button class="study-back-btn" id="studyBackBtn" title="Назад">←</button>
+        <button class="undo-btn ${undoStack.length === 0 ? 'undo-disabled' : ''}" id="undoBtn" title="Отменить последний ответ">↶</button>
+      </div>
       <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
       <div class="card-container">
         <div class="flashcard" id="flashcard">
@@ -1870,6 +1880,7 @@
       infoHtml += '<div class="setting-limit-info"><span>Добавлено: <b>' + boostNew + '</b></span><span class="setting-limit-remaining">Осталось: ' + newBoostRemaining + '</span></div>';
     }
     newInfoEl.innerHTML = infoHtml;
+    document.getElementById('limitNewInput').disabled = newDailyExhausted;
     if (newDailyExhausted) {
       newExhEl.style.display = 'block';
       newExhEl.innerHTML = '<div class="setting-exhausted"><div class="setting-exhausted-text">Лимит исчерпан, сброс в 00:00 (по мск)</div><div class="setting-exhausted-row"><button class="setting-boost-btn" id="boostNewBtn">Добавить ещё</button></div></div>';
@@ -1889,6 +1900,7 @@
         revInfoHtml += '<div class="setting-limit-info"><span>Добавлено: <b>' + boostReview + '</b></span><span class="setting-limit-remaining">Осталось: ' + revBoostRemaining + '</span></div>';
       }
       revInfoEl.innerHTML = revInfoHtml;
+      document.getElementById('maxReviewsInput').disabled = revDailyExhausted;
       if (revDailyExhausted) {
         revExhEl.style.display = 'block';
         revExhEl.innerHTML = '<div class="setting-exhausted"><div class="setting-exhausted-text">Лимит исчерпан, сброс в 00:00 (по мск)</div><div class="setting-exhausted-row"><button class="setting-boost-btn" id="boostReviewBtn">Добавить ещё</button></div></div>';
