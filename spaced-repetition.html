@@ -288,6 +288,65 @@
   }
   .limit-btn:hover { opacity: 0.85; }
   .limit-btn-primary { background: #7c3aed; }
+
+  /* Extra words section */
+  .extra-words-section {
+    width: 100%; max-width: 480px; margin-top: 16px;
+    background: #fff; border: 1px solid #e5e7eb;
+    border-radius: 16px; padding: 18px 20px;
+  }
+  .dark-theme .extra-words-section { background: #1e293b; border-color: #334155; }
+  .extra-words-title {
+    text-align: center; font-size: 0.95rem;
+    font-weight: 600; margin-bottom: 12px; color: #1f2937;
+  }
+  .dark-theme .extra-words-title { color: #e0e0e0; }
+  .extra-words-input-row {
+    display: flex; gap: 8px; margin-bottom: 8px;
+    align-items: center;
+  }
+  .extra-words-input-row input {
+    flex: 1; padding: 8px 12px; border-radius: 8px;
+    border: 1.5px solid #d1d5db; font-size: 0.85rem;
+    background: #fff; color: #1f2937;
+  }
+  .dark-theme .extra-words-input-row input {
+    background: #334155; border-color: #475569; color: #e0e0e0;
+  }
+  .extra-words-input-row input::placeholder { color: #9ca3af; }
+  .extra-add-btn {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: none; background: #22c55e; color: #fff;
+    font-size: 1.3rem; cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s;
+  }
+  .extra-add-btn:hover { background: #16a34a; }
+  .extra-word-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 0; border-bottom: 1px solid #f3f4f6;
+    font-size: 0.85rem;
+  }
+  .dark-theme .extra-word-item { border-bottom-color: #1e293b; }
+  .extra-word-item .ew-text { flex: 1; color: #1f2937; }
+  .dark-theme .extra-word-item .ew-text { color: #e0e0e0; }
+  .extra-word-item .ew-remove {
+    background: none; border: none; color: #ef4444;
+    cursor: pointer; font-size: 1rem; padding: 2px;
+  }
+  .extra-word-item .ew-remove:hover { color: #dc2626; }
+  .extra-study-btn {
+    width: 100%; padding: 12px; margin-top: 12px;
+    border: none; border-radius: 10px;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #fff; font-size: 0.95rem; font-weight: 600;
+    cursor: pointer; transition: transform 0.15s;
+  }
+  .extra-study-btn:hover { transform: translateY(-1px); }
+  .extra-study-btn:active { transform: translateY(0); }
+  .extra-word-found { color: #22c55e; font-size: 0.75rem; }
+  .extra-word-notfound { color: #ef4444; font-size: 0.75rem; }
+
   .deck-card-footer {
     display: flex; justify-content: flex-end; align-items: center;
     margin-top: 14px; padding-top: 12px;
@@ -525,6 +584,7 @@
   const TODAY_KEY = 'arabSrToday';
   const NEW_TODAY_KEY = 'arabSrNewToday';
   const LOGS_KEY = 'arabSrLogs';
+  const EXTRA_WORDS_KEY = 'arabSrExtraWords';
 
   let allWords = [];
   let notesMap = {};
@@ -544,6 +604,7 @@
   let sessionDone = 0;
   let logs = [];
   let undoStack = [];
+  let extraWords = [];
 
   // Час смены дня (как в Anki): день заканчивается в 4 утра.
   // Карта со сроком "завтра" доступна с начала дня, а не с точного времени ответа.
@@ -559,7 +620,13 @@
     return dayStartTs(due) <= dayStartTs(now);
   }
   function srDayKey(now) {
-    return new Date(dayStartTs(now || Date.now())).toDateString();
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Moscow',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(new Date(now || Date.now()));
+    return parts.find(p => p.type === 'year').value + '-' +
+           parts.find(p => p.type === 'month').value + '-' +
+           parts.find(p => p.type === 'day').value;
   }
 
   function loadLogs() {
@@ -613,6 +680,21 @@
   }
   function saveTodayCount() {
     localStorage.setItem(TODAY_KEY, JSON.stringify({ date: srDayKey(), count: todayCount }));
+  }
+
+  function loadExtraWords() {
+    try {
+      const d = JSON.parse(localStorage.getItem(EXTRA_WORDS_KEY));
+      if (d && d.date === srDayKey() && Array.isArray(d.words)) extraWords = d.words;
+      else extraWords = [];
+    } catch(e) { extraWords = []; }
+  }
+  function saveExtraWords() {
+    localStorage.setItem(EXTRA_WORDS_KEY, JSON.stringify({ date: srDayKey(), words: extraWords }));
+  }
+  function clearExtraWords() {
+    extraWords = [];
+    localStorage.removeItem(EXTRA_WORDS_KEY);
   }
 
   function loadCardsLocal() {
@@ -721,6 +803,7 @@
     loadSettings();
     loadTodayCount();
     loadNewTodayCount();
+    loadExtraWords();
     loadLogs();
     // Миграция на настоящий FSRS-5: старые веса обучены на кривой модели — сбрасываем
     const fsrsV2Done = localStorage.getItem('sr_fsrs_v2') === '1';
@@ -922,6 +1005,35 @@
   function renderDeckSelection() {
     const area = document.getElementById('mainArea');
     const stats = getStats();
+
+    const hasDue = stats.due > 0 || stats.new > 0 || stats.learning > 0;
+    const limitExhausted = !hasDue && stats.today >= (limitNew || 50);
+
+    let extraWordsHtml = '';
+    if (limitExhausted) {
+      const wordsListHtml = extraWords.length > 0 ? extraWords.map((w, i) => {
+        const match = cards.find(c => c.ar === w.ar || c.ru === w.ru);
+        return `<div class="extra-word-item">
+          <span class="ew-text">${w.ru} – ${w.ar}</span>
+          ${match ? '<span class="extra-word-found">✓</span>' : '<span class="extra-word-notfound">не найдено</span>'}
+          <button class="ew-remove" data-extra-idx="${i}">✕</button>
+        </div>`;
+      }).join('') : '';
+
+      extraWordsHtml = `
+        <div class="extra-words-section" id="extraWordsSection">
+          <div class="extra-words-title">Доп. слова на сегодня</div>
+          <div id="extraWordsList">${wordsListHtml}</div>
+          <div class="extra-words-input-row">
+            <input type="text" id="extraRuInput" placeholder="Русское слово">
+            <input type="text" id="extraArInput" placeholder="Арабское слово">
+            <button class="extra-add-btn" id="extraAddBtn">+</button>
+          </div>
+          ${extraWords.length > 0 ? '<button class="extra-study-btn" id="extraStudyBtn">Учить доп. слова</button>' : ''}
+        </div>
+      `;
+    }
+
     area.innerHTML = `
       <div class="deck-card">
         <div class="deck-card-body">
@@ -938,7 +1050,9 @@
           <button class="deck-settings-btn" id="settingsBtn" title="Настройки">⚙️</button>
         </div>
       </div>
+      ${extraWordsHtml}
     `;
+
     document.getElementById('studyBtn').addEventListener('click', () => {
       const hasLearning = cards.filter(c => c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING);
       buildQueue();
@@ -966,6 +1080,73 @@
       if (link) { e.preventDefault(); openSettings(); return; }
     });
     document.getElementById('settingsBtn').addEventListener('click', openSettings);
+
+    if (limitExhausted) setupExtraWordsUI();
+  }
+
+  function setupExtraWordsUI() {
+    const addBtn = document.getElementById('extraAddBtn');
+    const ruInput = document.getElementById('extraRuInput');
+    const arInput = document.getElementById('extraArInput');
+    const listEl = document.getElementById('extraWordsList');
+
+    if (addBtn) addBtn.addEventListener('click', () => {
+      const ru = (ruInput.value || '').trim();
+      const ar = (arInput.value || '').trim();
+      if (!ru || !ar) return;
+      extraWords.push({ ru, ar });
+      saveExtraWords();
+      ruInput.value = '';
+      arInput.value = '';
+      renderDeckSelection();
+    });
+
+    if (ruInput && arInput) {
+      [ruInput, arInput].forEach(input => {
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') addBtn.click();
+        });
+      });
+    }
+
+    if (listEl) listEl.querySelectorAll('.ew-remove').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.extraIdx);
+        extraWords.splice(idx, 1);
+        saveExtraWords();
+        renderDeckSelection();
+      });
+    });
+
+    const studyBtn = document.getElementById('extraStudyBtn');
+    if (studyBtn) studyBtn.addEventListener('click', () => {
+      buildExtraQueue();
+      if (queue.length === 0) {
+        const section = document.getElementById('extraWordsSection');
+        if (section) {
+          const msg = document.createElement('div');
+          msg.style.cssText = 'text-align:center;padding:8px;color:#94a3b8;font-size:0.85rem;margin-top:8px';
+          msg.textContent = 'Все доп. слова уже в очереди или не найдены';
+          section.appendChild(msg);
+          setTimeout(() => msg.remove(), 3000);
+        }
+        return;
+      }
+      render();
+    });
+  }
+
+  function buildExtraQueue() {
+    queue = [];
+    extraWords.forEach(w => {
+      const match = cards.find(c => c.ar === w.ar || c.ru === w.ru);
+      if (match && !queue.some(q => q.id === match.id)) {
+        queue.push(match);
+      }
+    });
+    currentIndex = 0;
+    sessionTotal = queue.length;
+    sessionDone = 0;
   }
 
   function render() {
@@ -1294,6 +1475,7 @@
     saveTodayCount();
     newTodayCount = 0;
     saveNewTodayCount();
+    clearExtraWords();
     try {
       if (window.auth && window.authUser) {
         await saveCardsToFirestore(cards);

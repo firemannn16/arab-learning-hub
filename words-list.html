@@ -1139,6 +1139,40 @@
       margin-top: 4px;
     }
 
+    .modal-back-arrow {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: #f3f4f6;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+      color: #4b5563;
+      padding: 6px 12px;
+      border-radius: 20px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 500;
+      z-index: 1;
+    }
+
+    .modal-back-arrow svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .modal-back-arrow:hover {
+      background: #e5e7eb;
+      color: #1f2937;
+    }
+
+    .modal-content {
+      position: relative;
+    }
+
     .modal-buttons {
       display: flex;
       flex-direction: column;
@@ -2850,6 +2884,7 @@
         `;
       } else if (type === 'repeatOptions') {
         html = `
+          <button class="modal-back-arrow" onclick="showModal('learnFinished')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> Назад</button>
           <div class="modal-icon">⏱️</div>
           <div class="modal-title">Настройка повтора</div>
           <div class="modal-text">Оставить текущий таймер (${selectedTime} сек) или изменить?</div>
@@ -3027,9 +3062,6 @@
 
     // Инициализация picker при загрузке
     initTimer();
-    
-    // Проверяем сохранённую сессию при загрузке страницы
-    checkSavedSession();
 
     // ========== ПУСТОЙ ТРЕНАЖЁР ==========
     const emptyTrainer = {};
