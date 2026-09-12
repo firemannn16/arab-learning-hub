@@ -29,6 +29,7 @@
     })();
   </script>
   <script src="favorites.js"></script>
+  <script src="trainer-sync.js"></script>
 
   
   <!-- Yandex.Metrika counter -->
@@ -1830,6 +1831,49 @@
       return div.innerHTML;
     }
 
+    // ========== СИНХРОНИЗАЦИЯ (Заучивание) ==========
+    function learnSessionPushPayload() {
+      if (learnWords && learnWords.length) {
+        return {
+          learnWords: learnWords,
+          currentWordIndex: currentWordIndex,
+          learnMode: learnMode,
+          forgottenWords: forgottenWords || [],
+          knownCount: knownCount || 0,
+          forgotCount: forgotCount || 0,
+          selectedTime: selectedTime || 0
+        };
+      }
+      const saved = loadSession();
+      if (saved && saved.learnWords && saved.learnWords.length) {
+        return {
+          learnWords: saved.learnWords,
+          currentWordIndex: saved.currentWordIndex || 0,
+          learnMode: saved.learnMode || 'learn',
+          forgottenWords: saved.forgottenWords || [],
+          knownCount: saved.knownCount || 0,
+          forgotCount: saved.forgotCount || 0,
+          selectedTime: saved.selectedTime || 0
+        };
+      }
+      return null;
+    }
+
+    function pushLearnSessionToCloud() {
+      if (typeof TrainerSync === 'undefined') return;
+      const p = learnSessionPushPayload();
+      if (p) {
+        TrainerSync.push('trainer_learn_session', { session: p });
+      }
+    }
+
+    function pushLearnWordsToCloud() {
+      if (typeof TrainerSync === 'undefined') return;
+      const ta = document.getElementById('learnTextarea');
+      if (!ta) return;
+      TrainerSync.push('trainer_learn_words', { text: ta.value || '' });
+    }
+
     // ========== ОПРЕДЕЛЕНИЯ ПРАВИЛ ==========
 
     // Загрузка определений из definitions.json
@@ -2048,6 +2092,7 @@
       } catch (e) {
         console.warn('Не удалось сохранить сессию', e);
       }
+      pushLearnSessionToCloud();
     }
 
     function loadSession() {
@@ -2067,6 +2112,9 @@
         localStorage.removeItem(SESSION_STORAGE_KEY);
       } catch (e) {
         console.warn('Не удалось очистить сессию', e);
+      }
+      if (typeof TrainerSync !== 'undefined') {
+        TrainerSync.push('trainer_learn_session', { session: null });
       }
     }
 
@@ -2514,6 +2562,7 @@
         const text = await navigator.clipboard.readText();
         document.getElementById('learnTextarea').value = text;
         updateWordCount();
+        pushLearnWordsToCloud();
         showToast('Вставлено из буфера!');
       } catch (e) {
         showToast('Не удалось получить доступ к буферу');
@@ -2540,6 +2589,7 @@
       }
       
       updateWordCount();
+      pushLearnWordsToCloud();
       showToast(`Добавлено ${favorites.length} слов из избранного!`);
     }
 
@@ -3068,12 +3118,18 @@
     (function() {
       let allWords = [], sessionWords = [], mistakes = [], mistakeLines = [], total = 0, currentIndex = 0;
       let modalTimer = null;
+      let trainerWordsAt = 0;
+      let trainerSessionAt = 0;
 
       const WORDS_STORAGE_KEY = 'simpleTrainerWords';
       const SESSION_STORAGE_KEY = 'simpleTrainerSession';
 
       function saveWordList(text) {
         try { localStorage.setItem(WORDS_STORAGE_KEY, text); } catch (e) { console.warn(e); }
+        if (typeof TrainerSync !== 'undefined') {
+          TrainerSync.push('trainer_empty_words', { text: text || '' });
+          trainerWordsAt = TrainerSync.lastAt('trainer_empty_words');
+        }
       }
 
       function loadWordList() {
@@ -3082,6 +3138,9 @@
 
       function clearWordList() {
         try { localStorage.removeItem(WORDS_STORAGE_KEY); } catch (e) { console.warn(e); }
+        if (typeof TrainerSync !== 'undefined') {
+          TrainerSync.push('trainer_empty_words', { text: '' });
+        }
       }
 
       function saveSession() {
@@ -3091,6 +3150,12 @@
             allWords, sessionWords, currentIndex, mistakes, mistakeLines, total, timestamp: Date.now()
           }));
         } catch (e) { console.warn(e); }
+        if (typeof TrainerSync !== 'undefined') {
+          TrainerSync.push('trainer_empty_session', {
+            session: { allWords: allWords, sessionWords: sessionWords, currentIndex: currentIndex, mistakes: mistakes, mistakeLines: mistakeLines, total: total }
+          });
+          trainerSessionAt = TrainerSync.lastAt('trainer_empty_session');
+        }
       }
 
       function loadSession() {
@@ -3099,6 +3164,9 @@
 
       function clearSession() {
         try { localStorage.removeItem(SESSION_STORAGE_KEY); } catch (e) { console.warn(e); }
+        if (typeof TrainerSync !== 'undefined') {
+          TrainerSync.push('trainer_empty_session', { session: null });
+        }
       }
 
       function showResumeModal(session) {
@@ -3264,6 +3332,7 @@
         if (!favText) { alert('В избранном пока нет слов.'); return; }
         const current = wordListTextarea.value.trim();
         wordListTextarea.value = current ? current + '\n' + favText : favText;
+        saveWordList(wordListTextarea.value);
         alert('✅ Добавлено ' + getFavoritesCount() + ' слов из избранного!');
       });
 
@@ -3335,6 +3404,7 @@
         showTab('learn');
         document.getElementById('learnTextarea').value = mistakeLines.join('\n');
         updateWordCount();
+        pushLearnWordsToCloud();
       });
 
       function handleAnswer() {
@@ -3412,6 +3482,203 @@
         }
         updateFavHint();
       };
+
+      // --- Синхронизация пустого тренажёра ---
+      let wordsDebounce = null;
+      wordListTextarea.addEventListener('input', function() {
+        if (wordsDebounce) clearTimeout(wordsDebounce);
+        wordsDebounce = setTimeout(function() {
+          wordsDebounce = null;
+          saveWordList(wordListTextarea.value);
+        }, 900);
+      });
+
+      function emptyBusy() {
+        return trainer && trainer.style.display === '';
+      }
+
+      function emptyIdleVisible() {
+        return loader && loader.style.display !== 'none' && currentTab === 'empty';
+      }
+
+      function emptyModalOpen() {
+        const root = document.getElementById('empty-modal-root');
+        return !!(root && root.firstChild);
+      }
+
+      function publishEmptyWords() {
+        TrainerSync.push('trainer_empty_words', { text: wordListTextarea.value || '' });
+      }
+
+      function publishEmptySessionFromStorage() {
+        const s = loadSession();
+        if (!s || !s.sessionWords || !s.sessionWords.length) return;
+        TrainerSync.push('trainer_empty_session', {
+          session: { allWords: s.allWords, sessionWords: s.sessionWords, currentIndex: s.currentIndex, mistakes: s.mistakes || [], mistakeLines: s.mistakeLines || [], total: s.total }
+        });
+      }
+
+      emptyTrainer.applyRemoteWords = function(data) {
+        const remoteAt = data.updatedAt || 0;
+        if (remoteAt < trainerWordsAt) {
+          publishEmptyWords();
+          trainerWordsAt = TrainerSync.lastAt('trainer_empty_words');
+          return;
+        }
+        if (remoteAt === trainerWordsAt) return;
+        if (document.activeElement === wordListTextarea) return;
+        wordListTextarea.value = data.text || '';
+        trainerWordsAt = remoteAt;
+        try { localStorage.setItem(WORDS_STORAGE_KEY, data.text || ''); } catch (e) {}
+      };
+
+      emptyTrainer.applyRemoteSession = function(data) {
+        if (emptyBusy()) return;
+        if (!data.session) {
+          try { localStorage.removeItem(SESSION_STORAGE_KEY); } catch (e) {}
+          trainerSessionAt = data.updatedAt || Date.now();
+          return;
+        }
+        const remoteAt = data.updatedAt || 0;
+        if (remoteAt < trainerSessionAt) {
+          publishEmptySessionFromStorage();
+          trainerSessionAt = TrainerSync.lastAt('trainer_empty_session');
+          return;
+        }
+        if (remoteAt === trainerSessionAt) return;
+        const ss = data.session;
+        if (!ss.sessionWords || !ss.sessionWords.length) return;
+        try { localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(ss)); } catch (e) {}
+        trainerSessionAt = remoteAt;
+        if (!emptyModalOpen() && emptyIdleVisible() && ss.currentIndex < ss.total) {
+          showResumeModal(ss);
+        }
+      };
+
+      emptyTrainer.registerSync = function() {
+        TrainerSync.register('trainer_empty_words', {
+          onMissing: function() {
+            if (wordListTextarea && wordListTextarea.value.trim()) {
+              publishEmptyWords();
+              trainerWordsAt = TrainerSync.lastAt('trainer_empty_words');
+            }
+          },
+          onRemote: emptyTrainer.applyRemoteWords
+        });
+        TrainerSync.register('trainer_empty_session', {
+          onMissing: function() { publishEmptySessionFromStorage(); },
+          onRemote: emptyTrainer.applyRemoteSession
+        });
+      };
+    })();
+
+    // ========== СИНХРОНИЗАЦИЯ (Заучивание) ==========
+    (function() {
+      let learnWordsUpdatedAt = 0;
+      let learnSessionAt = 0;
+
+      function learnActive() {
+        const m = document.getElementById('learnModeSection');
+        const t = document.getElementById('testModeSection');
+        return (m && m.style.display === 'block') || (t && t.style.display === 'block');
+      }
+
+      function learnInputVisible() {
+        const s = document.getElementById('learnInputSection');
+        return currentTab === 'learn' && s && s.style.display !== 'none';
+      }
+
+      function learnModalOpen() {
+        const ov = document.getElementById('modalOverlay');
+        return ov && ov.style.display === 'flex';
+      }
+
+      const learnTa = document.getElementById('learnTextarea');
+      let learnWordsDebounce = null;
+      if (learnTa) {
+        learnTa.addEventListener('input', function() {
+          if (learnWordsDebounce) clearTimeout(learnWordsDebounce);
+          learnWordsDebounce = setTimeout(function() {
+            learnWordsDebounce = null;
+            pushLearnWordsToCloud();
+            learnWordsUpdatedAt = TrainerSync.lastAt('trainer_learn_words');
+          }, 900);
+        });
+      }
+
+      function applyLearnWordsRemote(data) {
+        const ta = document.getElementById('learnTextarea');
+        if (!ta) return;
+        const remoteAt = data.updatedAt || 0;
+        if (remoteAt < learnWordsUpdatedAt) {
+          pushLearnWordsToCloud();
+          learnWordsUpdatedAt = TrainerSync.lastAt('trainer_learn_words');
+          return;
+        }
+        if (remoteAt === learnWordsUpdatedAt) return;
+        if (document.activeElement === ta) return;
+        ta.value = data.text || '';
+        learnWordsUpdatedAt = remoteAt;
+        updateWordCount();
+      }
+
+      function applyLearnSessionRemote(data) {
+        if (learnActive()) return;
+        if (!data.session) {
+          try { localStorage.removeItem(SESSION_STORAGE_KEY); } catch (e) {}
+          learnSessionAt = data.updatedAt || Date.now();
+          return;
+        }
+        const remoteAt = data.updatedAt || 0;
+        if (remoteAt < learnSessionAt) {
+          pushLearnSessionToCloud();
+          learnSessionAt = TrainerSync.lastAt('trainer_learn_session');
+          return;
+        }
+        if (remoteAt === learnSessionAt) return;
+        const ss = data.session;
+        if (!ss.learnWords || !ss.learnWords.length) return;
+        const sessionData = {
+          learnWords: ss.learnWords,
+          currentWordIndex: ss.currentWordIndex,
+          learnMode: ss.learnMode,
+          forgottenWords: ss.forgottenWords,
+          knownCount: ss.knownCount,
+          forgotCount: ss.forgotCount,
+          selectedTime: ss.selectedTime,
+          textareaContent: document.getElementById('learnTextarea')?.value || '',
+          timestamp: Date.now()
+        };
+        try { localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionData)); } catch (e) {}
+        learnSessionAt = remoteAt;
+        if (!learnModalOpen() && learnInputVisible() && sessionData.currentWordIndex < sessionData.learnWords.length) {
+          showResumeModal(sessionData, true);
+        }
+      }
+
+      TrainerSync.register('trainer_learn_words', {
+        onMissing: function() {
+          const ta = document.getElementById('learnTextarea');
+          if (ta && ta.value.trim()) {
+            pushLearnWordsToCloud();
+            learnWordsUpdatedAt = TrainerSync.lastAt('trainer_learn_words');
+          }
+        },
+        onRemote: applyLearnWordsRemote
+      });
+      TrainerSync.register('trainer_learn_session', {
+        onMissing: function() {
+          const s = loadSession();
+          if (s && s.learnWords && s.learnWords.length) {
+            pushLearnSessionToCloud();
+            learnSessionAt = TrainerSync.lastAt('trainer_learn_session');
+          }
+        },
+        onRemote: applyLearnSessionRemote
+      });
+      if (typeof emptyTrainer !== 'undefined' && typeof emptyTrainer.registerSync === 'function') {
+        emptyTrainer.registerSync();
+      }
     })();
 
     function checkIncomingMistakes() {
@@ -3425,6 +3692,7 @@
         showTab('learn');
         document.getElementById('learnTextarea').value = lines.join('\n');
         updateWordCount();
+        pushLearnWordsToCloud();
       } catch (e) {}
     }
     checkIncomingMistakes();
