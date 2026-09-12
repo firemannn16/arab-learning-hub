@@ -764,7 +764,7 @@
   let initStarted = false;
   let initDone = false;
   let srListenersStarted = false;
-  let cardsSyncListener = null;
+  let cardsSyncListeners = [];
   let settingsSyncListener = null;
   let lastPushedSettingsJSON = null;
   let daySyncListener = null;
@@ -1005,14 +1005,15 @@
     }
   }
 
-  // Realtime: карточки (users/{uid}/sr_cards/all)
+  // Realtime: карточки (users/{uid}/sr_cards/all_N)
   function startCardsSyncListener() {
     stopCardsSyncListener();
     if (!srFirebaseReady()) return;
     try {
-      cardsSyncListener = window.firestore.collection('users').doc(window.authUser.uid)
-        .collection('sr_cards').doc('all')
-        .onSnapshot((snap) => {
+      const uid = window.authUser.uid;
+      const coll = window.firestore.collection('users').doc(uid).collection('sr_cards');
+      for (let i = 0; i < CARD_CHUNKS; i++) {
+        const listener = coll.doc('all_' + i).onSnapshot((snap) => {
           if (!snap.exists || !snap.data() || !Array.isArray(snap.data().cards)) return;
           const remote = snap.data().cards;
           let changed = false;
@@ -1038,16 +1039,18 @@
           console.warn('SR: cards listener error:', err);
           setTimeout(startCardsSyncListener, 5000);
         });
+        cardsSyncListeners.push(listener);
+      }
     } catch(e) {
       console.warn('SR: не удалось запустить cards listener:', e);
     }
   }
 
   function stopCardsSyncListener() {
-    if (cardsSyncListener) {
-      try { cardsSyncListener(); } catch(e) {}
-      cardsSyncListener = null;
+    for (let i = 0; i < cardsSyncListeners.length; i++) {
+      try { cardsSyncListeners[i](); } catch(e) {}
     }
+    cardsSyncListeners = [];
   }
 
   // Realtime: настройки (users/{uid}/sr_cards/settings)
@@ -1252,11 +1255,21 @@
     if (!window.firestore || !window.auth || !window.authUser) return null;
     try {
       const uid = window.authUser.uid;
-      if (typeof window.firestore.collection === 'function') {
-        const snap = await window.firestore.collection('users').doc(uid).collection('sr_cards').doc('all').get();
-        if (snap.exists) {
-          const data = snap.data();
-          return data.cards || null;
+      if (typeof window.firestore.collection !== 'function') return null;
+      const coll = window.firestore.collection('users').doc(uid).collection('sr_cards');
+      const chunks = [];
+      for (let i = 0; i < CARD_CHUNKS; i++) {
+        const snap = await coll.doc('all_' + i).get();
+        if (snap.exists && Array.isArray(snap.data().cards)) chunks.push(...snap.data().cards);
+      }
+      if (chunks.length > 0) return chunks;
+      // Миграция из старого однодокументного хранилища `all`
+      const oldSnap = await coll.doc('all').get();
+      if (oldSnap.exists) {
+        const oldCards = oldSnap.data().cards;
+        if (Array.isArray(oldCards) && oldCards.length > 0) {
+          await saveCardsToFirestore(oldCards);
+          return oldCards;
         }
       }
       return null;
@@ -1266,15 +1279,30 @@
     }
   }
 
-  async   function saveCardsToFirestore(cardsData) {
+  // Постоянные чанки: один карточка всегда в своём чанке (users/{uid}/sr_cards/all_N)
+  const CARD_CHUNKS = 6;
+  function cardChunkIndex(id) {
+    const s = String(id);
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return Math.abs(h) % CARD_CHUNKS;
+  }
+
+  async   function saveCardsToFirestore(cardsData, onlyCardId) {
     if (!window.firestore || !window.auth || !window.authUser) return;
     try {
       const uid = window.authUser.uid;
-      if (typeof window.firestore.collection === 'function') {
-        await window.firestore.collection('users').doc(uid).collection('sr_cards').doc('all').set({
-          cards: cardsData,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
+      if (typeof window.firestore.collection !== 'function') return;
+      const coll = window.firestore.collection('users').doc(uid).collection('sr_cards');
+      const chunks = [];
+      for (let i = 0; i < CARD_CHUNKS; i++) chunks.push([]);
+      cardsData.forEach(c => { chunks[cardChunkIndex(c.id)].push(c); });
+      const chunkSet = new Set();
+      if (onlyCardId) chunkSet.add(cardChunkIndex(onlyCardId));
+      else for (let i = 0; i < CARD_CHUNKS; i++) chunkSet.add(i);
+      const now = new Date().toISOString();
+      for (const ci of chunkSet) {
+        await coll.doc('all_' + ci).set({ cards: chunks[ci], updatedAt: now }, { merge: true });
       }
     } catch(e) {
       console.warn('Firestore save error:', e);
@@ -1833,7 +1861,7 @@
 
     saveCardsLocal(cards);
     if (window.auth && window.authUser) {
-      saveCardsToFirestore(cards);
+      saveCardsToFirestore(cards, updated.id);
       saveLogsToFirestore();
     }
     window.__cards = cards;
@@ -1889,7 +1917,7 @@
 
     saveCardsLocal(cards);
     if (window.auth && window.authUser) {
-      saveCardsToFirestore(cards);
+      saveCardsToFirestore(cards, u.card.id);
       saveLogsToFirestore();
     }
     window.__cards = cards;
