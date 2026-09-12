@@ -760,6 +760,17 @@
   let devMode = false;
   let errorList = [];
 
+  // ===== Real-time синхронизация с Firestore =====
+  let initStarted = false;
+  let initDone = false;
+  let srListenersStarted = false;
+  let cardsSyncListener = null;
+  let settingsSyncListener = null;
+  let lastPushedSettingsJSON = null;
+  let daySyncListener = null;
+  let lastPushedDayJSON = null;
+  let srDayPushTimer = null;
+
   // Час смены дня (как в Anki): день заканчивается в 4 утра.
   // Карта со сроком "завтра" доступна с начала дня, а не с точного времени ответа.
   const DAY_CUTOFF_HOUR = 4;
@@ -811,6 +822,7 @@
   }
   function saveSettingsToStorage() {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ limitNew, unlimitedReviews, maxReviews, w: fsrs.w, devMode }));
+    pushSettingsToFirestore();
   }
 
   function isDevAccount() {
@@ -856,6 +868,7 @@
   }
   function saveNewTodayCount() {
     localStorage.setItem(NEW_TODAY_KEY, JSON.stringify({ date: srDayKey(), count: newTodayCount }));
+    scheduleDayPush();
   }
 
   function loadReviewTodayCount() {
@@ -867,6 +880,7 @@
   }
   function saveReviewTodayCount() {
     localStorage.setItem(REVIEW_TODAY_KEY, JSON.stringify({ date: srDayKey(), count: reviewTodayCount }));
+    scheduleDayPush();
   }
 
   // Boost лимиты (дополнительные к основным)
@@ -887,10 +901,12 @@
   function saveBoostNew(val) {
     boostNew = val;
     localStorage.setItem(BOOST_NEW_KEY, JSON.stringify({ date: srDayKey(), boost: val }));
+    scheduleDayPush();
   }
   function saveBoostReview(val) {
     boostReview = val;
     localStorage.setItem(BOOST_REVIEW_KEY, JSON.stringify({ date: srDayKey(), boost: val }));
+    scheduleDayPush();
   }
 
   // Сколько всего повторений сегодня
@@ -903,6 +919,7 @@
   }
   function saveTodayCount() {
     localStorage.setItem(TODAY_KEY, JSON.stringify({ date: srDayKey(), count: todayCount }));
+    scheduleDayPush();
   }
 
   function loadCardsLocal() {
@@ -914,6 +931,300 @@
   }
   function saveCardsLocal(data) {
     localStorage.setItem(CARD_STORE_KEY, JSON.stringify(data));
+  }
+
+  function srFirebaseReady() {
+    return !!(window.firestore && window.auth && window.authUser &&
+      typeof window.firestore.collection === 'function');
+  }
+
+  function srSettingsPayload() {
+    return {
+      limitNew,
+      unlimitedReviews,
+      maxReviews,
+      w: fsrs ? fsrs.w.slice() : [],
+      devMode: !!devMode
+    };
+  }
+
+  function currentSettingsSerialized() {
+    return JSON.stringify(srSettingsPayload());
+  }
+
+  // Применить настройки, пришедшие из облака (last-write-wins)
+  function applySettingsFromPayload(p) {
+    if (!p) return false;
+    let changed = false;
+    if (typeof p.limitNew === 'number' && p.limitNew !== limitNew) {
+      limitNew = p.limitNew;
+      changed = true;
+    }
+    if (typeof p.unlimitedReviews === 'boolean' && p.unlimitedReviews !== unlimitedReviews) {
+      unlimitedReviews = p.unlimitedReviews;
+      changed = true;
+    }
+    if (typeof p.maxReviews === 'number' && p.maxReviews !== maxReviews) {
+      maxReviews = p.maxReviews;
+      changed = true;
+    }
+    if (Array.isArray(p.w) && p.w.length === 19 && fsrs && JSON.stringify(p.w) !== JSON.stringify(fsrs.w)) {
+      fsrs.w = p.w.slice();
+      changed = true;
+    }
+    if (typeof p.devMode === 'boolean' && p.devMode !== devMode && isDevAccount()) {
+      devMode = p.devMode;
+      changed = true;
+    }
+    if (changed) saveSettingsToStorage();
+    return changed;
+  }
+
+  async function loadSettingsFromFirestore() {
+    if (!srFirebaseReady()) return null;
+    try {
+      const snap = await window.firestore.collection('users').doc(window.authUser.uid)
+        .collection('sr_cards').doc('settings').get();
+      if (snap.exists && snap.data && snap.data().settings) return snap.data().settings;
+      return null;
+    } catch(e) {
+      console.warn('SR: не удалось загрузить настройки из Firestore:', e);
+      return null;
+    }
+  }
+
+  function pushSettingsToFirestore() {
+    if (!srFirebaseReady()) return;
+    try {
+      lastPushedSettingsJSON = currentSettingsSerialized();
+      return window.firestore.collection('users').doc(window.authUser.uid)
+        .collection('sr_cards').doc('settings')
+        .set({ settings: srSettingsPayload(), updatedAt: new Date().toISOString() }, { merge: true });
+    } catch(e) {
+      console.warn('SR: ошибка записи настроек в Firestore:', e);
+    }
+  }
+
+  // Realtime: карточки (users/{uid}/sr_cards/all)
+  function startCardsSyncListener() {
+    stopCardsSyncListener();
+    if (!srFirebaseReady()) return;
+    try {
+      cardsSyncListener = window.firestore.collection('users').doc(window.authUser.uid)
+        .collection('sr_cards').doc('all')
+        .onSnapshot((snap) => {
+          if (!snap.exists || !snap.data() || !Array.isArray(snap.data().cards)) return;
+          const remote = snap.data().cards;
+          let changed = false;
+          const localMap = {};
+          cards.forEach(c => { localMap[c.id] = c; });
+          remote.forEach(c => {
+            const local = localMap[c.id];
+            if (!local) {
+              cards.push(c);
+              changed = true;
+            } else if ((c.lastReview || 0) > (local.lastReview || 0)) {
+              const idx = cards.findIndex(x => x.id === c.id);
+              if (idx !== -1) cards[idx] = c;
+              changed = true;
+            }
+          });
+          if (changed) {
+            saveCardsLocal(cards);
+            window.__cards = cards;
+            if (queue.length === 0) renderDeckSelection();
+          }
+        }, (err) => {
+          console.warn('SR: cards listener error:', err);
+          setTimeout(startCardsSyncListener, 5000);
+        });
+    } catch(e) {
+      console.warn('SR: не удалось запустить cards listener:', e);
+    }
+  }
+
+  function stopCardsSyncListener() {
+    if (cardsSyncListener) {
+      try { cardsSyncListener(); } catch(e) {}
+      cardsSyncListener = null;
+    }
+  }
+
+  // Realtime: настройки (users/{uid}/sr_cards/settings)
+  function startSettingsSyncListener() {
+    stopSettingsSyncListener();
+    if (!srFirebaseReady()) return;
+    try {
+      settingsSyncListener = window.firestore.collection('users').doc(window.authUser.uid)
+        .collection('sr_cards').doc('settings')
+        .onSnapshot((snap) => {
+          if (!snap.exists || !snap.data() || !snap.data().settings) return;
+          const payload = snap.data().settings;
+          if (lastPushedSettingsJSON === JSON.stringify(payload)) return; // эхо своей записи
+          const changed = applySettingsFromPayload(payload);
+          if (changed) {
+            lastPushedSettingsJSON = currentSettingsSerialized();
+            const modal = document.getElementById('settingsModal');
+            if (modal && modal.style.display === 'flex') openSettings();
+            if (queue.length === 0) renderDeckSelection();
+          }
+        }, (err) => {
+          console.warn('SR: settings listener error:', err);
+          setTimeout(startSettingsSyncListener, 5000);
+        });
+    } catch(e) {
+      console.warn('SR: не удалось запустить settings listener:', e);
+    }
+  }
+
+  function stopSettingsSyncListener() {
+    if (settingsSyncListener) {
+      try { settingsSyncListener(); } catch(e) {}
+      settingsSyncListener = null;
+    }
+  }
+
+  // Первичная загрузка настроек из облака + запуск слушателей (один раз после init)
+  async function ensureSrSync() {
+    if (!srFirebaseReady() || !initDone || srListenersStarted) return;
+    srListenersStarted = true;
+    try {
+      const remote = await loadSettingsFromFirestore();
+      if (remote) {
+        const changed = applySettingsFromPayload(remote);
+        if (changed && queue.length === 0) renderDeckSelection();
+        lastPushedSettingsJSON = currentSettingsSerialized();
+      } else {
+        pushSettingsToFirestore();
+      }
+      const dayRemote = await loadDayFromFirestore();
+      if (dayRemote) {
+        const dayChanged = applyDayPayload(dayRemote);
+        if (dayChanged && queue.length === 0) renderDeckSelection();
+        lastPushedDayJSON = JSON.stringify(srDayPayload());
+      } else {
+        doPushDay();
+      }
+    } catch(e) {
+      console.warn('SR: ошибка первичной синхронизации настроек:', e);
+    }
+    startSettingsSyncListener();
+    startCardsSyncListener();
+    startDaySyncListener();
+  }
+
+  // ===== Синхронизация счётчиков дня (users/{uid}/sr_cards/day) =====
+  function srDayPayload() {
+    return {
+      day: srDayKey(),
+      todayCount,
+      newTodayCount,
+      reviewTodayCount,
+      boostNew,
+      boostReview
+    };
+  }
+
+  function scheduleDayPush() {
+    if (!srFirebaseReady()) return;
+    if (srDayPushTimer) clearTimeout(srDayPushTimer);
+    srDayPushTimer = setTimeout(() => {
+      srDayPushTimer = null;
+      doPushDay();
+    }, 400);
+  }
+
+  function doPushDay() {
+    try {
+      lastPushedDayJSON = JSON.stringify(srDayPayload());
+      return window.firestore.collection('users').doc(window.authUser.uid)
+        .collection('sr_cards').doc('day')
+        .set({ stats: srDayPayload(), updatedAt: new Date().toISOString() }, { merge: true });
+    } catch(e) {
+      console.warn('SR: ошибка записи счётчиков дня в Firestore:', e);
+    }
+  }
+
+  // Применить удалённые счётчики за тот же день (никогда не уменьшаем: берём большее)
+  function applyDayPayload(p) {
+    if (!p || p.day !== srDayKey()) return false;
+    let changed = false;
+    if (typeof p.todayCount === 'number' && p.todayCount > todayCount) {
+      todayCount = p.todayCount;
+      changed = true;
+    }
+    if (typeof p.newTodayCount === 'number' && p.newTodayCount > newTodayCount) {
+      newTodayCount = p.newTodayCount;
+      changed = true;
+    }
+    if (typeof p.reviewTodayCount === 'number' && p.reviewTodayCount > reviewTodayCount) {
+      reviewTodayCount = p.reviewTodayCount;
+      changed = true;
+    }
+    if (typeof p.boostNew === 'number' && p.boostNew > boostNew) {
+      boostNew = p.boostNew;
+      changed = true;
+    }
+    if (typeof p.boostReview === 'number' && p.boostReview > boostReview) {
+      boostReview = p.boostReview;
+      changed = true;
+    }
+    if (changed) {
+      localStorage.setItem(TODAY_KEY, JSON.stringify({ date: srDayKey(), count: todayCount }));
+      localStorage.setItem(NEW_TODAY_KEY, JSON.stringify({ date: srDayKey(), count: newTodayCount }));
+      localStorage.setItem(REVIEW_TODAY_KEY, JSON.stringify({ date: srDayKey(), count: reviewTodayCount }));
+      localStorage.setItem(BOOST_NEW_KEY, JSON.stringify({ date: srDayKey(), boost: boostNew }));
+      localStorage.setItem(BOOST_REVIEW_KEY, JSON.stringify({ date: srDayKey(), boost: boostReview }));
+    }
+    return changed;
+  }
+
+  async function loadDayFromFirestore() {
+    if (!srFirebaseReady()) return null;
+    try {
+      const snap = await window.firestore.collection('users').doc(window.authUser.uid)
+        .collection('sr_cards').doc('day').get();
+      if (snap.exists && snap.data && snap.data().stats) return snap.data().stats;
+      return null;
+    } catch(e) {
+      console.warn('SR: не удалось загрузить счётчики дня из Firestore:', e);
+      return null;
+    }
+  }
+
+  function startDaySyncListener() {
+    stopDaySyncListener();
+    if (!srFirebaseReady()) return;
+    try {
+      daySyncListener = window.firestore.collection('users').doc(window.authUser.uid)
+        .collection('sr_cards').doc('day')
+        .onSnapshot((snap) => {
+          if (!snap.exists || !snap.data() || !snap.data().stats) return;
+          const p = snap.data().stats;
+          if (lastPushedDayJSON === JSON.stringify(p)) return; // эхо своей записи
+          const changed = applyDayPayload(p);
+          if (changed) {
+            lastPushedDayJSON = JSON.stringify(srDayPayload());
+            const settingsModal = document.getElementById('settingsModal');
+            if (settingsModal && settingsModal.style.display === 'flex') openSettings();
+            const statsModal = document.getElementById('statsModal');
+            if (statsModal && statsModal.style.display === 'flex') renderStats();
+            if (queue.length === 0) renderDeckSelection();
+          }
+        }, (err) => {
+          console.warn('SR: day listener error:', err);
+          setTimeout(startDaySyncListener, 5000);
+        });
+    } catch(e) {
+      console.warn('SR: не удалось запустить day listener:', e);
+    }
+  }
+
+  function stopDaySyncListener() {
+    if (daySyncListener) {
+      try { daySyncListener(); } catch(e) {}
+      daySyncListener = null;
+    }
   }
 
   function wordToId(wordLine) {
@@ -1008,6 +1319,8 @@
   }
 
   async function init() {
+    if (initStarted) return;
+    initStarted = true;
     loadSettings();
     loadTodayCount();
     loadNewTodayCount();
@@ -1101,7 +1414,9 @@
 
     window.__cards = cards;
     window.__queue = queue;
+    initDone = true;
     renderDeckSelection();
+    ensureSrSync();
   }
 
   // Одноразовая миграция на настоящий FSRS-5:
@@ -2301,7 +2616,11 @@
 
   // Синхронизация при смене auth
   window.addEventListener('authChanged', async () => {
-    if (window.authUser && cards.length > 0) {
+    if (window.authUser) {
+      if (cards.length === 0) {
+        init();
+        return;
+      }
       const remote = await loadCardsFromFirestore();
       if (remote && remote.length > 0) {
         const remoteMap = {};
@@ -2323,8 +2642,15 @@
         }
       }
       saveCardsToFirestore(cards);
-    } else if (!window.authUser && cards.length === 0) {
-      init();
+      ensureSrSync();
+    } else {
+      stopCardsSyncListener();
+      stopSettingsSyncListener();
+      stopDaySyncListener();
+      srListenersStarted = false;
+      lastPushedSettingsJSON = null;
+      lastPushedDayJSON = null;
+      if (cards.length === 0) init();
     }
   });
 
