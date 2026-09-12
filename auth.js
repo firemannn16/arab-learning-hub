@@ -2,6 +2,8 @@
   'use strict';
 
   const AUTH_STORAGE_KEY = 'arabAuthEmail';
+  const ADMIN_MODE_KEY = 'arabAdminMode';
+  const ADMIN_CODE = '0901';
 
   let initialized = false;
   let authModal = null;
@@ -166,6 +168,8 @@
           <button class="link-btn" id="authForgot" style="text-align:right;margin:-4px 0 12px;font-size:0.85rem">Забыли пароль?</button>
           <button class="auth-btn" id="authLoginBtn">Войти</button>
           <button class="link-btn" id="authToRegister">Нет аккаунта? Зарегистрироваться</button>
+          <div class="divider"></div>
+          <button class="link-btn" id="authToAdmin">Только для админов</button>
         </div>
         <div id="authViewRegister" style="display:none">
           <h2>Регистрация</h2>
@@ -186,6 +190,14 @@
           <button class="auth-btn" id="authResetBtn">Отправить ссылку</button>
           <button class="link-btn" id="authResetBack">← Вернуться ко входу</button>
         </div>
+        <div id="authViewAdmin" style="display:none">
+          <h2>Только для админов</h2>
+          <div class="sub">Введите код доступа для входа без регистрации. Аккаунт создаваться не будет, все данные будут храниться только в этом браузере.</div>
+          <div class="error-msg" id="authAdminError"></div>
+          <input type="password" id="authAdminCode" placeholder="Код доступа" autocomplete="off">
+          <button class="auth-btn" id="authAdminBtn">Войти</button>
+          <button class="link-btn" id="authAdminBack">← Вернуться ко входу</button>
+        </div>
       </div>
     `;
     document.body.appendChild(authModal);
@@ -197,6 +209,7 @@
     const regPass2 = authModal.querySelector('#authRegPass2');
 
     const resetEmail = authModal.querySelector('#authResetEmail');
+    const adminCode = authModal.querySelector('#authAdminCode');
 
     authModal.querySelector('#authLoginBtn').addEventListener('click', () => doLogin(emailInput.value, passInput.value));
     authModal.querySelector('#authRegisterBtn').addEventListener('click', () => doRegister(regEmail.value, regPass.value, regPass2.value));
@@ -205,22 +218,29 @@
     authModal.querySelector('#authResetBack').addEventListener('click', () => switchView('login'));
     authModal.querySelector('#authToRegister').addEventListener('click', () => switchView('register'));
     authModal.querySelector('#authToLogin').addEventListener('click', () => switchView('login'));
+    authModal.querySelector('#authToAdmin').addEventListener('click', () => switchView('admin'));
+    authModal.querySelector('#authAdminBack').addEventListener('click', () => switchView('login'));
+    authModal.querySelector('#authAdminBtn').addEventListener('click', () => doAdminLogin(adminCode.value));
     [emailInput, passInput].forEach(f => f.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(emailInput.value, passInput.value); }));
     [regEmail, regPass, regPass2].forEach(f => f.addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(regEmail.value, regPass.value, regPass2.value); }));
     resetEmail.addEventListener('keydown', e => { if (e.key === 'Enter') doResetPassword(resetEmail.value); });
+    adminCode.addEventListener('keydown', e => { if (e.key === 'Enter') doAdminLogin(adminCode.value); });
   }
 
   function switchView(view) {
     const login = authModal.querySelector('#authViewLogin');
     const register = authModal.querySelector('#authViewRegister');
     const reset = authModal.querySelector('#authViewReset');
+    const admin = authModal.querySelector('#authViewAdmin');
     login.style.display = view === 'login' ? '' : 'none';
     register.style.display = view === 'register' ? '' : 'none';
     reset.style.display = view === 'reset' ? '' : 'none';
+    admin.style.display = view === 'admin' ? '' : 'none';
     authModal.querySelector('#authError').style.display = 'none';
     authModal.querySelector('#authRegError').style.display = 'none';
     authModal.querySelector('#authResetError').style.display = 'none';
     authModal.querySelector('#authResetSuccess').style.display = 'none';
+    authModal.querySelector('#authAdminError').style.display = 'none';
   }
 
   function setLoading(btnId, loading) {
@@ -294,6 +314,20 @@
     }
   }
 
+  function doAdminLogin(code) {
+    const err = authModal.querySelector('#authAdminError');
+    err.style.display = 'none';
+    if (!code) { err.textContent = 'Введите код доступа'; err.style.display = 'block'; return; }
+    if (String(code).trim() === ADMIN_CODE) {
+      localStorage.setItem(ADMIN_MODE_KEY, '1');
+      closeModal();
+      notifyAuthChanged(window.authUser);
+    } else {
+      err.textContent = 'Неверный код доступа';
+      err.style.display = 'block';
+    }
+  }
+
   function closeModal() {
     if (authModal) authModal.classList.remove('show');
     const notice = document.getElementById('progressNotice');
@@ -322,8 +356,13 @@
   }
 
   function logout() {
+    if (isAdminMode()) {
+      localStorage.removeItem(ADMIN_MODE_KEY);
+    }
     if (window.firebaseAuth) {
       window.firebaseAuth.signOut();
+    } else {
+      notifyAuthChanged(null);
     }
   }
 
@@ -332,16 +371,26 @@
     return null;
   }
 
+  function isAdminMode() {
+    try { return localStorage.getItem(ADMIN_MODE_KEY) === '1'; } catch(e) { return false; }
+  }
+
+  function notifyAuthChanged(user) {
+    window.dispatchEvent(new CustomEvent('authChanged', { detail: { user } }));
+  }
+
   function isLoggedIn() {
-    return !!window.authUser;
+    return !!window.authUser || isAdminMode();
   }
 
   function getUserEmail() {
-    return window.authUser ? window.authUser.email : null;
+    if (window.authUser) return window.authUser.email;
+    if (isAdminMode()) return 'Админ';
+    return null;
   }
 
   async function ensureAuth() {
-    if (window.authUser) return window.authUser;
+    if (isLoggedIn()) return window.authUser || {};
     return new Promise(resolve => {
       const handler = (e) => {
         window.removeEventListener('authChanged', handler);
@@ -359,6 +408,7 @@
     logout,
     getUserId,
     isLoggedIn,
+    isAdminMode,
     getUserEmail,
     ensureAuth
   };

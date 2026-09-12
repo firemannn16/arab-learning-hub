@@ -142,6 +142,16 @@
   }
   .flashcard .fav-star:hover { opacity: 1; }
   .flashcard .fav-star.active { opacity: 1; }
+  .flashcard .sr-error-btn {
+    position: absolute; top: 10px; left: 47px;
+    width: 26px; height: 26px;
+    background: #ef4444; color: #fff; border: none; border-radius: 50%;
+    font-size: 0.95rem; font-weight: 700; line-height: 1;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(239,68,68,0.45);
+    transition: transform 0.15s;
+  }
+  .flashcard .sr-error-btn:hover { transform: scale(1.12); }
 
   /* Rating buttons */
   .ratings {
@@ -316,6 +326,34 @@
   }
   .setting-boost-btn:hover { background: #1d4ed8; }
 
+  /* iOS-переключатель */
+  .dev-mode-row {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .dark-theme .dev-mode-row { background: #111827; border-color: #334155; }
+  .ios-switch {
+    position: relative; display: inline-block;
+    width: 51px; height: 31px; flex-shrink: 0;
+  }
+  .ios-switch input { opacity: 0; width: 0; height: 0; }
+  .ios-switch-slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: #e4e4e4; border-radius: 31px;
+    transition: background 0.3s;
+  }
+  .ios-switch-slider::before {
+    content: ""; position: absolute;
+    height: 27px; width: 27px; left: 2px; top: 2px;
+    background: #fff; border-radius: 50%;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+    transition: transform 0.3s;
+  }
+  .ios-switch input:checked + .ios-switch-slider { background: #34c759; }
+  .ios-switch input:checked + .ios-switch-slider::before { transform: translateX(20px); }
+  .dark-theme .ios-switch-slider { background: #4b5563; }
+
   /* Boost modal */
   .boost-input-row {
     display: flex; gap: 8px; align-items: center; margin: 16px 0;
@@ -388,6 +426,66 @@
     display: flex; justify-content: space-between; align-items: center;
     max-width: 500px; width: 100%; margin-bottom: 8px;
   }
+  .study-top-left { display: flex; align-items: center; }
+  .sr-err-list-btn {
+    margin-left: 6px; padding: 5px 9px;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #78350f; border: 1.5px solid rgba(255,255,255,0.65);
+    border-radius: 10px; font-size: 0.85rem; font-weight: 700;
+    line-height: 1; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(245,158,11,0.4);
+    transform: rotate(-3deg); transition: transform 0.15s;
+  }
+  .sr-err-list-btn:hover { transform: rotate(0deg) scale(1.06); }
+
+  /* Dev-mode: список ошибок */
+  .sr-err-info {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 14px; margin-bottom: 14px;
+  }
+  .dark-theme .sr-err-info { background: #111827; border-color: #334155; }
+  .sr-err-word { font-size: 1.4rem; font-weight: 700; direction: rtl; }
+  .sr-err-trans { font-size: 0.95rem; color: #4b5563; }
+  .dark-theme .sr-err-trans { color: #cbd5e1; }
+  .sr-err-line { font-size: 0.72rem; color: #94a3b8; word-break: break-word; text-align: center; }
+  .dark-theme .sr-err-line { color: #64748b; }
+  .sr-err-comment {
+    width: 100%; padding: 10px 12px; border: 2px solid #d1d5db; border-radius: 10px;
+    font-size: 0.9rem; font-family: inherit; resize: vertical;
+    margin: 8px 0 12px; box-sizing: border-box;
+    background: #fff; color: #1f2937;
+  }
+  .dark-theme .sr-err-comment { background: #334155; border-color: #475569; color: #e0e0e0; }
+  .sr-err-comment:focus { outline: none; border-color: #667eea; }
+  .sr-err-save-btn {
+    width: 100%; padding: 12px; border: none; border-radius: 10px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer;
+  }
+  .sr-err-cancel-btn {
+    width: 100%; padding: 10px; border: none; border-radius: 10px;
+    background: transparent; color: #6b7280; font-size: 0.9rem;
+    cursor: pointer; margin-top: 8px;
+  }
+  .dark-theme .sr-err-cancel-btn { color: #94a3b8; }
+  .sr-err-copy-btn {
+    padding: 4px 10px; border: none; border-radius: 6px;
+    background: #667eea; color: #fff; font-size: 0.75rem; cursor: pointer;
+  }
+  .sr-err-copy-btn:active { opacity: 0.8; }
+  .sr-err-clear-btn {
+    margin-left: 6px; padding: 4px 10px; border: none; border-radius: 6px;
+    background: #ef4444; color: #fff; font-size: 0.75rem; cursor: pointer;
+  }
+  .sr-err-clear-btn:active { opacity: 0.8; }
+  .dark-theme .sr-err-clear-btn { background: #dc2626; }
+  .sr-err-list-body { overflow-y: auto; flex: 1; font-size: 0.85rem; line-height: 1.6; }
+  .sr-err-item { padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+  .dark-theme .sr-err-item { border-bottom-color: #334155; }
+  .sr-err-item-main { font-size: 0.95rem; font-weight: 600; word-break: break-word; }
+  .sr-err-item-comment { font-size: 0.8rem; color: #94a3b8; margin-top: 3px; word-break: break-word; }
+  .dark-theme .sr-err-item-comment { color: #64748b; }
 
   .done-home-btn {
     display: inline-block; margin-top: 24px; padding: 12px 28px;
@@ -496,6 +594,17 @@
       <h2 style="margin:0;font-size:1.15rem">Настройки</h2>
     </div>
 
+    <div class="setting-row dev-mode-row">
+      <div>
+        <div class="setting-label" style="margin-bottom:0">Режим разработчика</div>
+        <div style="font-size:0.78rem;color:#94a3b8;margin-top:2px">Инструменты для проверки слов</div>
+      </div>
+      <label class="ios-switch">
+        <input type="checkbox" id="devModeToggle">
+        <span class="ios-switch-slider"></span>
+      </label>
+    </div>
+
     <div class="setting-row">
       <div class="setting-label">Новых карт в день:</div>
       <input type="number" id="limitNewInput" min="0" max="999" style="width:100%;padding:10px;border-radius:8px;border:2px solid #d1d5db;font-size:1rem;text-align:center">
@@ -567,6 +676,29 @@
   </div>
 </div>
 
+<div id="errorReportModal" class="modal-overlay" style="display:none">
+  <div class="modal-content">
+    <h3 style="margin:0 0 12px;font-size:1.05rem">Ошибка в слове</h3>
+    <div id="errorReportInfo" class="sr-err-info"></div>
+    <label class="setting-label" style="font-size:0.85rem">Комментарий:</label>
+    <textarea id="errorReportComment" class="sr-err-comment" rows="3" placeholder="Опишите ошибку (огласовка, перевод, написание)..."></textarea>
+    <button id="errorReportSaveBtn" class="sr-err-save-btn">Сохранить</button>
+    <button id="errorReportCancelBtn" class="sr-err-cancel-btn">Отменить</button>
+  </div>
+</div>
+
+<div id="errorListModal" class="modal-overlay" style="display:none">
+  <div class="modal-content" style="max-width:460px;max-height:80vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;margin-bottom:8px;flex-shrink:0">
+      <button class="settings-back-btn" id="errorListBackBtn" title="Назад">←</button>
+      <h3 id="errorListCount" style="margin:0;font-size:1rem;flex:1"></h3>
+      <button class="sr-err-copy-btn" id="errorListCopyBtn">Копировать</button>
+      <button class="sr-err-clear-btn" id="errorListClearBtn">Очистить</button>
+    </div>
+    <div id="errorListBody" class="sr-err-list-body"></div>
+  </div>
+</div>
+
 <style>
   .modal-overlay {
     position:fixed;inset:0;background:rgba(0,0,0,0.5);
@@ -603,6 +735,8 @@
   const LOGS_KEY = 'arabSrLogs';
   const BOOST_NEW_KEY = 'arabSrBoostNew';
   const BOOST_REVIEW_KEY = 'arabSrBoostReview';
+  const ERROR_LIST_KEY = 'arabSrDevErrors';
+  const DEV_ACCOUNT = 'komnenado@gmail.com';
 
   let allWords = [];
   let notesMap = {};
@@ -623,6 +757,8 @@
   let sessionDone = 0;
   let logs = [];
   let undoStack = [];
+  let devMode = false;
+  let errorList = [];
 
   // Час смены дня (как в Anki): день заканчивается в 4 утра.
   // Карта со сроком "завтра" доступна с начала дня, а не с точного времени ответа.
@@ -665,6 +801,7 @@
         if (s.limitNew) limitNew = s.limitNew;
         if (s.unlimitedReviews !== undefined) unlimitedReviews = s.unlimitedReviews;
         if (s.maxReviews !== undefined) maxReviews = s.maxReviews;
+        if (s.devMode) devMode = s.devMode;
         if (s.w && Array.isArray(s.w) && s.w.length === 19) {
           if (fsrs) fsrs.w = s.w;
           else window._savedW = s.w;
@@ -673,7 +810,40 @@
     } catch(e) {}
   }
   function saveSettingsToStorage() {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ limitNew, unlimitedReviews, maxReviews, w: fsrs.w }));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ limitNew, unlimitedReviews, maxReviews, w: fsrs.w, devMode }));
+  }
+
+  function isDevAccount() {
+    try {
+      if (window.auth && window.auth.isAdminMode && window.auth.isAdminMode()) return true;
+      return !!(window.auth && window.auth.getUserEmail && window.auth.getUserEmail() === DEV_ACCOUNT);
+    } catch(e) { return false; }
+  }
+
+  function loadErrorList() {
+    try {
+      const d = JSON.parse(localStorage.getItem(ERROR_LIST_KEY));
+      if (Array.isArray(d)) errorList = d;
+    } catch(e) { errorList = []; }
+  }
+  function saveErrorList() {
+    try { localStorage.setItem(ERROR_LIST_KEY, JSON.stringify(errorList)); } catch(e) {}
+  }
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+  function showToast(msg) {
+    let t = document.getElementById('appToast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'appToast';
+      t.style.cssText = 'position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:10000000;background:#111827;color:#fff;padding:10px 22px;border-radius:12px;font-size:0.9rem;font-weight:500;box-shadow:0 10px 30px rgba(0,0,0,0.3);transition:opacity 0.3s;opacity:1;pointer-events:none;max-width:86vw;text-align:center;white-space:pre-wrap;word-break:break-word';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(t._t);
+    t._t = setTimeout(() => { t.style.opacity = '0'; }, 2500);
   }
 
   // Сколько новых показано сегодня
@@ -844,6 +1014,7 @@
     loadReviewTodayCount();
     loadBoostLimits();
     loadLogs();
+    loadErrorList();
     // Миграция на настоящий FSRS-5: старые веса обучены на кривой модели — сбрасываем
     const fsrsV2Done = localStorage.getItem('sr_fsrs_v2') === '1';
     fsrs = new window.FSRS(fsrsV2Done ? (window._savedW || undefined) : undefined);
@@ -1196,13 +1367,17 @@
 
     area.innerHTML = `
       <div class="study-top-row">
-        <button class="study-back-btn" id="studyBackBtn" title="Назад">←</button>
+        <div class="study-top-left">
+          <button class="study-back-btn" id="studyBackBtn" title="Назад">←</button>
+          ${devMode && isDevAccount() ? `<button class="sr-err-list-btn" id="errorListBtn" title="Список ошибок">📋${errorList.length > 0 ? ' ' + errorList.length : ''}</button>` : ''}
+        </div>
         <button class="undo-btn ${undoStack.length === 0 ? 'undo-disabled' : ''}" id="undoBtn" title="Отменить последний ответ">↶</button>
       </div>
       <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
       <div class="card-container">
         <div class="flashcard" id="flashcard">
           <button class="fav-star ${window.isFavorite ? (window.isFavorite(card.line) ? 'active' : '') : ''}" id="favStar">${window.isFavorite && window.isFavorite(card.line) ? '⭐' : '☆'}</button>
+          ${devMode && isDevAccount() ? `<button class="sr-error-btn" id="errorBtn" title="Добавить в список ошибок">!</button>` : ''}
           <div class="word-index">${done + 1}/${total}</div>
           <div class="front-text arabic" id="frontText">${front}</div>
           <div class="tap-hint" id="tapHint">👆 нажмите, чтобы увидеть перевод</div>
@@ -1219,7 +1394,7 @@
     `;
 
     document.getElementById('flashcard').addEventListener('click', (e) => {
-      if (e.target.closest('.fav-star')) return;
+      if (e.target.closest('.fav-star') || e.target.closest('.sr-error-btn')) return;
       flipCard(card);
     });
 
@@ -1232,6 +1407,14 @@
           favStar.classList.toggle('active', val);
         }
       });
+    }
+    const errorBtn = document.getElementById('errorBtn');
+    if (errorBtn) {
+      errorBtn.addEventListener('click', () => openErrorReport(card));
+    }
+    const errorListBtn = document.getElementById('errorListBtn');
+    if (errorListBtn) {
+      errorListBtn.addEventListener('click', () => openErrorListModal());
     }
 
     area.querySelectorAll('.rating-btn').forEach(btn => {
@@ -1857,6 +2040,104 @@
     setTimeout(() => btn.textContent = orig, 1500);
   });
 
+  function openErrorReport(card) {
+    const info = document.getElementById('errorReportInfo');
+    info.innerHTML = `
+      <div class="sr-err-word">${escapeHtml(card.ar)}</div>
+      <div class="sr-err-trans">${escapeHtml(card.ru)}</div>
+      <div class="sr-err-line">${escapeHtml(card.line)}</div>
+    `;
+    const ta = document.getElementById('errorReportComment');
+    ta.value = '';
+    ta.style.borderColor = '';
+    window.__currentErrorCard = card;
+    document.getElementById('errorReportModal').style.display = 'flex';
+    ta.focus();
+  }
+
+  function openErrorListModal() {
+    const body = document.getElementById('errorListBody');
+    body.innerHTML = errorList.length === 0
+      ? '<div style="color:#94a3b8;text-align:center;padding:20px">Список пуст</div>'
+      : errorList.map(e => `
+        <div class="sr-err-item">
+          <div class="sr-err-item-main">${escapeHtml(e.translation)} - ${escapeHtml(e.word)}</div>
+          ${e.comment ? `<div class="sr-err-item-comment">комментарий: <span style="color:#6b7280">${escapeHtml(e.comment)}</span></div>` : ''}
+        </div>
+      `).join('');
+    document.getElementById('errorListCount').textContent = 'Список ошибок (' + errorList.length + ')';
+    document.getElementById('errorListModal').style.display = 'flex';
+  }
+
+  document.getElementById('errorReportSaveBtn').addEventListener('click', () => {
+    const cardData = window.__currentErrorCard;
+    if (!cardData) return;
+    const comment = document.getElementById('errorReportComment').value.trim();
+    if (!comment) {
+      const ta = document.getElementById('errorReportComment');
+      ta.style.borderColor = '#ef4444';
+      ta.focus();
+      showToast('Добавьте комментарий, чтобы сохранить');
+      return;
+    }
+    errorList.push({
+      word: cardData.ar,
+      translation: cardData.ru,
+      line: cardData.line,
+      comment: comment,
+      timestamp: Date.now()
+    });
+    saveErrorList();
+    document.getElementById('errorReportModal').style.display = 'none';
+    const s = document.getElementById('errorListBtn');
+    if (s) s.textContent = '📋' + (errorList.length > 0 ? ' ' + errorList.length : '');
+    showToast('Добавлено в список ошибок');
+  });
+  document.getElementById('errorReportComment').addEventListener('input', function() {
+    if (this.style.borderColor) this.style.borderColor = '';
+  });
+  document.getElementById('errorReportCancelBtn').addEventListener('click', () => {
+    document.getElementById('errorReportModal').style.display = 'none';
+  });
+  document.getElementById('errorReportModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) e.target.style.display = 'none';
+  });
+  document.getElementById('errorListBackBtn').addEventListener('click', () => {
+    document.getElementById('errorListModal').style.display = 'none';
+  });
+  document.getElementById('errorListModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) e.target.style.display = 'none';
+  });
+  document.getElementById('errorListCopyBtn').addEventListener('click', () => {
+    const text = errorList.map(e => {
+      let s = e.translation + ' - ' + e.word;
+      if (e.comment) s += '\nкомментарий: ' + e.comment;
+      return s;
+    }).join('\n\n');
+    navigator.clipboard.writeText(text).catch(() => {});
+    const btn = document.getElementById('errorListCopyBtn');
+    const orig = btn.textContent;
+    btn.textContent = 'Скопировано!';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+  document.getElementById('errorListClearBtn').addEventListener('click', () => {
+    showConfirm(
+      'Очистить список ошибок?',
+      'Все записи (' + errorList.length + ') будут удалены. Отменить это действие невозможно.',
+      'Отмена',
+      'Очистить',
+      () => {},
+      () => {
+        errorList = [];
+        saveErrorList();
+        const s = document.getElementById('errorListBtn');
+        if (s) s.textContent = '📋';
+        openErrorListModal();
+        showToast('Список ошибок очищен');
+      }
+    );
+  });
+
   // Настройки
   function openSettings() {
     loadBoostLimits();
@@ -1864,6 +2145,7 @@
     document.getElementById('limitNewInput').value = limitNew;
     document.getElementById('maxReviewsInput').value = maxReviews;
     document.getElementById('unlimitedReviews').checked = unlimitedReviews;
+    document.getElementById('devModeToggle').checked = !!devMode;
     document.getElementById('maxReviewsRow').style.display = unlimitedReviews ? 'none' : 'block';
     renderLimitInfo();
     modal.style.display = 'flex';
@@ -1960,6 +2242,15 @@
   document.getElementById('unlimitedReviews').addEventListener('change', function() {
     document.getElementById('maxReviewsRow').style.display = this.checked ? 'none' : 'block';
     renderLimitInfo();
+  });
+  document.getElementById('devModeToggle').addEventListener('change', function() {
+    if (this.checked && !isDevAccount()) {
+      this.checked = false;
+      showToast('Вам не доступно');
+      return;
+    }
+    devMode = this.checked;
+    saveSettingsToStorage();
   });
   document.getElementById('settingsBackBtn').addEventListener('click', () => {
     document.getElementById('settingsModal').style.display = 'none';
