@@ -43,7 +43,7 @@
           window.firestore.settings({
             experimentalForceLongPolling: true,
             useFetchStreams: false
-          });
+          }, { merge: true });
           window.firebaseEnabled = true;
         }
       } catch(e) {

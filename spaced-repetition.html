@@ -32,7 +32,7 @@
         window.firestore.settings({
           experimentalForceLongPolling: true,
           useFetchStreams: false
-        });
+        }, { merge: true });
         window.firebaseEnabled = true;
         window.dispatchEvent(new CustomEvent('firebaseReady'));
       } catch(e) {

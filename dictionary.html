@@ -68,7 +68,7 @@
       db.settings({
         experimentalForceLongPolling: true,
         useFetchStreams: false
-      });
+      }, { merge: true });
       window.firestore = db;
       window.firebaseEnabled = true;
       window.dispatchEvent(new CustomEvent('firebaseReady'));
@@ -1273,9 +1273,7 @@ qEl.addEventListener("keydown", (ev) => {
 /* ===== Service Worker for offline ===== */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').then(registration => {
-      console.log('SW registered:', registration);
-    }).catch(err => {
+    navigator.serviceWorker.register('service-worker.js').catch(err => {
       console.log('SW registration failed:', err);
     });
   });

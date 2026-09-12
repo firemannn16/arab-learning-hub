@@ -1,6 +1,6 @@
 // 🛡️ Service Worker для offline работы
 // Версия кэша (увеличивай при изменениях)
-const CACHE_VERSION = 'v1.13.3';
+const CACHE_VERSION = 'v1.13.4';
 const CACHE_NAME = `arab-learning-hub-${CACHE_VERSION}`;
 
 // 📦 Файлы для кэширования
@@ -195,8 +195,9 @@ self.addEventListener('fetch', event => {
                 const fetchPromise = fetch(event.request)
                     .then(networkResponse => {
                         if (networkResponse && networkResponse.status === 200) {
+                            const responseToCache = networkResponse.clone();
                             caches.open(CACHE_NAME).then(cache => {
-                                cache.put(event.request, networkResponse.clone());
+                                cache.put(event.request, responseToCache);
                             });
                         }
                         return networkResponse;
