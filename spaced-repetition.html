@@ -29,6 +29,10 @@
           });
         }
         window.firestore = firebase.firestore();
+        window.firestore.settings({
+          experimentalForceLongPolling: true,
+          useFetchStreams: false
+        });
         window.firebaseEnabled = true;
         window.dispatchEvent(new CustomEvent('firebaseReady'));
       } catch(e) {
