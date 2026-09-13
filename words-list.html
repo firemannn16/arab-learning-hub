@@ -3456,8 +3456,6 @@
         if (e.key === 'Enter') { e.preventDefault(); handleAnswer(); }
       });
 
-      // Откладываем проверку сессии до первого открытия вкладки
-      let sessionChecked = false;
       emptyTrainer.exitSession = function() {
         if (sessionWords.length === 0) { trainer.style.display = 'none'; loader.style.display = ''; return; }
         showConfirm(
@@ -3470,14 +3468,12 @@
             saveSession();
             trainer.style.display = 'none';
             loader.style.display = '';
-            clearSession();
             showTab('favorites');
           }
         );
       };
       emptyTrainer.onShow = function() {
-        if (!sessionChecked) {
-          sessionChecked = true;
+        if (!emptyBusy() && !emptyModalOpen()) {
           checkSavedSession();
         }
         updateFavHint();

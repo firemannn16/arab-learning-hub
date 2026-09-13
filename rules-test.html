@@ -308,25 +308,6 @@
             border-color: #667eea;
         }
         .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-        .modal .json-status {
-            font-size: 0.9rem;
-            margin-bottom: 15px;
-            padding: 10px;
-            border-radius: 8px;
-            display: none;
-        }
-        .modal .json-status.success {
-            display: block;
-            background: #dcfce7;
-            color: #16a34a;
-            border: 1px solid #86efac;
-        }
-        .modal .json-status.error {
-            display: block;
-            background: #fee2e2;
-            color: #dc2626;
-            border: 1px solid #fca5a5;
-        }
 
         /* Кнопка списка правил */
         .rules-list-btn {
@@ -501,9 +482,6 @@
         </div>
 
         <div class="bottom-bar">
-            <button class="btn btn-warning" onclick="showAddJsonModal()">➕ Ввести JSON</button>
-            <button class="btn btn-success" onclick="document.getElementById('fileInput').click()">📂 Загрузить JSON-файл</button>
-            <input type="file" id="fileInput" accept=".json" style="display:none" onchange="loadJsonFile(event)">
             <button class="btn btn-danger" onclick="resetProgress()">🔄 Сбросить прогресс</button>
         </div>
     </div>
@@ -524,34 +502,11 @@
         </div>
     </div>
 
-    <!-- Modal -->
-    <div class="overlay hidden" id="jsonModal">
-        <div class="modal">
-            <h3>📋 Добавить свои вопросы</h3>
-            <p>Вставьте JSON-массив с вопросами. Они сохранятся локально и добавятся к основным.</p>
-            <div class="json-status" id="jsonStatus"></div>
-            <textarea id="jsonTextarea" placeholder='[
-  {
-    "id": "my_01",
-    "rule": "Название правила",
-    "question": "Текст вопроса",
-    "reference": "Эталон ответа"
-  }
-]'></textarea>
-            <div class="modal-actions">
-                <button class="btn btn-success" onclick="addJsonText()">✅ Добавить</button>
-                <button class="btn btn-warning" onclick="clearCustomQuestions()">🗑️ Удалить мои вопросы</button>
-                <button class="btn btn-secondary" onclick="closeJsonModal()">Отмена</button>
-            </div>
-        </div>
-    </div>
-
     <script>
         // Сохранение последней страницы для PWA
         localStorage.setItem('arabLastPage', 'rules-test.html');
 
         let allQuestions = [];
-        let customQuestions = [];
         let pendingQueue = [];
         let currentIndex = 0;
         let answeredIds = new Set();
@@ -559,7 +514,6 @@
         let evalChoice = null;
 
         document.addEventListener('DOMContentLoaded', async () => {
-            customQuestions = loadCustomQuestions();
             answeredIds = loadAnsweredIds();
             reviewRules = loadReviewRules();
             await loadQuestions();
@@ -612,9 +566,7 @@
 
         // ===== Синхронизация прогресса тестов через Firestore =====
         let rulesProgressAt = 0;
-        let rulesCustomAt = 0;
         let progressPushTimer = null;
-        let customPushTimer = null;
 
         function quizLive() {
             const quiz = document.getElementById('quizScreen');
@@ -646,20 +598,6 @@
             }, 1000);
         }
 
-        function doPushCustom() {
-            if (typeof TrainerSync === 'undefined') return;
-            TrainerSync.push('rules_test_custom', { questions: customQuestions || [] });
-        }
-
-        function scheduleCustomPush() {
-            if (customPushTimer) clearTimeout(customPushTimer);
-            customPushTimer = setTimeout(function() {
-                customPushTimer = null;
-                doPushCustom();
-                rulesCustomAt = TrainerSync.lastAt('rules_test_custom');
-            }, 1000);
-        }
-
         function applyProgressRemote(data) {
             const remoteAt = data.updatedAt || 0;
             if (remoteAt < rulesProgressAt) {
@@ -675,23 +613,6 @@
             if (!quizLive()) refreshStartIfVisible();
         }
 
-        function applyCustomRemote(data) {
-            const remoteAt = data.updatedAt || 0;
-            if (remoteAt < rulesCustomAt) {
-                doPushCustom();
-                rulesCustomAt = TrainerSync.lastAt('rules_test_custom');
-                return;
-            }
-            if (remoteAt === rulesCustomAt) return;
-            const qs = Array.isArray(data.questions) ? data.questions.slice() : [];
-            customQuestions = qs;
-            try { localStorage.setItem('rulesTestCustomQuestions', JSON.stringify(customQuestions)); } catch(e) {}
-            rulesCustomAt = remoteAt;
-            if (!quizLive()) {
-                loadQuestions().then(refreshStartIfVisible);
-            }
-        }
-
         function initRulesSync() {
             if (typeof TrainerSync === 'undefined') return;
             TrainerSync.register('rules_test_progress', {
@@ -699,10 +620,6 @@
                     if (answeredIds.size || reviewRules.size) scheduleProgressPush();
                 },
                 onRemote: applyProgressRemote
-            });
-            TrainerSync.register('rules_test_custom', {
-                onMissing: function() { scheduleCustomPush(); },
-                onRemote: applyCustomRemote
             });
         }
         initRulesSync();
@@ -712,20 +629,6 @@
             document.getElementById('startScreen').classList.remove('hidden');
             setHeaderVisible(false);
             updateStartStats();
-        }
-
-        function loadCustomQuestions() {
-            try {
-                const data = localStorage.getItem('rulesTestCustomQuestions');
-                return data ? JSON.parse(data) : [];
-            } catch(e) {
-                return [];
-            }
-        }
-
-        function saveCustomQuestions() {
-            localStorage.setItem('rulesTestCustomQuestions', JSON.stringify(customQuestions));
-            scheduleCustomPush();
         }
 
         function loadAnsweredIds() {
@@ -768,7 +671,7 @@
             }
             const seen = new Set();
             allQuestions = [];
-            for (const q of [...fileQuestions, ...customQuestions]) {
+            for (const q of fileQuestions) {
                 if (!seen.has(q.id)) {
                     seen.add(q.id);
                     allQuestions.push(q);
@@ -946,131 +849,6 @@
                     revealAnswer();
                 }
             }
-        });
-
-        // ===== JSON: paste or file =====
-        function showAddJsonModal() {
-            document.getElementById('jsonModal').classList.remove('hidden');
-            document.getElementById('jsonStatus').className = 'json-status';
-            document.getElementById('jsonStatus').style.display = 'none';
-            document.getElementById('jsonTextarea').focus();
-        }
-
-        function closeJsonModal() {
-            document.getElementById('jsonModal').classList.add('hidden');
-        }
-
-        function mergeParsedQuestions(parsed) {
-            const existingIds = new Set(allQuestions.map(q => q.id));
-            const newItems = [];
-            for (const item of parsed) {
-                if (!item.id || !item.question || !item.reference) {
-                    throw new Error('У каждого объекта должны быть поля: id, question, reference');
-                }
-                if (!item.rule) item.rule = null;
-                if (!existingIds.has(item.id)) {
-                    existingIds.add(item.id);
-                    newItems.push(item);
-                }
-            }
-            if (newItems.length === 0) return;
-            customQuestions = [...customQuestions, ...newItems];
-            saveCustomQuestions();
-            allQuestions = [...allQuestions, ...newItems];
-        }
-
-        function addJsonText() {
-            const textarea = document.getElementById('jsonTextarea');
-            const status = document.getElementById('jsonStatus');
-            let parsed;
-
-            try {
-                parsed = JSON.parse(textarea.value);
-            } catch(e) {
-                status.className = 'json-status error';
-                status.textContent = '❌ Ошибка в JSON: ' + e.message;
-                status.style.display = '';
-                return;
-            }
-
-            if (!Array.isArray(parsed) || parsed.length === 0) {
-                status.className = 'json-status error';
-                status.textContent = '❌ Нужен непустой массив JSON';
-                status.style.display = '';
-                return;
-            }
-
-            const oldLen = customQuestions.length;
-            const oldAllLen = allQuestions.length;
-            try {
-                mergeParsedQuestions(parsed);
-            } catch(e) {
-                status.className = 'json-status error';
-                status.textContent = '❌ ' + e.message;
-                status.style.display = '';
-                return;
-            }
-            const added = allQuestions.length - oldAllLen;
-            status.className = 'json-status success';
-            status.textContent = added > 0
-                ? '✅ Добавлено ' + added + ' новых вопросов' + (parsed.length - added > 0 ? ', ' + (parsed.length - added) + ' пропущено (уже есть)' : '')
-                : '⚠️ Все ' + parsed.length + ' вопросов уже существуют (проверьте id)';
-            status.style.display = '';
-
-            textarea.value = '';
-            refreshAfterQuestionsChange();
-        }
-
-        function loadJsonFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                let parsed;
-                try {
-                    parsed = JSON.parse(e.target.result);
-                } catch(err) {
-                    alert('❌ Ошибка в JSON-файле: ' + err.message);
-                    return;
-                }
-
-                if (!Array.isArray(parsed) || parsed.length === 0) {
-                    alert('❌ Файл должен содержать непустой массив JSON');
-                    return;
-                }
-
-                const oldLen = allQuestions.length;
-                try {
-                    mergeParsedQuestions(parsed);
-                } catch(err) {
-                    alert('❌ ' + err.message);
-                    return;
-                }
-                const added = allQuestions.length - oldLen;
-                alert(added > 0
-                    ? '✅ Добавлено ' + added + ' новых вопросов' + (parsed.length - added > 0 ? ', ' + (parsed.length - added) + ' пропущено (уже есть)' : '')
-                    : '⚠️ Все ' + parsed.length + ' вопросов уже существуют');
-                refreshAfterQuestionsChange();
-            };
-            reader.readAsText(file);
-            event.target.value = '';
-        }
-
-        function clearCustomQuestions() {
-            if (!confirm('Удалить все добавленные вопросы?')) return;
-
-            customQuestions = [];
-            saveCustomQuestions();
-
-            document.getElementById('jsonTextarea').value = '';
-            closeJsonModal();
-
-            loadQuestions().then(() => refreshAfterQuestionsChange());
-        }
-
-        document.getElementById('jsonModal').addEventListener('click', e => {
-            if (e.target === e.currentTarget) closeJsonModal();
         });
 
         // ===== Список правил =====

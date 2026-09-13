@@ -1065,11 +1065,10 @@
                     }
                     
                     if (localTimestamp > 0 && firebaseTimestamp > 0) {
-                        // Если локальные данные НОВЕЕ - не перезаписываем
+                        // Если локальные данные НОВЕЕ - не перезаписываем и не заливаем в облако
                         if (localTimestamp > firebaseTimestamp) {
-                            console.log(`📱 Локальные данные новее (${new Date(localTimestamp).toLocaleString()} > ${new Date(firebaseTimestamp).toLocaleString()}), синхронизируем в Firebase...`);
+                            console.log(`📱 Локальные данные новее (${new Date(localTimestamp).toLocaleString()} > ${new Date(firebaseTimestamp).toLocaleString()}), используем локальные`);
                             useFirebaseData = false;
-                            await syncToFirebase();
                         } else {
                             console.log(`☁️ Firebase данные новее (${new Date(firebaseTimestamp).toLocaleString()} >= ${new Date(localTimestamp).toLocaleString()}), загружаем...`);
                         }
@@ -1078,7 +1077,6 @@
                     } else if (localTimestamp > 0) {
                         console.log('📱 Используем локальные данные (нет данных в Firebase)');
                         useFirebaseData = false;
-                        await syncToFirebase();
                     }
                     
                     if (useFirebaseData) {
