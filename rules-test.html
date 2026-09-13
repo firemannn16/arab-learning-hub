@@ -10,6 +10,8 @@
     <script src="service-worker-register.js"></script>
     <script src="sidebar-menu.js"></script>
     <script src="favorites.js"></script>
+    <script src="auth.js"></script>
+    <script src="trainer-sync.js"></script>
 
     <script src="storage-protection.js"></script>
 
@@ -37,6 +39,54 @@
             padding-top: 80px;
         }
         .container { max-width: 700px; margin: 0 auto; }
+
+        /* Начальный экран (как в интервалке) */
+        .deck-card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+            padding: 22px 24px;
+            width: 100%;
+            max-width: 480px;
+            margin: 20px auto;
+        }
+        .dark-theme .deck-card { background: #1e293b; border-color: #334155; }
+        .deck-card-title {
+            text-align: center;
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #1f2937;
+        }
+        .dark-theme .deck-card-title { color: #e0e0e0; }
+        .deck-card-body {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+        .deck-stats { display: flex; flex-direction: column; gap: 6px; }
+        .deck-stat { font-size: 0.95rem; color: #1f2937; }
+        .dark-theme .deck-stat { color: #e0e0e0; }
+        .deck-stat .num-gray { color: #6b7280; font-weight: 600; }
+        .deck-study-btn {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: none;
+            background: #2563eb;
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.15s;
+            flex-shrink: 0;
+            letter-spacing: 0.02em;
+        }
+        .deck-study-btn:hover { background: #1d4ed8; transform: scale(1.03); }
+        .deck-study-btn:active { transform: scale(0.97); }
+        .dark-theme .deck-study-btn { background: #3b82f6; }
+        .dark-theme .deck-study-btn:hover { background: #2563eb; }
 
         h1 {
             color: #333;
@@ -381,10 +431,27 @@
     })();
     </script>
     <div class="container">
-        <h1>Тесты по правилам</h1>
-        <p class="subtitle">Напишите ответ и нажмите «Ответить»</p>
+        <h1 id="pageTitle">Тесты по правилам</h1>
+        <p class="subtitle" id="pageSubtitle">Напишите ответ и нажмите «Ответить»</p>
+
+        <!-- Начальный экран -->
+        <div id="startScreen">
+            <div class="deck-card">
+                <div class="deck-card-title">📚 Тесты по правилам</div>
+                <div class="deck-card-body">
+                    <div class="deck-stats">
+                        <div class="deck-stat">Всего: <span class="num-gray" id="startTotal">0</span></div>
+                        <div class="deck-stat">Пройдено: <span class="num-gray" id="startDone">0</span></div>
+                    </div>
+                    <button class="deck-study-btn" id="startBtn">Начать</button>
+                </div>
+            </div>
+        </div>
 
         <div id="quizScreen">
+            <div style="display:flex;justify-content:flex-start;margin-bottom:12px;">
+                <button class="btn btn-secondary" id="backToStartBtn" onclick="backToStartScreen()" style="flex:none;width:48px;padding:8px 0;font-size:1.1rem;line-height:1">←</button>
+            </div>
             <div class="progress-bar">
                 <div class="progress-text">
                     <span>Вопрос <span id="currentNum">1</span> из <span id="totalNum">0</span></span>
@@ -496,8 +563,156 @@
             answeredIds = loadAnsweredIds();
             reviewRules = loadReviewRules();
             await loadQuestions();
-            startExercise();
+            showStartScreen();
         });
+
+        // ===== Начальный экран =====
+        function setHeaderVisible(visible) {
+            document.getElementById('pageTitle').style.display = visible ? '' : 'none';
+            document.getElementById('pageSubtitle').style.display = visible ? '' : 'none';
+        }
+
+        function updateStartStats() {
+            document.getElementById('startTotal').textContent = allQuestions.length;
+            document.getElementById('startDone').textContent = answeredIds.size;
+        }
+
+        function showStartScreen() {
+            document.getElementById('startScreen').classList.remove('hidden');
+            document.getElementById('quizScreen').classList.add('hidden');
+            setHeaderVisible(false);
+            updateStartStats();
+        }
+
+        function startFromScreen() {
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('quizScreen').classList.remove('hidden');
+            setHeaderVisible(true);
+            startExercise();
+        }
+
+        function startScreenVisible() {
+            const s = document.getElementById('startScreen');
+            return s && !s.classList.contains('hidden');
+        }
+
+        function refreshStartIfVisible() {
+            if (startScreenVisible()) updateStartStats();
+        }
+
+        function refreshAfterQuestionsChange() {
+            if (startScreenVisible()) {
+                updateStartStats();
+            } else {
+                startExercise();
+            }
+        }
+
+        document.getElementById('startBtn').addEventListener('click', startFromScreen);
+
+        // ===== Синхронизация прогресса тестов через Firestore =====
+        let rulesProgressAt = 0;
+        let rulesCustomAt = 0;
+        let progressPushTimer = null;
+        let customPushTimer = null;
+
+        function quizLive() {
+            const quiz = document.getElementById('quizScreen');
+            if (!quiz || quiz.classList.contains('hidden')) return false;
+            const done = document.getElementById('doneCard');
+            if (!done || !done.classList.contains('hidden')) return false;
+            return pendingQueue.length > 0 && currentIndex < pendingQueue.length;
+        }
+
+        function persistProgressLocal() {
+            try { localStorage.setItem('rulesTestAnsweredIds', JSON.stringify([...answeredIds])); } catch(e) {}
+            try { localStorage.setItem('rulesTestReviewRules', JSON.stringify([...reviewRules])); } catch(e) {}
+        }
+
+        function doPushProgress() {
+            if (typeof TrainerSync === 'undefined') return;
+            TrainerSync.push('rules_test_progress', {
+                answeredIds: [...answeredIds],
+                reviewRules: [...reviewRules]
+            });
+        }
+
+        function scheduleProgressPush() {
+            if (progressPushTimer) clearTimeout(progressPushTimer);
+            progressPushTimer = setTimeout(function() {
+                progressPushTimer = null;
+                doPushProgress();
+                rulesProgressAt = TrainerSync.lastAt('rules_test_progress');
+            }, 1000);
+        }
+
+        function doPushCustom() {
+            if (typeof TrainerSync === 'undefined') return;
+            TrainerSync.push('rules_test_custom', { questions: customQuestions || [] });
+        }
+
+        function scheduleCustomPush() {
+            if (customPushTimer) clearTimeout(customPushTimer);
+            customPushTimer = setTimeout(function() {
+                customPushTimer = null;
+                doPushCustom();
+                rulesCustomAt = TrainerSync.lastAt('rules_test_custom');
+            }, 1000);
+        }
+
+        function applyProgressRemote(data) {
+            const remoteAt = data.updatedAt || 0;
+            if (remoteAt < rulesProgressAt) {
+                doPushProgress();
+                rulesProgressAt = TrainerSync.lastAt('rules_test_progress');
+                return;
+            }
+            if (remoteAt === rulesProgressAt) return;
+            answeredIds = new Set(Array.isArray(data.answeredIds) ? data.answeredIds : []);
+            reviewRules = new Set(Array.isArray(data.reviewRules) ? data.reviewRules : []);
+            persistProgressLocal();
+            rulesProgressAt = remoteAt;
+            if (!quizLive()) refreshStartIfVisible();
+        }
+
+        function applyCustomRemote(data) {
+            const remoteAt = data.updatedAt || 0;
+            if (remoteAt < rulesCustomAt) {
+                doPushCustom();
+                rulesCustomAt = TrainerSync.lastAt('rules_test_custom');
+                return;
+            }
+            if (remoteAt === rulesCustomAt) return;
+            const qs = Array.isArray(data.questions) ? data.questions.slice() : [];
+            customQuestions = qs;
+            try { localStorage.setItem('rulesTestCustomQuestions', JSON.stringify(customQuestions)); } catch(e) {}
+            rulesCustomAt = remoteAt;
+            if (!quizLive()) {
+                loadQuestions().then(refreshStartIfVisible);
+            }
+        }
+
+        function initRulesSync() {
+            if (typeof TrainerSync === 'undefined') return;
+            TrainerSync.register('rules_test_progress', {
+                onMissing: function() {
+                    if (answeredIds.size || reviewRules.size) scheduleProgressPush();
+                },
+                onRemote: applyProgressRemote
+            });
+            TrainerSync.register('rules_test_custom', {
+                onMissing: function() { scheduleCustomPush(); },
+                onRemote: applyCustomRemote
+            });
+        }
+        initRulesSync();
+
+        function backToStartScreen() {
+            document.getElementById('quizScreen').classList.add('hidden');
+            document.getElementById('startScreen').classList.remove('hidden');
+            setHeaderVisible(false);
+            updateStartStats();
+        }
 
         function loadCustomQuestions() {
             try {
@@ -510,6 +725,7 @@
 
         function saveCustomQuestions() {
             localStorage.setItem('rulesTestCustomQuestions', JSON.stringify(customQuestions));
+            scheduleCustomPush();
         }
 
         function loadAnsweredIds() {
@@ -523,6 +739,7 @@
 
         function saveAnsweredIds() {
             localStorage.setItem('rulesTestAnsweredIds', JSON.stringify([...answeredIds]));
+            scheduleProgressPush();
         }
 
         function loadReviewRules() {
@@ -536,6 +753,7 @@
 
         function saveReviewRules() {
             localStorage.setItem('rulesTestReviewRules', JSON.stringify([...reviewRules]));
+            scheduleProgressPush();
         }
 
         async function loadQuestions() {
@@ -669,7 +887,7 @@
             saveAnsweredIds();
             reviewRules = new Set();
             saveReviewRules();
-            startExercise();
+            refreshAfterQuestionsChange();
         }
 
         function showReviewModal() {
@@ -800,7 +1018,7 @@
             status.style.display = '';
 
             textarea.value = '';
-            startExercise();
+            refreshAfterQuestionsChange();
         }
 
         function loadJsonFile(event) {
@@ -833,7 +1051,7 @@
                 alert(added > 0
                     ? '✅ Добавлено ' + added + ' новых вопросов' + (parsed.length - added > 0 ? ', ' + (parsed.length - added) + ' пропущено (уже есть)' : '')
                     : '⚠️ Все ' + parsed.length + ' вопросов уже существуют');
-                startExercise();
+                refreshAfterQuestionsChange();
             };
             reader.readAsText(file);
             event.target.value = '';
@@ -848,7 +1066,7 @@
             document.getElementById('jsonTextarea').value = '';
             closeJsonModal();
 
-            loadQuestions().then(() => startExercise());
+            loadQuestions().then(() => refreshAfterQuestionsChange());
         }
 
         document.getElementById('jsonModal').addEventListener('click', e => {
