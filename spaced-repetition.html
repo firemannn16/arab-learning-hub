@@ -1101,16 +1101,12 @@
         const changed = applySettingsFromPayload(remote);
         if (changed && queue.length === 0) renderDeckSelection();
         lastPushedSettingsJSON = currentSettingsSerialized();
-      } else {
-        pushSettingsToFirestore();
       }
       const dayRemote = await loadDayFromFirestore();
       if (dayRemote) {
         const dayChanged = applyDayPayload(dayRemote);
         if (dayChanged && queue.length === 0) renderDeckSelection();
         lastPushedDayJSON = JSON.stringify(srDayPayload());
-      } else {
-        doPushDay();
       }
     } catch(e) {
       console.warn('SR: ошибка первичной синхронизации настроек:', e);

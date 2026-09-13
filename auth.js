@@ -337,32 +337,45 @@
   function openModal() {
     if (!authModal) buildModal();
     switchView('login');
-    const progNotice = authModal.querySelector('#progressNotice');
-    if (progNotice) progNotice.remove();
-    let favCount = 0;
-    try {
-      const fav = JSON.parse(localStorage.getItem('arabFavorites') || '[]');
-      favCount = fav.length;
-    } catch(e) {}
-    if (favCount > 0 || localStorage.getItem('arabStreak')) {
-      const notice = document.createElement('div');
-      notice.id = 'progressNotice';
-      notice.className = 'progress-notice';
-      notice.innerHTML = `Найден прогресс: ${favCount > 0 ? favCount + ' слов в избранном' : ''}${favCount > 0 && localStorage.getItem('arabStreak') ? ', ' : ''}${localStorage.getItem('arabStreak') ? 'есть серия дней' : ''}<br>Войдите, чтобы сохранить в облаке.`;
-      const card = authModal.querySelector('.auth-card');
-      card.insertBefore(notice, card.querySelector('#authViewLogin'));
-    }
     authModal.classList.add('show');
   }
 
+  function clearAppLocalStorage() {
+    const keep = { sr_unlock: 1, rulesTest_unlock: 1, sr_fsrs_v2: 1 };
+    const exact = ['words', 'columnsReversed', 'app_version', 'userProgressCode'];
+    const prefixes = ['phases_', 'firebase_', 'arab', 'sr_', 'rulesTest', 'simpleTrainer', 'trainer_'];
+    try {
+      const toRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || keep[k]) continue;
+        if (exact.indexOf(k) !== -1) { toRemove.push(k); continue; }
+        for (let p = 0; p < prefixes.length; p++) {
+          if (k.indexOf(prefixes[p]) === 0) { toRemove.push(k); break; }
+        }
+      }
+      for (let r = 0; r < toRemove.length; r++) {
+        try { localStorage.removeItem(toRemove[r]); } catch (e) {}
+      }
+    } catch(e) {
+      console.warn('clearAppLocalStorage error:', e);
+    }
+  }
+
   function logout() {
+    const hadAccount = !!window.authUser;
     if (isAdminMode()) {
       localStorage.removeItem(ADMIN_MODE_KEY);
     }
     if (window.firebaseAuth) {
-      window.firebaseAuth.signOut();
+      window.firebaseAuth.signOut().then(() => {
+        if (hadAccount) clearAppLocalStorage();
+      }).catch(() => {
+        if (hadAccount) clearAppLocalStorage();
+      });
     } else {
       notifyAuthChanged(null);
+      if (hadAccount) clearAppLocalStorage();
     }
   }
 

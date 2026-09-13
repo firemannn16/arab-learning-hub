@@ -434,15 +434,10 @@
     bootstrapDone = false;
     if (!canUseFirebase()) return;
     try {
-      let remote = await loadFavoritesFromFirebase();
-
-      const localItems = getFavorites();
+      const remote = await loadFavoritesFromFirebase();
       if (remote && remote.items && remote.items.length > 0) {
         saveFavorites(remote.items, { skipSync: true });
         console.log('⭐ Избранное загружено из облака:', remote.items.length, 'слов');
-      } else if (localItems.length > 0) {
-        await writeFavoritesToFirebase(localItems);
-        console.log('⭐ Избранное отправлено в облако:', localItems.length, 'слов');
       }
     } catch(e) {
       console.warn('⭐ Ошибка форс-синка избранного:', e);

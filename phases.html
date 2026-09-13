@@ -1036,14 +1036,7 @@
 
                     const firebaseReset = data.resetVersion || 0;
                     const localReset = getFromLocalStorage('resetVersion', 0);
-                    if (localReset > firebaseReset) {
-                        // Локальный сброс новее – не затираем свежие данные облаком
-                        resetVersion = localReset;
-                        saveToLocalStorage('resetVersion', resetVersion);
-                        useFirebaseData = false;
-                        await syncToFirebase();
-                        showSyncStatus('✓ Синхронизировано (после сброса)', 'synced');
-                    } else if (firebaseReset > localReset) {
+                    if (firebaseReset > localReset) {
                         resetVersion = firebaseReset;
                         saveToLocalStorage('resetVersion', resetVersion);
                     }

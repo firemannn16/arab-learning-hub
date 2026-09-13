@@ -3553,16 +3553,9 @@
 
       emptyTrainer.registerSync = function() {
         TrainerSync.register('trainer_empty_words', {
-          onMissing: function() {
-            if (wordListTextarea && wordListTextarea.value.trim()) {
-              publishEmptyWords();
-              trainerWordsAt = TrainerSync.lastAt('trainer_empty_words');
-            }
-          },
           onRemote: emptyTrainer.applyRemoteWords
         });
         TrainerSync.register('trainer_empty_session', {
-          onMissing: function() { publishEmptySessionFromStorage(); },
           onRemote: emptyTrainer.applyRemoteSession
         });
       };
@@ -3653,23 +3646,9 @@
       }
 
       TrainerSync.register('trainer_learn_words', {
-        onMissing: function() {
-          const ta = document.getElementById('learnTextarea');
-          if (ta && ta.value.trim()) {
-            pushLearnWordsToCloud();
-            learnWordsUpdatedAt = TrainerSync.lastAt('trainer_learn_words');
-          }
-        },
         onRemote: applyLearnWordsRemote
       });
       TrainerSync.register('trainer_learn_session', {
-        onMissing: function() {
-          const s = loadSession();
-          if (s && s.learnWords && s.learnWords.length) {
-            pushLearnSessionToCloud();
-            learnSessionAt = TrainerSync.lastAt('trainer_learn_session');
-          }
-        },
         onRemote: applyLearnSessionRemote
       });
       if (typeof emptyTrainer !== 'undefined' && typeof emptyTrainer.registerSync === 'function') {

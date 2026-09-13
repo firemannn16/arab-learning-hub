@@ -466,6 +466,10 @@
                 <div class="done-title">Все вопросы пройдены!</div>
                 <button class="btn btn-primary" onclick="resetProgress()">🔄 Сбросить прогресс и начать заново</button>
             </div>
+
+            <div class="bottom-bar">
+                <button class="btn btn-danger" onclick="resetProgress()">🔄 Сбросить прогресс</button>
+            </div>
         </div>
 
         <!-- Модалка правил для повторения -->
@@ -480,11 +484,6 @@
                 </div>
             </div>
         </div>
-
-        <div class="bottom-bar">
-            <button class="btn btn-danger" onclick="resetProgress()">🔄 Сбросить прогресс</button>
-        </div>
-    </div>
 
     <!-- Кнопка списка правил -->
     <button class="rules-list-btn" id="rulesListBtn" onclick="showRulesList()" title="Список правил">📋</button>
@@ -616,9 +615,6 @@
         function initRulesSync() {
             if (typeof TrainerSync === 'undefined') return;
             TrainerSync.register('rules_test_progress', {
-                onMissing: function() {
-                    if (answeredIds.size || reviewRules.size) scheduleProgressPush();
-                },
                 onRemote: applyProgressRemote
             });
         }
