@@ -831,6 +831,11 @@
   let undoStack = [];
   let devMode = false;
   let errorList = [];
+  // Множество id карточек, которые есть в текущем words.txt (для отсева «призраков»)
+  let validCardIds = new Set();
+  function isKnownCardId(id) {
+    return validCardIds.has(id);
+  }
 
   // ===== Real-time синхронизация с Firestore =====
   let initStarted = false;
@@ -1088,10 +1093,24 @@
         const listener = coll.doc('all_' + i).onSnapshot((snap) => {
           if (!snap.exists || !snap.data() || !Array.isArray(snap.data().cards)) return;
           const remote = snap.data().cards;
+          // Отсев «призраков»: карточек, которых нет в текущем words.txt
+          const valid = remote.filter(c => c && c.id && isKnownCardId(c.id));
+          if (valid.length !== remote.length) {
+            // Чистим облако: перезаписываем чанк только реально существующими словами
+            try {
+              coll.doc('all_' + i).set({
+                cards: valid,
+                updatedAt: new Date().toISOString()
+              }, { merge: true });
+            } catch(e) {
+              console.warn('SR: не удалось убрать призрачные карты:', e);
+            }
+            console.log('SR: убрано призрачных карт:', remote.length - valid.length, 'в чанке', i);
+          }
           let changed = false;
           const localMap = {};
           cards.forEach(c => { localMap[c.id] = c; });
-          remote.forEach(c => {
+          valid.forEach(c => {
             const local = localMap[c.id];
             if (!local) {
               cards.push(c);
@@ -1436,6 +1455,8 @@
       const lines = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#') && /[-–—]/.test(l));
       if (lines.length === 0) throw new Error('No words');
       allWords = lines;
+      validCardIds = new Set();
+      allWords.forEach(l => validCardIds.add(wordToId(l)));
     } catch(e) {
       document.getElementById('mainArea').innerHTML = '<div class="done-state"><div class="icon">❌</div><h2>Не удалось загрузить слова</h2><p>Проверьте файл words.txt</p></div>';
       return;
