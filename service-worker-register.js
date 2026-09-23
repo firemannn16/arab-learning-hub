@@ -3,7 +3,7 @@
     'use strict';
 
     // ⚡ ВЕРСИЯ ПРИЛОЖЕНИЯ — при1 изменении принудительно обновляем
-    const APP_VERSION = 'v1.2.3';
+    const APP_VERSION = 'v1.2.4';
     const STORED_VERSION = localStorage.getItem('app_version');
 
     // 🔥 Принудительное обновление при изменении версии

@@ -30,6 +30,7 @@
   </script>
   <script src="favorites.js"></script>
   <script src="trainer-sync.js"></script>
+  <script src="newwords.js"></script>
 
   
   <!-- Yandex.Metrika counter -->
@@ -248,6 +249,30 @@
       font-size: 16px;
       line-height: 1.8;
       word-break: break-word;
+      display: flex;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .new-word-tag {
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 6px;
+      padding: 2px 7px;
+      flex-shrink: 0;
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+
+    .tag-new {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .tag-changed {
+      background: #fef3c7;
+      color: #92400e;
     }
 
     .word-actions {
@@ -1458,6 +1483,13 @@
           <button class="clear-fav-btn" id="clearFavBtn" title="Очистить избранное">🗑️</button>
           <button class="add-fav-btn" id="addFavBtn" title="Добавить слова">✏️</button>
         </div>
+        <div class="header-info" id="newWordsHeader" style="display:none;">
+          <span class="word-count" id="newWordsCount">0</span>
+          <button class="copy-all-btn" id="copyNewWordsBtn">
+            <span>📋</span> Скопировать
+          </button>
+          <button class="clear-fav-btn" id="clearNewWordsBtn" title="Очистить новые слова">🗑️</button>
+        </div>
       </div>
       <div class="tabs">
         <button class="tab-btn active" id="tabFavorites" onclick="showTab('favorites')">
@@ -1471,6 +1503,9 @@
         </button>
         <button class="tab-btn" id="tabRulesDefs" onclick="showTab('rulesdefs')">
           📖 Определения правил
+        </button>
+        <button class="tab-btn" id="tabNewWords" onclick="showTab('newwords')">
+          🆕 Новые слова <span class="tab-badge" id="newWordsBadge">0</span>
         </button>
       </div>
     </div>
@@ -1492,6 +1527,14 @@
       <div class="loading">
         <div class="loading-spinner"></div>
         Загрузка слов...
+      </div>
+    </div>
+
+    <!-- Контейнер новых слов -->
+    <div class="words-container" id="newWordsContainer" style="display:none;">
+      <div class="loading">
+        <div class="loading-spinner"></div>
+        Загрузка новых слов...
       </div>
     </div>
 
@@ -2241,15 +2284,18 @@
       document.getElementById('tabLearn').classList.toggle('active', tab === 'learn');
       document.getElementById('tabEmpty').classList.toggle('active', tab === 'empty');
       document.getElementById('tabRulesDefs').classList.toggle('active', tab === 'rulesdefs');
+      document.getElementById('tabNewWords').classList.toggle('active', tab === 'newwords');
       
       // Показать/скрыть контейнеры
       document.getElementById('wordsContainer').style.display = tab === 'favorites' ? 'block' : 'none';
       document.getElementById('learnContainer').style.display = tab === 'learn' ? 'block' : 'none';
       document.getElementById('emptyContainer').style.display = tab === 'empty' ? 'block' : 'none';
       document.getElementById('rulesDefsContainer').style.display = tab === 'rulesdefs' ? 'block' : 'none';
+      document.getElementById('newWordsContainer').style.display = tab === 'newwords' ? 'block' : 'none';
       
-      // Скрыть header-info на вкладках заучивания, пустого тренажёра и определений правил
-      document.querySelector('.header-info').style.display = (tab === 'learn' || tab === 'empty' || tab === 'rulesdefs') ? 'none' : 'flex';
+      // Заголовок: у избранного свои кнопки, у новых слов — свои
+      document.querySelector('.header-info').style.display = tab === 'favorites' ? 'flex' : 'none';
+      document.getElementById('newWordsHeader').style.display = tab === 'newwords' ? 'flex' : 'none';
       
       // При переходе на другую вкладку — сброс заучивания (но не localStorage)
       if (tab !== 'learn') {
@@ -2279,7 +2325,103 @@
       if (tab === 'rulesdefs') {
         loadRulesDefs();
       }
+
+      if (tab === 'newwords') {
+        renderNewWordsTab();
+      }
     }
+
+    // ========== НОВЫЕ СЛОВА ==========
+
+    async function renderNewWordsTab() {
+      if (!window.NewWords) return;
+      const result = await window.NewWords.refresh();
+      const container = document.getElementById('newWordsContainer');
+      if (!container) return;
+
+      const count = (result.items && result.items.length) ? result.items.length : 0;
+      document.getElementById('newWordsBadge').textContent = count;
+      const plural = count === 1 ? ' новое слово' : (count >= 2 && count <= 4 ? ' новых слова' : ' новых слов');
+      document.getElementById('newWordsCount').textContent = count + plural;
+
+      if (result.error) {
+        container.innerHTML = `<div class="error">Не удалось загрузить новый список слов</div>`;
+        return;
+      }
+      if (result.firstRun) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">🆕</div>
+            <p>Отслеживание начато</p>
+            <p style="font-size: 14px; margin-top: 8px;">При следующем изменении words.txt здесь появятся новые и изменённые слова</p>
+          </div>`;
+        return;
+      }
+      if (count === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">✅</div>
+            <p>Новых слов нет</p>
+          </div>`;
+        return;
+      }
+
+      let html = '';
+      result.items.forEach((item) => {
+        const marker = item.kind === 'changed'
+          ? '<span class="new-word-tag tag-changed">изм.</span>'
+          : '<span class="new-word-tag tag-new">новое</span>';
+        html += `
+          <div class="word-item" data-text="${escapeHtml(item.line).replace(/"/g, '&quot;')}">
+            <span class="word-text">${marker}${escapeHtml(item.line)}</span>
+          </div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    function updateNewWordsBadge() {
+      if (!window.NewWords) return;
+      const count = window.NewWords.count();
+      document.getElementById('newWordsBadge').textContent = count;
+    }
+
+    // Скопировать все новые/изменённые слова
+    document.getElementById('copyNewWordsBtn').addEventListener('click', async () => {
+      if (!window.NewWords) return;
+      const text = window.NewWords.copyText();
+      if (!text) { showToast('Нет новых слов'); return; }
+      await copyText(text);
+      showToast(`Скопировано слов: ${window.NewWords.count()}`);
+    });
+
+    // Очистить (принять текущий words.txt как базу)
+    document.getElementById('clearNewWordsBtn').addEventListener('click', () => {
+      const count = window.NewWords ? window.NewWords.count() : 0;
+      showConfirm(
+        'Очистить новые слова?',
+        `Все ${count} слов будут отмечены как просмотренные. При следующих изменениях words.txt они снова появятся в списке.`,
+        'Отмена',
+        'Очистить',
+        () => {},
+        async () => {
+          if (!window.NewWords) return;
+          await window.NewWords.accept();
+          showToast('Список очищен');
+          renderNewWordsTab();
+        }
+      );
+    });
+
+    // Клик на строку — копировать всё
+    document.getElementById('newWordsContainer').addEventListener('click', async (e) => {
+      const wordItem = e.target.closest('.word-item');
+      if (wordItem) {
+        await copyText(wordItem.getAttribute('data-text'));
+        wordItem.classList.add('copied');
+        setTimeout(() => wordItem.classList.remove('copied'), 500);
+        showToast('Скопировано!');
+      }
+    });
 
     // Обновить счётчики
     function updateCounts() {
@@ -2513,6 +2655,7 @@
     // Загружаем при старте
     loadWords();
     loadNotes();
+    renderNewWordsTab();
 
     // ========== ЗАУЧИВАНИЕ - Функции ==========
 
