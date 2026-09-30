@@ -18,19 +18,20 @@
 
   // ---------- Нормализация ----------
 
-  // Приводим строку слова к единому виду: тире -> "-", лишние пробелы убираем, в нижний регистр
+  // Приводим строку слова к единому виду: тире -> "-", лишние пробелы убираем.
+  // Регистр НЕ трогаем: смена "дом" -> "Дом" тоже должна считаться правкой.
   function normLine(s) {
     s = String(s || '');
     s = s.replace(/^\uFEFF/, '');
     s = s.replace(/[\u2010-\u2015\u2013\u2014\u2212\u002D]/g, '-');
     s = s.replace(/\s*-\s*/g, ' - ');
-    s = s.replace(/\s+/g, ' ').trim().toLowerCase();
+    s = s.replace(/\s+/g, ' ').trim();
     return s;
   }
 
-  // Убрать огласовки из арабского текста
+  // Убрать огласовки и знаки чтения из арабского текста
   function stripHarakat(text) {
-    return String(text || '').replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7-\u06E8\u06EA-\u06ED]/g, '');
+    return String(text || '').replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7-\u06E8\u06EA-\u06ED\u08D3-\u08FF]/g, '');
   }
 
   // Разбить нормализованную строку на русскую часть и арабскую
@@ -43,23 +44,139 @@
     };
   }
 
-  // Ключ "того же слова" для определения "изменено", а не "новое".
-  // Русская часть + первое арабское слово без огласовок.
-  function lineKey(norm) {
-    var parts = splitLine(norm);
-    if (!parts) return null;
-    var firstAr = parts.ar.split(' - ')[0].trim();
-    return parts.ru + '|' + stripHarakat(firstAr);
+  // Приводит арабскую форму к каноничному виду, чтобы разные способы
+  // набрать одно и то же слово сравнивались одинаково:
+  //   огласовки и татвель  |  presentation forms (ﻻ) -> لا  |  знаки чтения
+  //   أ إ آ ٱ -> ا   |   ى -> ي   |   ؤ -> و   |   ئ -> ي   |   ة -> ه
+  function normArabic(s) {
+    s = String(s || '');
+    if (s.normalize) s = s.normalize('NFKC');
+    s = stripHarakat(s);
+    s = s.replace(/[ـ]/g, '');                       // татвель
+    s = s.replace(/[أإآٱٲٳٵ]/g, '\u0627');   // алиф с хамзой -> алиф
+    s = s.replace(/[ىۍيې]/g, '\u064A');   // максура -> йа
+    s = s.replace(/ؤ/g, '\u0648');                            // хамза на вау -> вау
+    s = s.replace(/ئ/g, '\u064A');                            // хамза на йа -> йа
+    s = s.replace(/ة/g, '\u0647');                            // та марбута -> ха
+    s = s.replace(/[^\u0600-\u06FF0-9\s]/g, '');
+    s = s.replace(/\s+/g, ' ').trim();
+    return s;
   }
 
-  // Найти первое слово (русское) — используется для ссылки на notes (не нужно здесь)
-  function parseFirstDash(line) {
-    var sep = line.search(/-/);
-    if (sep === -1) return null;
-    return {
-      ru: line.slice(0, sep).trim(),
-      ar: line.slice(sep + 1).trim()
-    };
+  // Все арабские формы строки в каноничном виде: ["بيت", "بيوت", "بيت"].
+  // Если разделителя нет или справа от него не арабский текст, берём первый
+  // арабский блок строки — так строка "- بيت" или "بيت, дом" тоже узнаётся.
+  function arForms(norm) {
+    var parts = splitLine(norm);
+    if (parts && parts.ar) {
+      var forms = parts.ar.split(' - ').map(normArabic).filter(function (f) { return f; });
+      if (forms.length) return forms;
+    }
+    var run = String(norm).match(/[\u0600-\u06FF][\u0600-\u06FF\u0640\u064B-\u065F\s\u06D6-\u06ED]*/);
+    if (run) {
+      var only = normArabic(run[0]);
+      if (only) return [only];
+    }
+    run = String(norm).match(/[-–—]\s*([^\s-–—]+(?:\s+[^\s-–—]+)*)/);
+    if (run) {
+      var only2 = normArabic(run[1]);
+      if (only2) return [only2];
+    }
+    return null;
+  }
+
+  // Русская часть нормализованной строки
+  function ruOf(norm) {
+    var parts = splitLine(norm);
+    return parts ? parts.ru : null;
+  }
+
+  // Слова внутри русского перевода (для "жилище, дом" -> ["жилище", "дом"])
+  function ruTokens(ru) {
+    return String(ru || '')
+      .split(/[^\u0430-\u044f\u0410-\u042f0-9]+/i)
+      .filter(function (t) { return t.length >= 2; });
+  }
+
+  // 0..1, насколько строки похожи (1 - расстояние Левенштейна / длина)
+  function strSimilarity(a, b) {
+    a = String(a || '');
+    b = String(b || '');
+    if (a === b) return 1;
+    var m = a.length, n = b.length;
+    if (!m || !n) return 0;
+    var prev = new Array(n + 1);
+    var cur = new Array(n + 1);
+    for (var j = 0; j <= n; j++) prev[j] = j;
+    for (var i = 1; i <= m; i++) {
+      cur[0] = i;
+      for (var j = 1; j <= n; j++) {
+        var cost = a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1;
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      }
+      var tmp = prev; prev = cur; cur = tmp;
+    }
+    return 1 - prev[n] / Math.max(m, n);
+  }
+
+  // Является ли short подпоследовательностью long (буквы сохранились по порядку).
+  // Ловит выкинутые буквы: "дом" -> "ом", "окно" -> "кно".
+  function isSubsequence(short, long) {
+    if (short.length > long.length) return false;
+    var i = 0;
+    for (var j = 0; j < long.length && i < short.length; j++) {
+      if (short.charAt(i) === long.charAt(j)) i++;
+    }
+    return i === short.length;
+  }
+
+  // Считаем ли русские части одним и тем же переводом: опечатки
+  // ("ом" вместо "дом"), пропавшая/добавленная форма ("дома") и новый
+  // синоним в переводе ("жилище, дом"). Регистр не важен.
+  function ruRelated(a, b) {
+    a = String(a || '').toLowerCase();
+    b = String(b || '').toLowerCase();
+    if (a === b) return true;
+    var ta = ruTokens(a);
+    var tb = ruTokens(b);
+    for (var i = 0; i < ta.length; i++) {
+      for (var j = 0; j < tb.length; j++) {
+        // одно слово перевода совпало с другим ("жилище, дом" ⊃ "дом")
+        if (ta[i] === tb[j]) return true;
+        // слово внутри слова, от 3 букв ("дома" ⊃ "дом")
+        if (ta[i].length >= 3 && tb[j].length >= 3 &&
+            (ta[i].indexOf(tb[j]) === 0 || tb[j].indexOf(ta[i]) === 0)) {
+          return true;
+        }
+      }
+    }
+    // выкинули буквы из перевода ("дом" -> "ом")
+    var shorter = a.length <= b.length ? a : b;
+    var longer = a.length <= b.length ? b : a;
+    if (shorter.length >= 2 && shorter.length / longer.length >= 0.5 &&
+        isSubsequence(shorter, longer)) {
+      return true;
+    }
+    // заменили букву ("дом" -> "дём")
+    return strSimilarity(a, b) >= 0.6;
+  }
+
+  // Есть ли между двумя строками общее арабское слово (с точностью до огласовок,
+  // хамзы, максуры, татвеля) или хотя бы одна почти одинаковая форма.
+  // Арабская часть решает, то же это слово или совсем другое.
+  function arRelated(formsA, formsB) {
+    if (!formsA || !formsB) return false;
+    for (var i = 0; i < formsA.length; i++) {
+      for (var j = 0; j < formsB.length; j++) {
+        if (formsA[i] === formsB[j]) return true;
+        // опечатка в арабском слове: "بيت" -> "بيتن"
+        if (formsA[i].length >= 3 && formsB[j].length >= 3 &&
+            strSimilarity(formsA[i], formsB[j]) >= 0.75) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   // ---------- Firebase (как в favorites.js) ----------
@@ -221,54 +338,123 @@
   }
 
   // ---------- Diff ----------
+  // Идея: строка изменилась, если арабское слово осталось узнаваемым.
+  // Отличаем "правку" от "нового слова" по тому, осталась ли старая строка
+  // в файле: если исчезла — это правка, если на месте — добавили новое.
   function computeDiff(currentLines, prevNorms) {
-    // Счётчики точных совпадений по нормализованной строке
-    var prevMultiset = new Map();
-    prevNorms.forEach(function (n) {
-      prevMultiset.set(n, (prevMultiset.get(n) || 0) + 1);
+    // База всегда пишется нормализованной, но не полагаемся на это:
+    // старый или облачный снапшот мог прийти сырым.
+    prevNorms = prevNorms.map(normLine);
+
+    var currentNorms = currentLines.map(normLine);
+    var currentSet = new Set(currentNorms);
+    var base = prevNorms;
+
+    // Какие базовые строки всё ещё присутствуют в текущем файле
+    var stillThere = new Set();
+    base.forEach(function (n) { if (currentSet.has(n)) stillThere.add(n); });
+
+    // Базовые строки, которые ещё не сопоставлены
+    var openBase = new Set();
+    base.forEach(function (n, i) { openBase.add(i); });
+
+    // Арабская форма -> индексы базовых строк с такой формой
+    var byForm = new Map();
+    var baseForms = new Array(base.length);
+    base.forEach(function (n, i) {
+      var forms = arForms(n);
+      baseForms[i] = forms;
+      if (!forms) return;
+      forms.forEach(function (f) {
+        if (!byForm.has(f)) byForm.set(f, []);
+        byForm.get(f).push(i);
+      });
     });
 
-    // Поиск по ключу "того же слова": key -> norm -> count
-    var keyMap = new Map();
-    prevNorms.forEach(function (n) {
-      var key = lineKey(n);
-      if (key === null) return;
-      if (!keyMap.has(key)) keyMap.set(key, new Map());
-      var m = keyMap.get(key);
-      m.set(n, (m.get(n) || 0) + 1);
+    var result = new Array(currentLines.length).fill(null);
+
+    // Проход 1: точное совпадение всей строки -> не изменилась
+    var exactPool = new Map();
+    base.forEach(function (n, i) {
+      if (!exactPool.has(n)) exactPool.set(n, []);
+      exactPool.get(n).push(i);
     });
-
-    function consumeFromKeyMap(key, norm) {
-      if (key === null || !keyMap.has(key)) return;
-      var m = keyMap.get(key);
-      var c = m.get(norm);
-      if (!c) return;
-      if (c - 1 <= 0) m.delete(norm); else m.set(norm, c - 1);
-    }
-
-    var items = []; // { line, norm, kind: 'new'|'changed', prev? }
-
-    currentLines.forEach(function (raw) {
-      var norm = normLine(raw);
-      var exact = prevMultiset.get(norm);
-      if (exact > 0) {
-        prevMultiset.set(norm, exact - 1);
-        consumeFromKeyMap(lineKey(norm), norm);
-        return; // не изменилось
+    currentNorms.forEach(function (norm, ci) {
+      var pool = exactPool.get(norm);
+      while (pool && pool.length) {
+        var bi = pool.shift();
+        if (openBase.has(bi)) {
+          openBase.delete(bi);
+          result[ci] = { index: ci, kind: 'unchanged', prev: base[bi] };
+          return;
+        }
       }
+    });
 
-      var key = lineKey(norm);
-      if (key !== null && keyMap.has(key) && keyMap.get(key).size > 0) {
-        // То же слово, но строка другая -> изменённое
-        var m = keyMap.get(key);
-        var prevNorm = m.keys().next().value;
-        if (m.get(prevNorm) <= 1) m.delete(prevNorm); else m.set(prevNorm, m.get(prevNorm) - 1);
-        items.push({ line: raw, norm: norm, kind: 'changed', prev: prevNorm });
+    // Проход 2: всё остальное ищем по арабской части
+    currentNorms.forEach(function (norm, ci) {
+      if (result[ci]) return;
+      var forms = arForms(norm);
+      var ru = ruOf(norm);
+      var candidates = [];
+      var seen = new Set();
+
+      if (forms) {
+        forms.forEach(function (f) {
+          (byForm.get(f) || []).forEach(function (bi) { if (!seen.has(bi)) { seen.add(bi); candidates.push(bi); } });
+        });
       } else {
-        items.push({ line: raw, norm: norm, kind: 'new' });
+        base.forEach(function (_n, bi) { if (!seen.has(bi)) { seen.add(bi); candidates.push(bi); } });
       }
+
+      // Арабскую часть не нашли или она не сошлась — пробуем перевод
+      if (!forms) {
+        candidates = candidates.filter(function (bi) {
+          if (baseForms[bi] && arRelated(forms, baseForms[bi])) return true;
+          return ruRelated(ru || norm, ruOf(base[bi]) || base[bi]);
+        });
+      } else {
+        candidates = candidates.filter(function (bi) {
+          if (baseForms[bi]) return arRelated(forms, baseForms[bi]);
+          return ruRelated(ru || norm, ruOf(base[bi]) || base[bi]);
+        });
+      }
+      candidates = candidates.filter(function (bi) { return openBase.has(bi); });
+      if (!candidates.length) return;
+
+      // Старые строки, которые уже исчезли из файла, — это правки.
+      // Оставшиеся на месте — значит добавили новое слово, а не переписали.
+      var gone = candidates.filter(function (bi) { return !stillThere.has(base[bi]); });
+      var pool = gone.length ? gone : [];
+      if (!pool.length) {
+        // Правок не нашлось, но строка похожа на ещё существующую:
+        // пользователь добавил новое слово, а старую оставил.
+        result[ci] = { index: ci, kind: 'new' };
+        return;
+      }
+
+      // Из нескольких кандидатов берём самый близкий по переводу
+      var best = pool[0];
+      if (ru) {
+        for (var i = 1; i < pool.length; i++) {
+          var a = ru || norm, b = ruOf(base[pool[i]]);
+          if (b && !ruRelated(ru, ruOf(base[best])) && ruRelated(a, b)) best = pool[i];
+        }
+      }
+      openBase.delete(best);
+      result[ci] = { index: ci, kind: 'changed', prev: base[best] };
     });
 
+    var items = [];
+    for (var ci2 = 0; ci2 < currentLines.length; ci2++) {
+      if (result[ci2] && result[ci2].kind === 'unchanged') continue;
+      items.push({
+        line: currentLines[ci2],
+        norm: currentNorms[ci2],
+        kind: result[ci2] ? result[ci2].kind : 'new',
+        prev: result[ci2] ? result[ci2].prev : undefined
+      });
+    }
     return items;
   }
 

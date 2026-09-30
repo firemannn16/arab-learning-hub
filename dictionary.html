@@ -148,7 +148,30 @@
   .btn:hover { background:#f8fafc; border-color:#94a3b8 }
   .small-notify { position:fixed; right:20px; bottom:20px; background:#0f172a; color:#fff; padding:8px 12px; border-radius:8px; opacity:0.95; display:none; z-index:9999; font-size:14px }
   .show-more { text-align:center; margin:8px 0; }
-  
+
+  /* ===== Ошибка сохранения в GitHub ===== */
+  .gh-error-overlay { position:fixed; inset:0; background:rgba(2,6,23,0.7); z-index:10000;
+    display:flex; align-items:center; justify-content:center; padding:16px }
+  .gh-error-box { background:#fff; border-radius:14px; border-top:6px solid #dc2626;
+    max-width:560px; width:100%; padding:22px; box-shadow:0 20px 50px rgba(0,0,0,0.35);
+    max-height:88vh; overflow-y:auto }
+  .gh-error-box h2 { margin:0 0 6px; font-size:19px; color:#dc2626; display:flex; align-items:center; gap:8px }
+  .gh-error-lead { color:#475569; font-size:14px; margin:0 0 14px; line-height:1.5 }
+  .gh-error-word { background:#fef2f2; border:1px solid #fecaca; border-radius:8px;
+    padding:10px 12px; font-size:14px; margin-bottom:12px; word-break:break-word }
+  .gh-error-word .lbl { color:#991b1b; font-weight:600; font-size:12px; display:block; margin-bottom:4px }
+  .gh-error-hint { background:#fffbeb; border:1px solid #fde68a; border-radius:8px;
+    padding:10px 12px; font-size:13px; color:#78350f; margin-bottom:14px; line-height:1.5 }
+  .gh-error-detail { background:#0f172a; color:#fca5a5; border-radius:8px; padding:10px 12px;
+    font-size:12px; font-family:ui-monospace,Consolas,monospace; margin-bottom:14px;
+    white-space:pre-wrap; word-break:break-word; max-height:160px; overflow-y:auto }
+  .gh-error-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end }
+  .gh-error-btn { padding:8px 14px; border-radius:8px; border:1px solid #cbd5e1;
+    background:#fff; cursor:pointer; font-size:14px }
+  .gh-error-btn:hover { background:#f8fafc }
+  .gh-error-btn.primary { background:#dc2626; color:#fff; border-color:#dc2626 }
+  .gh-error-btn.primary:hover { background:#b91c1c }
+
   /* Offline indicator */
   .offline-badge { display:none; position:fixed; bottom:20px; left:20px; background:#10b981; color:#fff; padding:6px 12px; border-radius:8px; font-size:12px; z-index:9999 }
   .offline-badge.offline { background:#ef4444 }
@@ -726,6 +749,94 @@ function showTemporaryNotify(text) {
   setTimeout(() => { notifyEl.style.display = "none"; }, 1500);
 }
 
+/* ===== Модалка ошибки GitHub =====
+   Показывается, когда правка не доехала до words.txt, чтобы ошибку
+   нельзя было пропустить. Правка остаётся в localStorage (pendingEdits),
+   её можно повторить после исправления. */
+function showGitHubError(title, hint, technical) {
+  const prev = document.getElementById('ghErrorOverlay');
+  if (prev) prev.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'ghErrorOverlay';
+  overlay.className = 'gh-error-overlay';
+  overlay.innerHTML = `
+    <div class="gh-error-box" role="alertdialog" aria-modal="true">
+      <h2>⛔ ${escapeHtml(title)}</h2>
+      <p class="gh-error-lead">Изменение <b>не сохранилось</b> в words.txt на GitHub.
+        Текст в поиске обновлён только на этом устройстве.</p>
+      ${hint ? `<div class="gh-error-hint">${hint}</div>` : ''}
+      ${technical ? `<div class="gh-error-detail">${escapeHtml(technical)}</div>` : ''}
+      <div class="gh-error-actions">
+        <button class="gh-error-btn" data-act="copy">Скопировать ошибку</button>
+        <button class="gh-error-btn primary" data-act="close">Понятно</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+
+  overlay.addEventListener('click', async (e) => {
+    if (e.target === overlay) return close();
+    const act = e.target.getAttribute && e.target.getAttribute('data-act');
+    if (act === 'close') close();
+    if (act === 'copy') {
+      const text = title + '\n' + (hint ? hint.replace(/<[^>]+>/g, '') + '\n' : '') +
+        (technical || '');
+      try {
+        await navigator.clipboard.writeText(text);
+        e.target.textContent = 'Скопировано';
+      } catch (_) {
+        e.target.textContent = 'Не удалось скопировать';
+      }
+    }
+  });
+  document.addEventListener('keydown', onKey);
+  overlay.querySelector('[data-act="close"]').focus();
+}
+
+// Разбор ответа GitHub: достаём человеческое объяснение и технический текст
+async function describeGitHubError(res, what) {
+  let detail = what + ' — HTTP ' + res.status;
+  let body = '';
+  try {
+    body = await res.text();
+    if (body) {
+      const parsed = JSON.parse(body);
+      if (parsed && parsed.message) detail += ': ' + parsed.message;
+      if (parsed && parsed.errors && parsed.errors.length) {
+        detail += '\n' + parsed.errors.map(e => e.message || JSON.stringify(e)).join('\n');
+      }
+    }
+  } catch (_) { /* тело ответа не JSON — покажем как есть */ }
+  if (!res.ok && !body) detail += '\n(пустой ответ сервера)';
+  return detail;
+}
+
+function gitHubHintFor(detail) {
+  if (/HTTP 401|HTTP 403|Bad credentials|not accessible/i.test(detail)) {
+    return 'Токен недействителен или не имеет прав на запись. Откройте ⚙️ Настройки и вставьте токен заново (ему нужен доступ <b>contents:write</b>).';
+  }
+  if (/HTTP 404|Not Found/i.test(detail)) {
+    return 'Файл words.txt или репозиторий не найден. Проверьте имя репозитория и что файл не переименован.';
+  }
+  if (/HTTP 409|conflict/i.test(detail)) {
+    return 'Файл одновременно меняли. Правка уже сохранена локально — попробуйте ещё раз через пару секунд.';
+  }
+  if (/HTTP 422/i.test(detail)) {
+    return 'GitHub отклонил содержимое. Обычно это слишком большой файл или некорректный текст строки.';
+  }
+  if (/HTTP 5\d\d|Failed to fetch|NetworkError|Load failed/i.test(detail)) {
+    return 'Проблема с сетью или GitHub временно недоступен. Проверьте интернет и повторите позже.';
+  }
+  return 'Изменение осталось сохранённым на этом устройстве — повторите попытку, когда причина исчезнет.';
+}
+
 /* ===== GitHub Token Management ===== */
 const GH_TOKEN_KEY = 'github_token';
 const GH_REPO = 'firemannn16/arab-learning-hub';
@@ -819,8 +930,12 @@ function normalizeRawLine(line) {
     .toLowerCase();
 }
 
+// Причина последней неудачи — показывается в модалке
+let lastPushError = null;
+
 async function pushSingleLineUpdate(token, targetLine, replacementLine, label, isDeletion, idFallback) {
   const putUrl = `https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`;
+  lastPushError = null;
 
   // До 3 попыток при конфликте SHA
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -830,7 +945,10 @@ async function pushSingleLineUpdate(token, targetLine, replacementLine, label, i
         headers: { 'Authorization': `token ${token}` },
         cache: 'no-cache'
       });
-      if (!getRes.ok) throw new Error(`Ошибка GET ${getRes.status}`);
+      if (!getRes.ok) {
+        lastPushError = await describeGitHubError(getRes, 'Чтение words.txt');
+        return false;
+      }
       const fileData = await getRes.json();
       const txt = base64Decode(fileData.content);
       const lineEnding = txt.includes('\r\n') ? '\r\n' : '\n';
@@ -845,7 +963,9 @@ async function pushSingleLineUpdate(token, targetLine, replacementLine, label, i
         idx = Math.min(idFallback - 1, lines.length - 1);
       }
       if (idx === -1) {
-        showTemporaryNotify('Не удалось найти строку в words.txt');
+        lastPushError =
+          'Строка не найдена в words.txt на GitHub.\n' +
+          'Искали: ' + (targetLine || '(строка)');
         return false;
       }
 
@@ -871,15 +991,15 @@ async function pushSingleLineUpdate(token, targetLine, replacementLine, label, i
         if (putRes.status === 409 && attempt < 2) {
           continue; // SHA конфликт — повторяем
         }
-        throw new Error(`Ошибка PUT ${putRes.status}`);
-      }
-      return true;
-    } catch(e) {
-      if (attempt === 2) {
-        console.error('GitHub API error:', e);
-        showTemporaryNotify('Ошибка GitHub: ' + e.message);
+        lastPushError = await describeGitHubError(putRes, 'Запись words.txt');
         return false;
       }
+      lastPushError = null;
+      return true;
+    } catch(e) {
+      // Сеть, CORS, обрыв — сообщение без HTTP-кода
+      lastPushError = 'Запрос к GitHub не прошёл: ' + (e && e.message ? e.message : String(e));
+      if (attempt === 2) return false;
     }
   }
   return false;
@@ -888,7 +1008,7 @@ async function pushSingleLineUpdate(token, targetLine, replacementLine, label, i
 async function updateWordOnGitHub(entry, isRevert, originalLine, idFallback) {
   const token = getGitHubToken();
   if (!token) {
-    showTemporaryNotify('Введите GitHub токен в настройках');
+    lastPushError = 'Не задан GitHub токен. Откройте ⚙️ Настройки и вставьте токен.';
     return false;
   }
   const label = isRevert
@@ -930,7 +1050,10 @@ async function loadNotesFromGitHub() {
 
 async function saveNotesToGitHub(notesToSave) {
   const token = getGitHubToken();
-  if (!token) return false;
+  if (!token) {
+    lastPushError = 'Не задан GitHub токен, примечание не отправлено.';
+    return false;
+  }
 
   const content = base64Encode(JSON.stringify(notesToSave, null, 2));
   try {
@@ -943,6 +1066,9 @@ async function saveNotesToGitHub(notesToSave) {
     if (getRes.ok) {
       const data = await getRes.json();
       sha = data.sha;
+    } else if (getRes.status !== 404) {
+      lastPushError = await describeGitHubError(getRes, 'Чтение notes.json');
+      return false;
     }
 
     const putUrl = `https://api.github.com/repos/${GH_REPO}/contents/${NOTES_PATH}`;
@@ -961,9 +1087,14 @@ async function saveNotesToGitHub(notesToSave) {
       },
       body: JSON.stringify(body)
     });
-    return putRes.ok;
+    if (!putRes.ok) {
+      lastPushError = await describeGitHubError(putRes, 'Запись notes.json');
+      return false;
+    }
+    lastPushError = null;
+    return true;
   } catch(e) {
-    console.error('Failed to save notes:', e);
+    lastPushError = 'Запрос к GitHub не прошёл: ' + (e && e.message ? e.message : String(e));
     return false;
   }
 }
@@ -983,17 +1114,19 @@ async function deleteWord(item) {
 
   const token = getGitHubToken();
   if (!token) {
-    showTemporaryNotify('Введите GitHub токен в настройках');
+    lastPushError = 'Не задан GitHub токен. Откройте ⚙️ Настройки и вставьте токен.';
+    showGitHubError('Не удалось удалить слово', '', lastPushError);
     return;
   }
 
   const btn = document.getElementById('deleteBtn');
+  const resetBtn = () => { btn.textContent = '🗑️'; btn.disabled = false; };
   btn.textContent = '⏳';
   btn.disabled = true;
 
   // Remove from entries array
   const idx = entries.findIndex(e => e.id === item.id);
-  if (idx === -1) return;
+  if (idx === -1) { resetBtn(); return; }
   entries.splice(idx, 1);
 
   // Rebuild IDs sequentially
@@ -1006,9 +1139,10 @@ async function deleteWord(item) {
   if (success) {
     // Remove note from notes.json if exists
     const arKey = item.arabicVariants[0];
+    let notesOk = true;
     if (arKey && notesMap[arKey]) {
       delete notesMap[arKey];
-      await saveNotesToGitHub(notesMap);
+      notesOk = await saveNotesToGitHub(notesMap);
     }
 
     // Clean up pendingEdits
@@ -1016,14 +1150,27 @@ async function deleteWord(item) {
     saveEditsToStorage();
 
     showTemporaryNotify('Удалено');
+    if (!notesOk) {
+      showGitHubError(
+        'Примечание не удалено',
+        'Слово <b>удалено</b> из words.txt, но его примечание осталось в notes.json.',
+        lastPushError
+      );
+    }
     closeModal();
     lastResults = entries.slice();
     renderListPartial(lastResults, renderLimit, '');
   } else {
     entries.splice(idx, 0, item); // restore on failure
     entries.forEach((e, i) => e.id = i + 1);
-    btn.textContent = '🗑️';
-    btn.disabled = false;
+    resetBtn();
+    // Строка возвращена на место, но в GitHub ничего не изменилось
+    showGitHubError(
+      'Не удалось удалить слово',
+      'Строка <b>осталась на месте</b> — удаление не прошло. ' +
+      'Ничего в words.txt на GitHub не изменилось.',
+      lastPushError
+    );
   }
 }
 
@@ -1097,15 +1244,33 @@ function enableEditMode(item) {
       // Сохраняем примечание в notes.json
       const arKey = arabicParts[0] || item.id.toString();
       const oldNote = notesMap[arKey] || '';
+      let notesOk = true;
       if (newNote !== oldNote) {
         if (newNote) notesMap[arKey] = newNote;
         else delete notesMap[arKey];
-        await saveNotesToGitHub(notesMap);
+        notesOk = await saveNotesToGitHub(notesMap);
       }
-      showTemporaryNotify('Сохранено в GitHub');
+      if (notesOk) {
+        showTemporaryNotify('Сохранено в GitHub');
+      } else {
+        showGitHubError(
+          'Примечание не сохранилось',
+          'Само слово <b>сохранилось</b> в words.txt, но примечание не попало в notes.json. ' +
+          'Попробуйте сохранить ещё раз.',
+          lastPushError
+        );
+      }
     } else {
-      showTemporaryNotify('Не удалось сохранить в GitHub');
+      // Правка осталась в pendingEdits — её можно повторить
+      showGitHubError(
+        'Не удалось сохранить в GitHub',
+        'Правка сохранена только на этом устройстве и <b>не попала в words.txt</b> на GitHub. ' +
+        'Она останется в списке правок и уйдёт при следующей успешной попытке.',
+        lastPushError
+      );
     }
+    btn.textContent = '💾 Сохранить в GitHub';
+    btn.disabled = false;
     closeModal();
     renderListPartial(lastResults.length ? performSearch(lastQuery) : entries, renderLimit, lastQuery);
   });

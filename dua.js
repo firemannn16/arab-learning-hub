@@ -64,12 +64,6 @@
             return;
         }
         
-        // Подключаем шрифт Amiri
-        const fontLink = document.createElement('link');
-        fontLink.href = 'https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap';
-        fontLink.rel = 'stylesheet';
-        document.head.appendChild(fontLink);
-        
         // Добавляем CSS
         const style = document.createElement('style');
         style.textContent = `
@@ -133,7 +127,6 @@
             }
             
             .dua-arabic {
-                font-family: 'Amiri', serif;
                 font-size: 34px;
                 color: white;
                 text-align: center;

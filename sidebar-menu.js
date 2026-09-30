@@ -14,10 +14,10 @@
   const menuItems = [
     // Добавляем ?home=1, чтобы при явном переходе на главную не было авторедиректа на последнюю страницу
     { name: 'Главная', href: 'index.html?home=1', icon: '🏠' },
-    { name: 'Тренажер Тетрадь', href: 'phases.html', icon: '📔' },
+    { name: 'Тренажер интервального повторения', href: 'spaced-repetition.html', icon: '🧠' },
     { name: 'Словарь', href: 'dictionary.html', icon: '📚' },
+    { name: 'Тренажер Тетрадь', href: 'phases.html', icon: '📔' },
     { name: 'Тесты по правилам', href: 'rules-test.html', icon: '📝' },
-    { name: 'Интервальное повторение', href: 'spaced-repetition.html', icon: '🧠' },
     { name: 'ХАБ', href: 'words-list.html', icon: '🗂️' }
   ];
 

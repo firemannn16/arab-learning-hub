@@ -747,7 +747,6 @@
       border: 2px solid #e5e7eb;
       border-radius: 12px;
       font-size: 16px;
-      font-family: 'Amiri', 'Segoe UI', Arial, sans-serif;
       line-height: 2;
       resize: vertical;
       transition: border-color 0.2s;
@@ -970,7 +969,6 @@
 
     .word-card-arabic {
       font-size: 32px;
-      font-family: 'Amiri', 'Traditional Arabic', serif;
       color: #1a1a2e;
       line-height: 2.4;
       margin-bottom: 15px;
@@ -1279,6 +1277,41 @@
 
     body.dark-theme .sticker-btn {
       background: #374151;
+    }
+
+    .sticker-btn-add {
+      background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+      color: #064e3b;
+    }
+
+    body.dark-theme .sticker-btn-add {
+      background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+      color: #064e3b;
+    }
+
+    /* Поле ввода слов в модальном окне */
+    .addwords-textarea {
+      width: 100%;
+      min-height: 130px;
+      margin: 12px 0;
+      padding: 12px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      font-size: 16px;
+      line-height: 1.8;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .addwords-textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    body.dark-theme .addwords-textarea {
+      background: #374151;
+      border-color: #4b5563;
+      color: #e0e0e0;
     }
 
     /* Кнопка показать перевод (глазок) */
@@ -1595,6 +1628,7 @@
             <div class="circle-timer-text" id="timerText">15</div>
           </div>
           <button class="sticker-btn" onclick="nextWord()" title="Далее">▶️</button>
+          <button class="sticker-btn sticker-btn-add" id="addWordsBtn" onclick="openAddWordsModal()" title="Добавить ещё слов">➕</button>
         </div>
         
         <div class="word-card" id="wordCard">
@@ -1778,6 +1812,8 @@
     const SESSION_STORAGE_KEY = 'arabLearnSession';
     let audioContext = null;
     let skipSessionCheck = false;  // Флаг для пропуска проверки сессии при переходе из resumeSession
+    let addWordsWasRunning = false; // Таймер шёл до открытия окна добавления слов
+    let testWordAnswered = false;   // На текущее слово проверки уже ответили
 
     // Получить или создать AudioContext
     function getAudioContext() {
@@ -2800,6 +2836,119 @@
       saveSession();
     }
 
+    // ========== ДОБАВЛЕНИЕ СЛОВ В СРЕДИНЕ ЗАУЧИВАНИЯ ==========
+    // Добавленные слова смешиваются с теми, что ещё не показаны, и порядок
+    // перемешивается заново. Пройденные слова не трогаем: currentWordIndex
+    // остаётся на месте, поэтому «осталось» растёт ровно на число новых слов.
+    // Разделитель — NUL, его не бывает в тексте слова, в отличие от пробела
+    function learnWordKey(w) {
+      return String(w.translation).replace(/\s+/g, ' ').trim().toLowerCase() +
+             '\u0000' +
+             String(w.arabic).replace(/\s+/g, ' ').trim().toLowerCase();
+    }
+
+
+    function addWordsToSession(text) {
+      const parsed = parseWords(text);
+      if (parsed.length === 0) {
+        return { added: 0, dup: 0 };
+      }
+
+      const seen = new Set();
+      learnWords.forEach(w => { if (w && w.translation && w.arabic) seen.add(learnWordKey(w)); });
+
+      const fresh = [];
+      let dup = 0;
+      parsed.forEach(w => {
+        const key = learnWordKey(w);
+        if (seen.has(key)) { dup++; return; }
+        seen.add(key);
+        fresh.push(w);
+      });
+
+      if (fresh.length === 0) return { added: 0, dup };
+
+      // Уже показанные слова остаются нетронутыми — дальше идёт смешанная очередь
+      const done = learnWords.slice(0, currentWordIndex);
+      const rest = learnWords.slice(currentWordIndex);
+      learnWords = done.concat(shuffleArray(rest.concat(fresh)));
+
+      // Пересчитать прогресс и сохранить — saveSession сам отправляет сессию в облако
+      showCurrentWord();
+      saveSession();
+
+      return { added: fresh.length, dup };
+    }
+
+    function openAddWordsModal() {
+      // Пока открыто окно, таймер стоит: иначе он успеет перелистнуть слово,
+      // пока пользователь вставляет текст. Если он уже был на паузе — не трогаем.
+      addWordsWasRunning = !isPaused;
+      if (addWordsWasRunning) {
+        isPaused = true;
+        renderLearnPauseBtn();
+      }
+
+      showModal('addWords');
+      const ta = document.getElementById('addWordsInput');
+      if (!ta) return;
+      const ok = document.getElementById('addWordsOk');
+      const cancel = document.getElementById('addWordsCancel');
+      const paste = document.getElementById('addWordsPaste');
+      if (ok) ok.addEventListener('click', () => confirmAddWords(ta.value));
+      if (cancel) cancel.addEventListener('click', closeAddWordsModal);
+      if (paste) paste.addEventListener('click', () => pasteIntoAddWords(ta));
+      setTimeout(() => ta.focus(), 0);
+    }
+
+    // Закрыть окно и вернуть таймер в то состояние, в котором он был.
+    // startTimer() здесь не вызываем намеренно — он сбросил бы отсчёт заново,
+    // а на паузе timeLeft сохраняется и должен продолжиться с того же места.
+    function closeAddWordsModal() {
+      closeModal();
+      if (addWordsWasRunning) {
+        addWordsWasRunning = false;
+        isPaused = false;
+        renderLearnPauseBtn();
+      }
+    }
+
+    async function pasteIntoAddWords(ta) {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (!text || !text.trim()) {
+          showToast('Буфер обмена пуст');
+          return;
+        }
+        ta.value = ta.value.trim() ? ta.value.replace(/\s+$/, '\n') + text : text;
+        ta.focus();
+      } catch (e) {
+        showToast('Не удалось получить доступ к буферу');
+      }
+    }
+
+    function confirmAddWords(text) {
+      const res = addWordsToSession(text);
+      closeAddWordsModal();
+
+      if (res.added === 0) {
+        if (!String(text || '').trim()) {
+          showToast('Ничего не добавлено');
+        } else if (res.dup > 0) {
+          showToast('Такие слова уже есть в заучивании');
+        } else {
+          showToast('Нужен формат «перевод — арабский», по строке на слово');
+        }
+        return;
+      }
+
+      let msg = '➕ Добавлено слов: ' + res.added;
+      if (res.dup) msg += ' · уже было: ' + res.dup;
+      msg += ' · осталось: ' + (learnWords.length - currentWordIndex);
+      showToast(msg);
+      startTimer();
+    }
+
     // Показать текущее слово (режим заучивания)
     function showCurrentWord() {
       if (currentWordIndex >= learnWords.length) {
@@ -2849,8 +2998,8 @@
             if (learnMode === 'learn') {
               nextWord();
             } else {
-              forgotCount++;
-              forgottenWords.push(learnWords[currentWordIndex]);
+              // Истёкшее время — тоже незаверенный ответ, считаем забытым.
+              // Сам подсчёт делает nextTestWord, если на слово не ответили.
               nextTestWord();
             }
           }
@@ -2887,11 +3036,16 @@
     }
 
     // Пауза/продолжить
-    function togglePause() {
-      isPaused = !isPaused;
+    function renderLearnPauseBtn() {
       const btn = document.getElementById('pauseBtn');
+      if (!btn) return;
       btn.innerHTML = isPaused ? '⏯️' : '⏸️';
       btn.title = isPaused ? 'Продолжить' : 'Пауза';
+    }
+
+    function togglePause() {
+      isPaused = !isPaused;
+      renderLearnPauseBtn();
       saveSession();
     }
 
@@ -2941,7 +3095,10 @@
         finishTest();
         return;
       }
-      
+
+      // Новое слово — на него ещё не отвечали
+      testWordAnswered = false;
+
       const word = learnWords[currentWordIndex];
       document.getElementById('testCardArabic').textContent = word.arabic;
       document.getElementById('testCardTranslation').textContent = word.translation;
@@ -3007,30 +3164,41 @@
 
     // Я знаю
     function markKnow() {
-      knownCount++;
       if (learnMode === 'learn') {
+        knownCount++;
         nextWord();
       } else {
+        testWordAnswered = true;
+        knownCount++;
         nextTestWord();
       }
     }
 
     // Я не знаю
     function markForgot() {
-      forgotCount++;
-      forgottenWords.push(learnWords[currentWordIndex]);
       if (learnMode === 'learn') {
+        forgotCount++;
+        forgottenWords.push(learnWords[currentWordIndex]);
         nextWord();
       } else {
+        testWordAnswered = true;
+        forgotCount++;
+        forgottenWords.push(learnWords[currentWordIndex]);
         nextTestWord();
       }
     }
 
-    // Следующее слово (проверка)
+    // Следующее слово (проверка).
+    // Нажали ▶️ или истекло время, не ответив ни «знаю», ни «не знаю», —
+    // такое слово считаем забытым, иначе оно выпадало бы из статистики.
     function nextTestWord() {
+      if (!testWordAnswered && currentWordIndex < learnWords.length) {
+        forgotCount++;
+        forgottenWords.push(learnWords[currentWordIndex]);
+      }
       currentWordIndex++;
       saveSession();
-      
+
       if (currentWordIndex >= learnWords.length) {
         finishTest();
       } else {
@@ -3072,6 +3240,29 @@
             </button>
             <button class="modal-btn modal-btn-danger" onclick="closeModalAndReset()">
               ❌ Не проверять
+            </button>
+          </div>
+        `;
+      } else if (type === 'addWords') {
+        const left = learnWords.length - currentWordIndex;
+        html = `
+          <div class="modal-icon">➕</div>
+          <div class="modal-title">Добавить ещё слов</div>
+          <div class="modal-text">
+            Осталось слов: ${left}.<br>
+            Формат: <strong>перевод — арабский</strong>, по строке на слово.<br>
+            Новые слова перемешаются с оставшимися.
+          </div>
+          <textarea class="addwords-textarea" id="addWordsInput" placeholder="экземпляр — مُصْحَفٌ&#10;вода — مَاءٌ" spellcheck="false"></textarea>
+          <div class="modal-buttons">
+            <button class="modal-btn modal-btn-secondary" id="addWordsPaste">
+              📋 Вставить из буфера
+            </button>
+            <button class="modal-btn modal-btn-primary" id="addWordsOk">
+              ✅ Добавить
+            </button>
+            <button class="modal-btn modal-btn-danger" id="addWordsCancel">
+              Отмена
             </button>
           </div>
         `;

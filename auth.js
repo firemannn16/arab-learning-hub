@@ -341,7 +341,7 @@
   }
 
   function clearAppLocalStorage() {
-    const keep = { sr_unlock: 1, rulesTest_unlock: 1, sr_fsrs_v2: 1 };
+    const keep = { sr_fsrs_v2: 1 };
     const exact = ['words', 'columnsReversed', 'app_version', 'userProgressCode'];
     const prefixes = ['phases_', 'firebase_', 'arab', 'sr_', 'rulesTest', 'simpleTrainer', 'trainer_'];
     try {
