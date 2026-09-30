@@ -346,13 +346,19 @@
     // старый или облачный снапшот мог прийти сырым.
     prevNorms = prevNorms.map(normLine);
 
+    // Сравниваем строки БЕЗ учёта регистра. Снапшоты, записанные прошлой
+    // версией, лежат в localStorage целиком в нижнем регистре (там был
+    // .toLowerCase()). Без fold() каждое слово с заглавной буквы в переводе
+    // не совпало бы с точной копией в базе и помечалось как «изменённое».
+    function fold(s) { return String(s || '').toLowerCase(); }
+
     var currentNorms = currentLines.map(normLine);
-    var currentSet = new Set(currentNorms);
+    var currentSet = new Set(currentNorms.map(fold));
     var base = prevNorms;
 
     // Какие базовые строки всё ещё присутствуют в текущем файле
     var stillThere = new Set();
-    base.forEach(function (n) { if (currentSet.has(n)) stillThere.add(n); });
+    base.forEach(function (n) { if (currentSet.has(fold(n))) stillThere.add(fold(n)); });
 
     // Базовые строки, которые ещё не сопоставлены
     var openBase = new Set();
@@ -376,11 +382,12 @@
     // Проход 1: точное совпадение всей строки -> не изменилась
     var exactPool = new Map();
     base.forEach(function (n, i) {
-      if (!exactPool.has(n)) exactPool.set(n, []);
-      exactPool.get(n).push(i);
+      var k = fold(n);
+      if (!exactPool.has(k)) exactPool.set(k, []);
+      exactPool.get(k).push(i);
     });
     currentNorms.forEach(function (norm, ci) {
-      var pool = exactPool.get(norm);
+      var pool = exactPool.get(fold(norm));
       while (pool && pool.length) {
         var bi = pool.shift();
         if (openBase.has(bi)) {
@@ -424,7 +431,7 @@
 
       // Старые строки, которые уже исчезли из файла, — это правки.
       // Оставшиеся на месте — значит добавили новое слово, а не переписали.
-      var gone = candidates.filter(function (bi) { return !stillThere.has(base[bi]); });
+      var gone = candidates.filter(function (bi) { return !stillThere.has(fold(base[bi])); });
       var pool = gone.length ? gone : [];
       if (!pool.length) {
         // Правок не нашлось, но строка похожа на ещё существующую:

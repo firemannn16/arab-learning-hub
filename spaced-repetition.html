@@ -1435,6 +1435,15 @@
     loadErrorList();
     // Миграция на настоящий FSRS-5: старые веса обучены на кривой модели — сбрасываем
     const fsrsV2Done = localStorage.getItem('sr_fsrs_v2') === '1';
+    if (typeof window.FSRS !== 'function') {
+      // fsrs.js не загрузился (нет сети и нет кэша) — показываем причину,
+      // а не падаем с «FSRS is not a constructor»
+      document.getElementById('mainArea').innerHTML =
+        '<div class="done-state"><div class="icon">📡</div><h2>Нет подключения</h2>' +
+        '<p>Не удалось загрузить файл fsrs.js. Нужен интернет хотя бы один раз — ' +
+        'после этого тренажёр работает офлайн.</p></div>';
+      return;
+    }
     fsrs = new window.FSRS(fsrsV2Done ? (window._savedW || undefined) : undefined);
     delete window._savedW;
     fsrs.maxInterval = 180; // полгода
