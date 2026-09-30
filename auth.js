@@ -17,62 +17,82 @@
     appId: "1:377334822830:web:7cb045a81824741f427a3f"
   };
 
+  let firebaseInitPromise = null;
+
+  // Скрипты Firebase обязаны грузиться строго по очереди: auth-compat внутри
+  // себя читает firebase.INTERNAL, который создаёт app-compat. Если все три
+  // <script> добавить подряд, порядок выполнения не гарантирован, и при
+  // медленной сети auth-compat стартует раньше app-compat ->
+  // "Cannot read properties of undefined (reading 'INTERNAL')".
+  function loadScript(src) {
+    return new Promise(function (resolve) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = resolve; // не блокируем из-за одной библиотеки
+      document.head.appendChild(s);
+    });
+  }
+
   function initFirebase() {
     if (window.firebaseAuth) return;
-    const needsApp = !window.firebase;
-    if (needsApp) {
-      const appScript = document.createElement('script');
-      appScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js';
-      document.head.appendChild(appScript);
-    }
-    // Also ensure Firestore SDK is loaded
-    const needsFirestore = !window.firebase || !window.firebase.firestore;
-    if (needsFirestore) {
-      const fsScript = document.createElement('script');
-      fsScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js';
-      document.head.appendChild(fsScript);
-    }
-    function setupAuth() {
-      if (!firebase.apps || !firebase.apps.length) {
-        try { firebase.initializeApp(firebaseConfig); } catch(e) { console.warn('Auth init:', e.message); }
+    if (firebaseInitPromise) return firebaseInitPromise;
+
+    firebaseInitPromise = (async function () {
+      // 1. Ядро
+      if (!window.firebase) {
+        await loadScript('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
       }
-      // Init Firestore globally (needed by favorites.js)
-      try {
-        if (!window.firestore) {
-          window.firestore = firebase.firestore();
-          window.firestore.settings({
-            experimentalForceLongPolling: true,
-            useFetchStreams: false
-          }, { merge: true });
-          window.firebaseEnabled = true;
-        }
-      } catch(e) {
-        console.warn('Firestore init error:', e);
+      // 2. Firestore (нужен favorites.js)
+      if (!window.firebase || !window.firebase.firestore) {
+        await loadScript('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js');
       }
-      try {
-        window.firebaseAuth = firebase.auth();
-        window.firebaseAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-        window.firebaseAuth.onAuthStateChanged(onAuthChanged);
-      } catch(e) {
-        console.warn('Auth setup error:', e);
+      // 3. Auth
+      if (!window.firebase || !window.firebase.auth) {
+        await loadScript('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js');
       }
-      window.dispatchEvent(new CustomEvent('firebaseReady'));
-    }
-    const allLoaded = () => {
-      if (window.firebase && window.firebase.auth && window.firebase.firestore) {
-        setupAuth();
-      } else {
-        setTimeout(allLoaded, 100);
+
+      // Если сеть недоступна и часть модулей не приехала — ждём, не падаем
+      var tries = 0;
+      while ((!window.firebase || !window.firebase.auth || !window.firebase.firestore) && tries < 50) {
+        await new Promise(function (r) { setTimeout(r, 100); });
+        tries++;
       }
-    };
-    if (window.firebase && window.firebase.auth && window.firebase.firestore) {
+      if (!window.firebase || !window.firebase.auth) {
+        console.warn('Auth: Firebase не загрузился, работаем офлайн');
+        return;
+      }
       setupAuth();
-    } else {
-      const authScript = document.createElement('script');
-      authScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js';
-      authScript.onload = allLoaded;
-      document.head.appendChild(authScript);
+    })();
+
+    return firebaseInitPromise;
+  }
+
+  function setupAuth() {
+    if (!firebase.apps || !firebase.apps.length) {
+      try { firebase.initializeApp(firebaseConfig); } catch(e) { console.warn('Auth init:', e.message); }
     }
+    // Init Firestore globally (needed by favorites.js)
+    try {
+      if (!window.firestore) {
+        window.firestore = firebase.firestore();
+        window.firestore.settings({
+          experimentalForceLongPolling: true,
+          useFetchStreams: false
+        }, { merge: true });
+        window.firebaseEnabled = true;
+      }
+    } catch(e) {
+      console.warn('Firestore init error:', e);
+    }
+    try {
+      window.firebaseAuth = firebase.auth();
+      window.firebaseAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      window.firebaseAuth.onAuthStateChanged(onAuthChanged);
+    } catch(e) {
+      console.warn('Auth setup error:', e);
+    }
+    window.dispatchEvent(new CustomEvent('firebaseReady'));
   }
 
   function onAuthChanged(user) {
