@@ -15,6 +15,10 @@
 
   var cachedResult = null;
   var refreshing = null;
+  // Последняя ошибка обмена с облаком. Раньше любая ошибка Firestore молча
+  // проглатывалась и подменялась локальным снапшотом — из-за этого не
+  // работала синхронизация между устройствами, и原因 был не виден.
+  var lastCloudError = null;
 
   // ---------- Нормализация ----------
 
@@ -318,9 +322,23 @@
       } else if (ctx.setDoc) {
         await ctx.setDoc(ctx.ref, { norms: norms, updatedAt: ctx.serverTimestamp() }, { merge: true });
       }
+      lastCloudError = null;
     } catch (e) {
-      console.warn('🆕 Ошибка записи снапшота в облако:', e);
+      lastCloudError = e;
+      console.warn('🆕 Ошибка записи снапшота в облако:', e && (e.code || e.message) || e, e);
     }
+  }
+
+  function describeError(e) {
+    if (!e) return '';
+    var code = e.code || '';
+    var msg = e.message || String(e);
+    if (/permission|insufficient/i.test(code + ' ' + msg)) {
+      return 'Нет доступа к облаку (правила Firestore). Проверь правило для users/{id}/newwords/data';
+    }
+    if (/unavailable|network|deadline/i.test(code + ' ' + msg)) return 'Нет связи с Firestore';
+    if (/not-found|404/i.test(code + ' ' + msg)) return 'Документ не найден';
+    return (code ? code + ': ' : '') + msg;
   }
 
   // Снапшот — общая база для всех устройств, поэтому при наличии облака
@@ -338,6 +356,7 @@
         var cloud = await readCloud();
         var cloudNorms = cloud && Array.isArray(cloud.norms) ? cloud.norms : null;
         if (cloudNorms && cloudNorms.length) {
+          lastCloudError = null;
           result = { norms: cloudNorms, ts: (cloud && cloud.updatedAt) || 0 };
           if (!local || !local.norms || local.norms.length !== cloudNorms.length ||
               JSON.stringify(local.norms) !== JSON.stringify(cloudNorms)) {
@@ -345,10 +364,11 @@
           }
         } else if (result && result.norms && result.norms.length) {
           // В облаке ещё нет базы — поднимаем локальную на все устройства.
-          writeCloud(result.norms);
+          await writeCloud(result.norms);
         }
       } catch (e) {
-        console.warn('🆕 Ошибка синхронизации снапшота с облаком:', e);
+        lastCloudError = e;
+        console.warn('🆕 Ошибка чтения снапшота из облака:', e && (e.code || e.message) || e, e);
       }
     }
 
@@ -570,7 +590,9 @@
     accept: accept,
     count: count,
     copyText: copyText,
-    get result() { return cachedResult; }
+    get result() { return cachedResult; },
+    get cloudError() { return lastCloudError; },
+    cloudErrorText: function () { return describeError(lastCloudError); }
   };
 
   // Страница должна успеть подписаться на это событие до первого refresh(),

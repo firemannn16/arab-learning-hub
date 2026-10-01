@@ -476,6 +476,26 @@
       color: #9ca3af;
     }
 
+    /* Предупреждение, что список показан с этого устройства, а не из облака */
+    .newwords-cloud-warn {
+      background: #fff7ed;
+      border: 1px solid #fdba74;
+      border-left: 4px solid #f97316;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: #9a3412;
+      line-height: 1.45;
+    }
+
+    body.dark-theme .newwords-cloud-warn {
+      background: #2a1a0f;
+      border-color: #9a3412;
+      border-left-color: #f97316;
+      color: #fdba74;
+    }
+
     .empty-state .icon {
       font-size: 48px;
       margin-bottom: 15px;
@@ -2460,8 +2480,17 @@
         container.innerHTML = `<div class="error">Не удалось загрузить новый список слов</div>`;
         return;
       }
+
+      // Предупреждение о проблеме с облаком. Раньше ошибка Firestore молча
+      // подменялась локальным списком, и было непонятно, почему на телефоне
+      // данные не совпадают с ПК.
+      const cloudErr = window.NewWords.cloudErrorText ? window.NewWords.cloudErrorText() : '';
+      const cloudWarn = cloudErr
+        ? `<div class="newwords-cloud-warn">☁️ Не удалось синхронизировать с облаком: ${escapeHtml(cloudErr)}. Показан список с этого устройства.</div>`
+        : '';
+
       if (result.firstRun) {
-        container.innerHTML = `
+        container.innerHTML = cloudWarn + `
           <div class="empty-state">
             <div class="icon">🆕</div>
             <p>Отслеживание начато</p>
@@ -2470,7 +2499,7 @@
         return;
       }
       if (count === 0) {
-        container.innerHTML = `
+        container.innerHTML = cloudWarn + `
           <div class="empty-state">
             <div class="icon">✅</div>
             <p>Новых слов нет</p>
@@ -2488,7 +2517,7 @@
             <span class="word-text">${marker}${escapeHtml(item.line)}</span>
           </div>`;
       });
-      container.innerHTML = html;
+      container.innerHTML = cloudWarn + html;
     }
 
     function updateNewWordsBadge() {
