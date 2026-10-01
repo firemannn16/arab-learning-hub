@@ -1279,12 +1279,62 @@
       background: #374151;
     }
 
-    .sticker-btn-add {
-      background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-      color: #064e3b;
+    /* Ряд над карточкой: «Выйти» — счётчик слов — «+» */
+    .learn-head-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+      min-height: 30px;
+      /* Кнопка «Выйти» стоит абсолютно (top: 12px), а контент начинается ниже
+         из-за отступа .learn-container. Отрицательный отступ выравнивает ряд
+         с кнопкой по одной высоте. */
+      margin-top: -18px;
     }
 
-    body.dark-theme .sticker-btn-add {
+    /* Слева резервируем ширину кнопки «Выйти», чтобы счётчик слов остался
+       по центру и не заезжал под неё. */
+    .learn-head-spacer {
+      flex: 0 0 auto;
+      width: 90px;
+    }
+
+    .learn-head-row .learn-progress-text {
+      flex: 1 1 auto;
+      text-align: center;
+      margin-bottom: 0;
+    }
+
+    .sticker-btn-mini {
+      flex: 0 0 auto;
+      width: 30px;
+      height: 30px;
+      border: none;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+      color: #064e3b;
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+    }
+
+    .sticker-btn-mini:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.45);
+    }
+
+    .sticker-btn-mini:active {
+      transform: scale(0.95);
+    }
+
+    body.dark-theme .sticker-btn-mini {
       background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
       color: #064e3b;
     }
@@ -1470,6 +1520,21 @@
         padding: 20px 15px;
       }
 
+      /* На узких экранах ряд «Выйти / счётчик / +» поджимаем */
+      .learn-head-row {
+        margin-top: -8px;
+      }
+
+      .learn-head-spacer {
+        width: 78px;
+      }
+
+      .sticker-btn-mini {
+        width: 28px;
+        height: 28px;
+        font-size: 19px;
+      }
+
       .word-card {
         padding: 28px 16px;
         min-height: 190px;
@@ -1606,7 +1671,11 @@
 
       <!-- Режим заучивания -->
       <div class="learn-mode" id="learnModeSection" style="display: none;">
-        <div class="learn-progress-text" id="learnProgressText">Слово 1 из 10</div>
+        <div class="learn-head-row">
+          <span class="learn-head-spacer"></span>
+          <div class="learn-progress-text" id="learnProgressText">Слово 1 из 10</div>
+          <button class="sticker-btn-mini" id="addWordsBtn" onclick="openAddWordsModal()" title="Добавить ещё слов">+</button>
+        </div>
         <div class="learn-progress-bar">
           <div class="learn-progress-fill" id="learnProgressFill" style="width: 0%"></div>
         </div>
@@ -1628,7 +1697,6 @@
             <div class="circle-timer-text" id="timerText">15</div>
           </div>
           <button class="sticker-btn" onclick="nextWord()" title="Далее">▶️</button>
-          <button class="sticker-btn sticker-btn-add" id="addWordsBtn" onclick="openAddWordsModal()" title="Добавить ещё слов">➕</button>
         </div>
         
         <div class="word-card" id="wordCard">
@@ -2368,6 +2436,14 @@
     }
 
     // ========== НОВЫЕ СЛОВА ==========
+
+    // Вход в аккаунт меняет источник данных (облако), поэтому после
+    // авторизации пересчитываем список заново, а не показываем то, что было
+    // посчитано до входа. Подписка ровно одна — на весь срок жизни страницы.
+    window.addEventListener('newWordsUpdated', () => {
+      if (currentTab === 'newwords') renderNewWordsTab();
+      else updateNewWordsBadge();
+    });
 
     async function renderNewWordsTab() {
       if (!window.NewWords) return;

@@ -330,33 +330,6 @@
   }
   .setting-boost-btn:hover { background: #1d4ed8; }
 
-  /* iOS-переключатель */
-  .dev-mode-row {
-    display: flex; justify-content: space-between; align-items: center;
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;
-    padding: 12px 14px;
-  }
-  .dark-theme .dev-mode-row { background: #111827; border-color: #334155; }
-  .ios-switch {
-    position: relative; display: inline-block;
-    width: 51px; height: 31px; flex-shrink: 0;
-  }
-  .ios-switch input { opacity: 0; width: 0; height: 0; }
-  .ios-switch-slider {
-    position: absolute; cursor: pointer; inset: 0;
-    background: #e4e4e4; border-radius: 31px;
-    transition: background 0.3s;
-  }
-  .ios-switch-slider::before {
-    content: ""; position: absolute;
-    height: 27px; width: 27px; left: 2px; top: 2px;
-    background: #fff; border-radius: 50%;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.25);
-    transition: transform 0.3s;
-  }
-  .ios-switch input:checked + .ios-switch-slider { background: #34c759; }
-  .ios-switch input:checked + .ios-switch-slider::before { transform: translateX(20px); }
-  .dark-theme .ios-switch-slider { background: #4b5563; }
 
   /* Boost modal */
   .boost-input-row {
@@ -442,7 +415,7 @@
   }
   .sr-err-list-btn:hover { transform: rotate(0deg) scale(1.06); }
 
-  /* Dev-mode: список ошибок */
+  /* Список ошибок — доступен всем */
   .sr-err-info {
     display: flex; flex-direction: column; align-items: center; gap: 4px;
     background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;
@@ -596,17 +569,6 @@
     <div style="display:flex;align-items:center;margin-bottom:16px">
       <button class="settings-back-btn" id="settingsBackBtn" title="Назад">←</button>
       <h2 style="margin:0;font-size:1.15rem">Настройки</h2>
-    </div>
-
-    <div class="setting-row dev-mode-row">
-      <div>
-        <div class="setting-label" style="margin-bottom:0">Режим разработчика</div>
-        <div style="font-size:0.78rem;color:#94a3b8;margin-top:2px">Инструменты для проверки слов</div>
-      </div>
-      <label class="ios-switch">
-        <input type="checkbox" id="devModeToggle">
-        <span class="ios-switch-slider"></span>
-      </label>
     </div>
 
     <div class="setting-row">
@@ -798,7 +760,6 @@
   const BOOST_NEW_KEY = 'arabSrBoostNew';
   const BOOST_REVIEW_KEY = 'arabSrBoostReview';
   const ERROR_LIST_KEY = 'arabSrDevErrors';
-  const DEV_ACCOUNT = 'komnenado@gmail.com';
 
   let allWords = [];
   let notesMap = {};
@@ -819,7 +780,6 @@
   let sessionDone = 0;
   let logs = [];
   let undoStack = [];
-  let devMode = false;
   let errorList = [];
   // Множество id карточек, которые есть в текущем words.txt (для отсева «призраков»)
   let validCardIds = new Set();
@@ -879,7 +839,6 @@
         if (s.limitNew) limitNew = s.limitNew;
         if (s.unlimitedReviews !== undefined) unlimitedReviews = s.unlimitedReviews;
         if (s.maxReviews !== undefined) maxReviews = s.maxReviews;
-        if (s.devMode) devMode = s.devMode;
         if (s.w && Array.isArray(s.w) && s.w.length === 19) {
           if (fsrs) fsrs.w = s.w;
           else window._savedW = s.w;
@@ -888,16 +847,11 @@
     } catch(e) {}
   }
   function saveSettingsToStorage() {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ limitNew, unlimitedReviews, maxReviews, w: fsrs.w, devMode }));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ limitNew, unlimitedReviews, maxReviews, w: fsrs.w }));
     pushSettingsToFirestore();
   }
 
-  function isDevAccount() {
-    try {
-      if (window.auth && window.auth.isAdminMode && window.auth.isAdminMode()) return true;
-      return !!(window.auth && window.auth.getUserEmail && window.auth.getUserEmail() === DEV_ACCOUNT);
-    } catch(e) { return false; }
-  }
+  
 
   function loadErrorList() {
     try {
@@ -1010,8 +964,7 @@
       limitNew,
       unlimitedReviews,
       maxReviews,
-      w: fsrs ? fsrs.w.slice() : [],
-      devMode: !!devMode
+      w: fsrs ? fsrs.w.slice() : []
     };
   }
 
@@ -1037,10 +990,6 @@
     }
     if (Array.isArray(p.w) && p.w.length === 19 && fsrs && JSON.stringify(p.w) !== JSON.stringify(fsrs.w)) {
       fsrs.w = p.w.slice();
-      changed = true;
-    }
-    if (typeof p.devMode === 'boolean' && p.devMode !== devMode && isDevAccount()) {
-      devMode = p.devMode;
       changed = true;
     }
     if (changed) saveSettingsToStorage();
@@ -1800,7 +1749,7 @@
       <div class="study-top-row">
         <div class="study-top-left">
           <button class="study-back-btn" id="studyBackBtn" title="Назад">←</button>
-          ${devMode && isDevAccount() ? `<button class="sr-err-list-btn" id="errorListBtn" title="Список ошибок">📋${errorList.length > 0 ? ' ' + errorList.length : ''}</button>` : ''}
+          <button class="sr-err-list-btn" id="errorListBtn" title="Список ошибок">📋${errorList.length > 0 ? ' ' + errorList.length : ''}</button>
         </div>
         <button class="undo-btn ${undoStack.length === 0 ? 'undo-disabled' : ''}" id="undoBtn" title="Отменить последний ответ">↶</button>
       </div>
@@ -1808,7 +1757,7 @@
       <div class="card-container">
         <div class="flashcard" id="flashcard">
           <button class="fav-star ${window.isFavorite ? (window.isFavorite(card.line) ? 'active' : '') : ''}" id="favStar">${window.isFavorite && window.isFavorite(card.line) ? '⭐' : '☆'}</button>
-          ${devMode && isDevAccount() ? `<button class="sr-error-btn" id="errorBtn" title="Добавить в список ошибок">!</button>` : ''}
+          <button class="sr-error-btn" id="errorBtn" title="Добавить в список ошибок">!</button>
           <div class="word-index">${done + 1}/${total}</div>
           <div class="front-text arabic" id="frontText">${front}</div>
           <div class="tap-hint" id="tapHint">👆 нажмите, чтобы увидеть перевод</div>
@@ -2576,7 +2525,6 @@
     document.getElementById('limitNewInput').value = limitNew;
     document.getElementById('maxReviewsInput').value = maxReviews;
     document.getElementById('unlimitedReviews').checked = unlimitedReviews;
-    document.getElementById('devModeToggle').checked = !!devMode;
     document.getElementById('maxReviewsRow').style.display = unlimitedReviews ? 'none' : 'block';
     renderLimitInfo();
     modal.style.display = 'flex';
@@ -2673,15 +2621,6 @@
   document.getElementById('unlimitedReviews').addEventListener('change', function() {
     document.getElementById('maxReviewsRow').style.display = this.checked ? 'none' : 'block';
     renderLimitInfo();
-  });
-  document.getElementById('devModeToggle').addEventListener('change', function() {
-    if (this.checked && !isDevAccount()) {
-      this.checked = false;
-      showToast('Вам не доступно');
-      return;
-    }
-    devMode = this.checked;
-    saveSettingsToStorage();
   });
   document.getElementById('settingsBackBtn').addEventListener('click', () => {
     document.getElementById('settingsModal').style.display = 'none';

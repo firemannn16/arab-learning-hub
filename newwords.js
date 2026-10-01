@@ -204,6 +204,10 @@
 
     // Compat API (firebase.firestore.*)
     if (firestore && typeof firestore.collection === 'function') {
+      // Обращаемся к firebase через global: голое имя firebase отсутствует,
+      // если SDK грузится модульно, и обрывало весь расчёт исключением.
+      var fbs = global.firebase;
+      var fv = fbs && fbs.firestore && fbs.firestore.FieldValue;
       return {
         mode: 'compat',
         ref: firestore
@@ -211,9 +215,8 @@
           .doc(code)
           .collection('newwords')
           .doc('data'),
-        serverTimestamp: (firebase && firebase.firestore && firebase.firestore.FieldValue
-          && firebase.firestore.FieldValue.serverTimestamp)
-          ? firebase.firestore.FieldValue.serverTimestamp()
+        serverTimestamp: (typeof fv === 'function' && fv.serverTimestamp)
+          ? fv.serverTimestamp()
           : new Date()
       };
     }
@@ -290,10 +293,26 @@
     return null;
   }
 
-  async function writeCloud(norms) {
+  async function writeCloud(norms, opts) {
     var ctx = getFirebaseContext();
     if (!ctx) return;
+    var onlyIfMissing = !!(opts && opts.onlyIfMissing);
     try {
+      // onlyIfMissing: база должна появиться в облаке лишь однажды. Проверяем
+      // это отдельно, потому что set с merge создал бы документ поверх чужой
+      // базы на том устройстве, где её ещё не было.
+      if (onlyIfMissing) {
+        var existing = null;
+        if (ctx.mode === 'compat') {
+          existing = await ctx.ref.get();
+          if (existing && existing.exists) return;
+        } else if (ctx.getDoc) {
+          var exSnap = await ctx.getDoc(ctx.ref);
+          if (exSnap && exSnap.exists()) return;
+        } else {
+          return;
+        }
+      }
       if (ctx.mode === 'compat') {
         await ctx.ref.set({ norms: norms, updatedAt: ctx.serverTimestamp }, { merge: true });
       } else if (ctx.setDoc) {
@@ -304,7 +323,12 @@
     }
   }
 
-  // Выбрать снапшот: облако новее -> берём его, иначе локальный (и пишем его в облако)
+  // Снапшот — общая база для всех устройств, поэтому при наличии облака
+  // доверяем ему, а не локальной копии. Раньше выбор шёл по метке времени:
+  // телефон успевал записать к себе локальную базу позже, чем ПК обновлял
+  // облако, и свежая по времени копия перебивала настоящую общую базу.
+  // Локальный снапшот остаётся запасным вариантом для офлайна и на случай,
+  // когда в облаке записи ещё нет.
   async function loadSnapshot() {
     var local = readLocal();
     var result = local;
@@ -312,11 +336,15 @@
     if (canUseFirebase()) {
       try {
         var cloud = await readCloud();
-        var cloudTs = cloud ? cloud.updatedAt : 0;
-        if (cloud && (!result || cloudTs > result.ts)) {
-          result = { norms: cloud.norms || [], ts: cloudTs };
-          writeLocal(result.norms, result.ts);
-        } else if (result && result.norms && result.norms.length && !cloud) {
+        var cloudNorms = cloud && Array.isArray(cloud.norms) ? cloud.norms : null;
+        if (cloudNorms && cloudNorms.length) {
+          result = { norms: cloudNorms, ts: (cloud && cloud.updatedAt) || 0 };
+          if (!local || !local.norms || local.norms.length !== cloudNorms.length ||
+              JSON.stringify(local.norms) !== JSON.stringify(cloudNorms)) {
+            writeLocal(result.norms, result.ts || Date.now());
+          }
+        } else if (result && result.norms && result.norms.length) {
+          // В облаке ещё нет базы — поднимаем локальную на все устройства.
           writeCloud(result.norms);
         }
       } catch (e) {
@@ -478,11 +506,14 @@
         }
         var snapshot = await loadSnapshot();
         if (!snapshot || !snapshot.norms || snapshot.norms.length === 0) {
-          // Первый запуск: берём текущий список как базу, ничего не показываем
+          // Первый запуск: берём текущий список как базу, ничего не показываем.
+          // База общая, поэтому записываем её в облако только когда правки
+          // пользователя ещё нигде нет: иначе новый телефон затёр бы список
+          // «новых слов», посчитанный на другом устройстве.
           var baseNorms = lines.map(normLine);
           var now = Date.now();
           writeLocal(baseNorms, now);
-          if (canUseFirebase()) writeCloud(baseNorms);
+          if (canUseFirebase()) writeCloud(baseNorms, { onlyIfMissing: true });
           cachedResult = { items: [], firstRun: true };
           return cachedResult;
         }
@@ -520,13 +551,41 @@
     return cachedResult.items.map(function (item) { return item.line; }).join('\n');
   }
 
+  // Результат зависит от того, вошёл ли пользователь: без авторизации облако
+  // не читается. Поэтому сбрасываем кэш и пересчитываем, как только вход
+  // подтвердится или Firebase дозагрузится.
+  function invalidate() {
+    cachedResult = null;
+  }
+
+  function resync() {
+    invalidate();
+    return refresh();
+  }
+
   global.NewWords = {
     refresh: refresh,
+    resync: resync,
+    invalidate: invalidate,
     accept: accept,
     count: count,
     copyText: copyText,
     get result() { return cachedResult; }
   };
+
+  // Страница должна успеть подписаться на это событие до первого refresh(),
+  // поэтому подписываемся сразу, а сам пересчёт откладываем в макрозадачу.
+  function scheduleResync() {
+    setTimeout(function () {
+      if (!canUseFirebase()) return;
+      resync().then(function (r) {
+        try { global.dispatchEvent(new CustomEvent('newWordsUpdated', { detail: r })); } catch (e) {}
+      });
+    }, 0);
+  }
+
+  global.addEventListener('authChanged', scheduleResync);
+  global.addEventListener('firebaseReady', scheduleResync);
 
   console.log('🆕 Система новых слов загружена');
 })(window);
