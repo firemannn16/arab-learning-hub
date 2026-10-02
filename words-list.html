@@ -1359,6 +1359,98 @@
       color: #064e3b;
     }
 
+    /* Ряд действий справа: шестерёнка и «+» */
+    .learn-head-actions {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Шестерёнка настроек таймеров — заметно отличается от зелёной «+» */
+    .sticker-btn-gear {
+      background: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%);
+      color: #78350f;
+    }
+
+    .sticker-btn-gear:hover {
+      box-shadow: 0 4px 15px rgba(245, 158, 11, 0.45);
+    }
+
+    body.dark-theme .sticker-btn-gear {
+      background: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%);
+      color: #78350f;
+    }
+
+    /* Поля интервалов в окне настроек таймеров */
+    .timers-settings-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin: 16px 0;
+    }
+
+    .timers-settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 2px solid #e5e7eb;
+      border-radius: 14px;
+      background: #fafbff;
+    }
+
+    .timers-settings-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #374151;
+      text-align: left;
+    }
+
+    .timers-settings-field {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+
+    .timers-settings-input {
+      width: 74px;
+      padding: 8px 10px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      font-size: 20px;
+      font-weight: 700;
+      color: #667eea;
+      text-align: center;
+      outline: none;
+      background: #fff;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .timers-settings-input:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+    }
+
+    .timers-settings-input::-webkit-inner-spin-button {
+      display: none;
+    }
+
+    .timers-settings-input[type="number"] {
+      -moz-appearance: textfield;
+    }
+
+    .timers-settings-unit {
+      font-size: 14px;
+      color: #6b7280;
+      font-weight: 500;
+    }
+
     /* Поле ввода слов в модальном окне */
     .addwords-textarea {
       width: 100%;
@@ -1382,6 +1474,25 @@
       background: #374151;
       border-color: #4b5563;
       color: #e0e0e0;
+    }
+
+    body.dark-theme .timers-settings-row {
+      background: #374151;
+      border-color: #4b5563;
+    }
+
+    body.dark-theme .timers-settings-label {
+      color: #e0e0e0;
+    }
+
+    body.dark-theme .timers-settings-input {
+      background: #1f2937;
+      border-color: #4b5563;
+      color: #a5b4fc;
+    }
+
+    body.dark-theme .timers-settings-unit {
+      color: #9ca3af;
     }
 
     /* Кнопка показать перевод (глазок) */
@@ -1555,6 +1666,15 @@
         font-size: 19px;
       }
 
+      .learn-head-actions {
+        gap: 6px;
+      }
+
+      .timers-settings-input {
+        width: 64px;
+        font-size: 18px;
+      }
+
       .word-card {
         padding: 28px 16px;
         min-height: 190px;
@@ -1671,7 +1791,7 @@
         <div class="timer-section">
           <span class="timer-label">⏱️ Интервал между словами</span>
           <div class="timer-single">
-            <input type="number" class="timer-single-input" id="timerInput" min="0" max="60" value="0" oninput="setTimeFromInput(this)" onfocus="this.select()">
+            <input type="number" class="timer-single-input" id="timerInput" min="0" max="300" value="0" oninput="setTimeFromInput(this)" onfocus="this.select()">
             <span class="timer-single-unit">сек</span>
           </div>
         </div>
@@ -1694,7 +1814,10 @@
         <div class="learn-head-row">
           <span class="learn-head-spacer"></span>
           <div class="learn-progress-text" id="learnProgressText">Слово 1 из 10</div>
-          <button class="sticker-btn-mini" id="addWordsBtn" onclick="openAddWordsModal()" title="Добавить ещё слов">+</button>
+          <div class="learn-head-actions">
+            <button class="sticker-btn-mini sticker-btn-gear" id="timersBtn" onclick="openTimersModal()" title="Таймеры заучивания и проверки">⚙️</button>
+            <button class="sticker-btn-mini" id="addWordsBtn" onclick="openAddWordsModal()" title="Добавить ещё слов">+</button>
+          </div>
         </div>
         <div class="learn-progress-bar">
           <div class="learn-progress-fill" id="learnProgressFill" style="width: 0%"></div>
@@ -1729,7 +1852,13 @@
 
       <!-- Режим проверки -->
       <div class="learn-mode" id="testModeSection" style="display: none;">
-        <div class="learn-progress-text" id="testProgressText">Проверка 1 из 10</div>
+        <div class="learn-head-row">
+          <span class="learn-head-spacer"></span>
+          <div class="learn-progress-text" id="testProgressText">Проверка 1 из 10</div>
+          <div class="learn-head-actions">
+            <button class="sticker-btn-mini sticker-btn-gear" onclick="openTimersModal()" title="Таймеры заучивания и проверки">⚙️</button>
+          </div>
+        </div>
         <div class="learn-progress-bar">
           <div class="learn-progress-fill" id="testProgressFill" style="width: 0%"></div>
         </div>
@@ -1888,7 +2017,8 @@
     // ========== ЗАУЧИВАНИЕ - Переменные ==========
     let learnWords = [];           // Слова для заучивания [{arabic: '...', translation: '...'}, ...]
     let currentWordIndex = 0;      // Текущий индекс слова
-    let selectedTime = 0;         // Выбранное время (сек)
+    let selectedTime = 0;         // Интервал заучивания (сек)
+    let selectedTestTime = 15;     // Интервал проверки (сек)
     let timerInterval = null;      // Интервал таймера
     let timeLeft = 15;             // Оставшееся время
     let isPaused = false;          // Флаг паузы
@@ -1901,7 +2031,23 @@
     let audioContext = null;
     let skipSessionCheck = false;  // Флаг для пропуска проверки сессии при переходе из resumeSession
     let addWordsWasRunning = false; // Таймер шёл до открытия окна добавления слов
+    let timersWasRunning = false;   // Таймер шёл до открытия окна таймеров
     let testWordAnswered = false;   // На текущее слово проверки уже ответили
+    const TEST_TIMER_STORAGE_KEY = 'arabTestTimerSeconds';
+    const TIMER_MAX = 300;          // Потолок для обоих интервалов, сек
+
+    // Активный интервал для текущего режима. Раньше заучивание и проверка
+    // пользовали одно значение, теперь у каждого режима свой таймер.
+    function currentInterval() {
+      return learnMode === 'test' ? selectedTestTime : selectedTime;
+    }
+
+    function clampInterval(val) {
+      let n = parseInt(val, 10);
+      if (isNaN(n) || n < 0) n = 0;
+      if (n > TIMER_MAX) n = TIMER_MAX;
+      return n;
+    }
 
     // Получить или создать AudioContext
     function getAudioContext() {
@@ -2008,7 +2154,8 @@
           forgottenWords: forgottenWords || [],
           knownCount: knownCount || 0,
           forgotCount: forgotCount || 0,
-          selectedTime: selectedTime || 0
+          selectedTime: selectedTime || 0,
+          selectedTestTime: selectedTestTime || 0
         };
       }
       const saved = loadSession();
@@ -2020,7 +2167,8 @@
           forgottenWords: saved.forgottenWords || [],
           knownCount: saved.knownCount || 0,
           forgotCount: saved.forgotCount || 0,
-          selectedTime: saved.selectedTime || 0
+          selectedTime: saved.selectedTime || 0,
+          selectedTestTime: saved.selectedTestTime || 0
         };
       }
       return null;
@@ -2230,12 +2378,37 @@
         const saved = localStorage.getItem(TIMER_STORAGE_KEY);
         const parsed = parseInt(saved, 10);
         if (!isNaN(parsed)) {
-          return Math.max(0, Math.min(60, parsed));
+          return Math.max(0, Math.min(TIMER_MAX, parsed));
         }
       } catch (e) {
         console.warn('Не удалось загрузить таймер', e);
       }
       return 0;
+    }
+
+    // Сохранить/загрузить интервал проверки
+    function saveTestTimerPreference(seconds) {
+      try {
+        localStorage.setItem(TEST_TIMER_STORAGE_KEY, String(seconds));
+      } catch (e) {
+        console.warn('Не удалось сохранить таймер проверки', e);
+      }
+    }
+
+    function loadTestTimerPreference() {
+      try {
+        const saved = localStorage.getItem(TEST_TIMER_STORAGE_KEY);
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed)) {
+          return Math.max(1, Math.min(TIMER_MAX, parsed));
+        }
+      } catch (e) {
+        console.warn('Не удалось загрузить таймер проверки', e);
+      }
+      // При первом запуске проверка повторяет интервал заучивания, чтобы
+      // не сбрасывать привычный пользователю темп на значение по умолчанию.
+      const learn = loadTimerPreference();
+      return learn > 0 ? learn : 15;
     }
 
     // ========== СОХРАНЕНИЕ ПРОГРЕССА ==========
@@ -2252,6 +2425,7 @@
           knownCount: knownCount,
           forgotCount: forgotCount,
           selectedTime: selectedTime,
+          selectedTestTime: selectedTestTime,
           textareaContent: document.getElementById('learnTextarea')?.value || '',
           timestamp: Date.now()
         };
@@ -2354,6 +2528,8 @@
       knownCount = session.knownCount || 0;
       forgotCount = session.forgotCount || 0;
       selectedTime = session.selectedTime || 0;
+      // В старых сессиях поля нет — тогда остаётся значение из настроек
+      if (session.selectedTestTime > 0) selectedTestTime = session.selectedTestTime;
       isPaused = false;
       
       // Синхронизируем поле ввода таймера
@@ -2881,6 +3057,7 @@
     function initTimer() {
       const savedTime = loadTimerPreference();
       selectedTime = savedTime;
+      selectedTestTime = loadTestTimerPreference();
       const input = document.getElementById('timerInput');
       if (input) {
         input.value = savedTime;
@@ -2889,9 +3066,7 @@
 
     // Установить время из ручного ввода
     function setTimeFromInput(input) {
-      let val = parseInt(input.value, 10);
-      if (isNaN(val) || val < 0) val = 0;
-      if (val > 60) val = 60;
+      const val = clampInterval(input.value);
       input.value = val;
       selectedTime = val;
       saveTimerPreference(val);
@@ -2917,9 +3092,8 @@
       
       // Получаем значение таймера из поля ввода
       const input = document.getElementById('timerInput');
-      let currentValue = input ? parseInt(input.value, 10) : selectedTime;
-      if (isNaN(currentValue) || currentValue < 0) currentValue = 0;
-      if (currentValue > 60) currentValue = 60;
+      const currentValue = input ? clampInterval(input.value) : clampInterval(selectedTime);
+      input && (input.value = currentValue);
       if (currentValue === 0) {
         showToast('Поставьте правильный интервал');
         return;
@@ -3006,6 +3180,65 @@
       setTimeout(() => ta.focus(), 0);
     }
 
+    // ========== ОКНО ТАЙМЕРОВ ==========
+
+    // Пока открыто окно, таймер стоит — иначе он успеет перелистнуть слово.
+    // Если он уже был на паузе, состояние не трогаем.
+    function openTimersModal() {
+      timersWasRunning = !isPaused;
+      if (timersWasRunning) {
+        isPaused = true;
+        renderLearnPauseBtn();
+      }
+
+      showModal('timers');
+      const learnInput = document.getElementById('learnIntervalInput');
+      const testInput = document.getElementById('testIntervalInput');
+      const ok = document.getElementById('timersOk');
+      const cancel = document.getElementById('timersCancel');
+      if (!learnInput || !testInput) return;
+      if (ok) ok.addEventListener('click', () => applyTimersModal(learnInput.value, testInput.value));
+      if (cancel) cancel.addEventListener('click', closeTimersModal);
+      setTimeout(() => learnInput.focus(), 0);
+    }
+
+    function applyTimersModal(learnVal, testVal) {
+      const learn = clampInterval(learnVal);
+      // У проверки минимум 1 сек: нулевой интервал означал бы мгновенный
+      // переход к следующему слову, и проверить было бы нечего.
+      const test = Math.max(1, clampInterval(testVal));
+
+      const changed = learn !== selectedTime || test !== selectedTestTime;
+
+      selectedTime = learn;
+      selectedTestTime = test;
+      saveTimerPreference(selectedTime);
+      saveTestTimerPreference(selectedTestTime);
+
+      // Поле на стартовом экране остаётся источником правды для заучивания
+      const startInput = document.getElementById('timerInput');
+      if (startInput) startInput.value = selectedTime;
+
+      closeTimersModal();
+
+      if (!changed) return;
+
+      // Пересчёт идёт по активному режиму: если сейчас проверка, меняем её
+      // интервал, если заучивание — его. timeLeft сбрасывается под новый интервал.
+      startTimer();
+      saveSession();
+      showToast('Таймеры обновлены: заучивание ' + selectedTime + ' сек, проверка ' + selectedTestTime + ' сек');
+    }
+
+    function closeTimersModal() {
+      closeModal();
+      if (timersWasRunning) {
+        timersWasRunning = false;
+        isPaused = false;
+        renderLearnPauseBtn();
+      }
+    }
+
     // Закрыть окно и вернуть таймер в то состояние, в котором он был.
     // startTimer() здесь не вызываем намеренно — он сбросил бы отсчёт заново,
     // а на паузе timeLeft сохраняется и должен продолжиться с того же места.
@@ -3087,8 +3320,8 @@
 
     // Запустить таймер
     function startTimer() {
-      // Используем уже установленный selectedTime (он должен быть задан до вызова этой функции)
-      timeLeft = selectedTime;
+      // Берём интервал текущего режима: свой для заучивания и проверки
+      timeLeft = currentInterval();
       updateTimerDisplay();
       
       if (timerInterval) clearInterval(timerInterval);
@@ -3121,7 +3354,8 @@
       
       // Обновить круговой прогресс
       const circumference = 2 * Math.PI * 45; // r=45
-      const ratio = selectedTime > 0 ? (1 - timeLeft / selectedTime) : 0;
+      const total = currentInterval();
+      const ratio = total > 0 ? (1 - timeLeft / total) : 0;
       const offset = circumference * Math.min(Math.max(ratio, 0), 1);
       document.getElementById(progressId).style.strokeDashoffset = offset;
     }
@@ -3171,7 +3405,14 @@
       if (words) {
         learnWords = words;
       }
-      
+
+      // Проверка использует свой интервал; если его ещё не задавали,
+      // подставляем интервал заучивания
+      if (!selectedTestTime || selectedTestTime < 1) {
+        selectedTestTime = selectedTime > 0 ? selectedTime : 15;
+        saveTestTimerPreference(selectedTestTime);
+      }
+
       document.getElementById('exitLearnBtn').style.display = 'flex';
       
       // Активировать звук (важно для iOS/Android)
@@ -3369,6 +3610,33 @@
             <button class="modal-btn modal-btn-danger" id="addWordsCancel">
               Отмена
             </button>
+          </div>
+        `;
+      } else if (type === 'timers') {
+        html = `
+          <div class="modal-icon">⚙️</div>
+          <div class="modal-title">Таймеры</div>
+          <div class="timers-settings-list">
+            <div class="timers-settings-row">
+              <div class="timers-settings-label">⏱️ Заучивание</div>
+              <div class="timers-settings-field">
+                <input type="number" class="timers-settings-input" id="learnIntervalInput"
+                  min="0" max="${TIMER_MAX}" value="${selectedTime}" onfocus="this.select()">
+                <span class="timers-settings-unit">сек</span>
+              </div>
+            </div>
+            <div class="timers-settings-row">
+              <div class="timers-settings-label">✅ Проверка</div>
+              <div class="timers-settings-field">
+                <input type="number" class="timers-settings-input" id="testIntervalInput"
+                  min="1" max="${TIMER_MAX}" value="${selectedTestTime}" onfocus="this.select()">
+                <span class="timers-settings-unit">сек</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-buttons">
+            <button class="modal-btn modal-btn-primary" id="timersOk">✅ Сохранить</button>
+            <button class="modal-btn modal-btn-danger" id="timersCancel">Отмена</button>
           </div>
         `;
       } else if (type === 'repeatOptions') {
@@ -4074,6 +4342,7 @@
           knownCount: ss.knownCount,
           forgotCount: ss.forgotCount,
           selectedTime: ss.selectedTime,
+          selectedTestTime: ss.selectedTestTime || 0,
           textareaContent: document.getElementById('learnTextarea')?.value || '',
           timestamp: Date.now()
         };
