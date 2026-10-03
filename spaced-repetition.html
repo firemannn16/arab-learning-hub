@@ -593,7 +593,7 @@
 
     <button id="settingsSaveBtn" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer;margin-top:12px">Сохранить</button>
     <div id="syncStatusBox" style="margin-top:16px;padding:10px;border-radius:10px;background:#f3f4f6"></div>
-    <button id="syncNowBtn" class="reset-btn" style="color:#16a34a;border-color:#86efac">Синхронизировать сейчас</button>
+    <button id="syncNowBtn" class="reset-btn" style="color:#16a34a;border-color:#86efac">Проверить синхронизацию</button>
     <button id="statsBtn" class="reset-btn" style="color:#2563eb;border-color:#93c5fd;margin-top:16px">Статистика</button>
     <button id="forecastBtn" class="reset-btn" style="color:#0891b2;border-color:#67e8f9">Прогноз нагрузки</button>
     <button id="optimizeBtn" class="reset-btn" style="color:#7c3aed;border-color:#c4b5fd">FSRS Оптимизатор</button>
@@ -1676,6 +1676,45 @@
     }, 3000);
   }
 
+  // Досрочная отправка без ожидания таймера. Нужна при уходе со страницы:
+  // 3 секунды debounce означали, что последние ответы оставались только
+  // в localStorage, если пользователь закрыл вкладку раньше.
+  function flushLogsPush() {
+    if (logsPushTimer) { clearTimeout(logsPushTimer); logsPushTimer = null; }
+    pushPendingLogs();
+  }
+
+  // Периодическая страховка. Синхронизация и так автоматическая, но если
+  // предыдущая запись молча упала (сеть, квота), логи могли бы лежать
+  // неотправленными до следующего ответа. Раз в минуту проверяем.
+  function startLogsSafetyNet() {
+    if (logsSafetyTimer) clearInterval(logsSafetyTimer);
+    logsSafetyTimer = setInterval(() => {
+      if (!srFirebaseReady() || !window.authUser) return;
+      const pending = logs.filter(l => !logsPushedKeys.has(logKey(l)));
+      if (pending.length > 0) pushPendingLogs();
+    }, 60000);
+  }
+
+  let logsSafetyTimer = null;
+
+  // Возврат в сеть: и выгрузка накопленного, и догоняющая загрузка.
+  function wireLogsAutoSync() {
+    if (logsAutoSyncWired) return;
+    logsAutoSyncWired = true;
+    window.addEventListener('online', () => {
+      flushLogsPush();
+      loadLogsFromFirestore();
+    });
+    window.addEventListener('offline', () => { lastSyncError = 'нет соединения с интернетом'; });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushLogsPush();
+    });
+    window.addEventListener('pagehide', () => flushLogsPush());
+    startLogsSafetyNet();
+  }
+  let logsAutoSyncWired = false;
+
   // Ключи уже отправленных записей. Счётчик индекса не годится: отмена
   // ответа удаляет запись из logs, и индексы сдвигаются — запись уехала бы
   // повторно. Поэтому сверяемся по ключам.
@@ -1721,16 +1760,18 @@
     }
     if (lastSyncError) {
       html += '<div style="color:#dc2626;margin-top:6px;font-weight:600">Ошибка: ' + escapeHtml(lastSyncError) + '</div>';
-      html += '<div style="color:#6b7280">Логи не потеряны — они ждут отправки. Нажмите «Синхронизировать сейчас».</div>';
+      html += '<div style="color:#6b7280">Логи не потеряны, они ждут отправки и уйдут автоматически. Проверьте интернет.</div>';
     }
     html += '</div>';
     el.innerHTML = html;
   }
 
-  // Ручная синхронизация: показывает результат, а не молчит об ошибке.
+  // Ручная проверка. Основная синхронизация автоматическая — логи уходят сами
+  // при ответе, а подтягиваются слушателем. Кнопка нужна только чтобы
+  // убедиться, что всё сошлось, и посмотреть диагностику.
   async function manualLogsSync() {
     const btn = document.getElementById('syncNowBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Синхронизация...'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Проверяю...'; }
     try {
       await loadLogsFromFirestore();
       pushPendingLogs();
@@ -1742,7 +1783,7 @@
       else if (r.pending > 0) showToast('Не отправлено: ' + r.pending + '. Повторите позже.');
       else showToast('Синхронизировано. Логов: ' + r.local + ', в облаке: ' + r.cloudCount);
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = 'Синхронизировать сейчас'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Проверить синхронизацию'; }
       renderSyncStatus();
     }
   }
@@ -1791,12 +1832,16 @@ function pushPendingLogs() {
         const prev = logsMeta && logsMeta.streams;
         logsMeta = meta;
 
-        // Реагируем только на рост числа чанков: это и есть новые логи.
+        // Сигналом служит не только рост числа чанков, но и updatedAt потока:
+        // манифест переписывается раз в LOGS_MANIFEST_INTERVAL_MS даже без
+        // нового чанка, иначе другие устройства ждали бы 400 ответов,
+        // чтобы заметить новые логи.
         let hasNew = false;
         for (const dev in meta.streams) {
-          const now = (meta.streams[dev] || {}).chunks || 0;
-          const was = prev && prev[dev] ? (prev[dev].chunks || 0) : -1;
-          if (now > was) { hasNew = true; break; }
+          const now = meta.streams[dev] || {};
+          const was = (prev && prev[dev]) || null;
+          if ((now.chunks || 0) > (was && was.chunks || 0)) { hasNew = true; break; }
+          if ((now.updatedAt || 0) > (was && was.updatedAt || 0)) { hasNew = true; break; }
         }
         if (!hasNew) return;
 
@@ -1941,6 +1986,7 @@ function pushPendingLogs() {
     initDone = true;
     renderDeckSelection();
     ensureSrSync();
+    wireLogsAutoSync();
   }
 
   // Одноразовая миграция на настоящий FSRS-5:
@@ -2610,7 +2656,7 @@ const fresh = await loadLogsFromFirestore();
 
     if (logCount < needed) {
       const extra = lastSyncError ? ('\n\nОшибка синхронизации: ' + lastSyncError) : '';
-      const extra2 = r && r.pending > 0 ? ('\n\nНе отправлено в облако: ' + r.pending + '. Нажмите «Синхронизировать сейчас» в настройках.') : '';
+      const extra2 = r && r.pending > 0 ? ('\n\nНе отправлено в облако: ' + r.pending + ' — записи уйдут автоматически.') : '';
       showConfirm(
         'Недостаточно данных',
         `Для оптимизации нужно минимум ${needed} ответов. Сейчас собрано ${logCount}. Продолжайте учить слова — логи собираются автоматически.` + extra + extra2,
