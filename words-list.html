@@ -1920,11 +1920,12 @@
       <button class="exit-learn-btn" id="emptyExitBtn" onclick="emptyTrainer.exitSession()" title="Выйти">✕ Выйти</button>
       <div id="empty-progress"></div>
       
-      <div class="word-card word-card-hidden" id="empty-wordCard">
-        <button class="show-translation-btn" id="empty-showTranslationBtn" onclick="emptyTrainer.toggleTranslation()" onmousedown="event.preventDefault()" title="Показать перевод">👁️</button>
-        <div class="word-card-arabic" id="empty-arabic-word"></div>
-        <div class="word-card-translation" id="empty-word-translation"></div>
-      </div>
+<div class="word-card word-card-hidden" id="empty-wordCard">
+          <button class="show-translation-btn" id="empty-showTranslationBtn" onclick="emptyTrainer.toggleTranslation()" onmousedown="event.preventDefault()" title="Показать перевод">👁️</button>
+          <div class="word-card-arabic" id="empty-arabic-word"></div>
+          <div class="word-card-translation" id="empty-word-translation"></div>
+          <div class="word-card-note" id="empty-word-note"></div>
+        </div>
       
       <input type="text" id="empty-answer-input" placeholder="Введите перевод" autofocus>
       <button id="empty-submit-answer" class="button">Ответить</button>
@@ -3962,15 +3963,18 @@
         }
       }
 
-      function parseText(text) {
-        allWords = text.split(/\r?\n/).map(function(l) { return l.trim(); }).filter(function(l) { return l; }).map(function(line) {
-          const sep = line.search(/[-–—]/);
-          const rus = sep !== -1 ? line.slice(0, sep).trim() : '';
-          const arab = sep !== -1 ? line.slice(sep + 1).trim() : '';
-          const rusVars = rus.split(',').map(function(r) { return r.trim().toLowerCase(); });
-          return { arabicFull: arab, rusVariants: rusVars, originalLine: line };
-        });
-      }
+function parseText(text) {
+          allWords = text.split(/\r?\n/).map(function(l) { return l.trim(); }).filter(function(l) { return l; }).map(function(line) {
+            const sep = line.search(/[-–—]/);
+            const rus = sep !== -1 ? line.slice(0, sep).trim() : '';
+            const arab = sep !== -1 ? line.slice(sep + 1).trim() : '';
+            const rusVars = rus.split(',').map(function(r) { return r.trim().toLowerCase(); });
+            // Ключ шраха — первый арабский сегмент строки, как в parseWords.
+            // В строке может быть несколько форм: «مُصْحَفٌ - مَصَاحِفُ».
+            const noteKey = arab.split(/\s*[-–—]\s*/)[0].trim();
+            return { arabicFull: arab, rusVariants: rusVars, noteKey: noteKey, originalLine: line };
+          });
+        }
 
       emptyTrainer.toggleTranslation = function() {
         const card = document.getElementById('empty-wordCard');
@@ -4056,6 +4060,26 @@
         const it = sessionWords[currentIndex];
         arabicWordH2.textContent = it.arabicFull;
         document.getElementById('empty-word-translation').textContent = it.rusVariants.join(', ');
+        // Шрах берём из notes.json по первому арабскому сегменту.
+        // Пока перевод скрыт, прячем и примечание — иначе ответ утекает в тексте.
+        const emptyNoteEl = document.getElementById('empty-word-note');
+        // noteKey есть только у слов, разобранных после этой правки.
+        // В сессиях, сохранённых раньше, его нет — выводим из строки.
+        let emptyNoteKey = it.noteKey;
+        if (!emptyNoteKey && it.originalLine) {
+          const sep = it.originalLine.search(/[-–—]/);
+          emptyNoteKey = sep !== -1
+            ? it.originalLine.slice(sep + 1).trim().split(/\s*[-–—]\s*/)[0].trim()
+            : '';
+        }
+        const emptyNote = emptyNoteKey ? notesMap[emptyNoteKey] : '';
+        if (emptyNote) {
+          emptyNoteEl.innerHTML = '<span class="note-label">شرح</span><span class="note-text">' + escapeHtml(emptyNote) + '</span>';
+          emptyNoteEl.style.display = 'flex';
+        } else {
+          emptyNoteEl.innerHTML = '';
+          emptyNoteEl.style.display = 'none';
+        }
         resetTranslationButton();
         progressDiv.textContent = (currentIndex + 1) + '/' + total + ' слов пройдено – ' + mistakes.length + ' ошибок';
         answerInput.value = '';
