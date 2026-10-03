@@ -592,6 +592,8 @@
     </div>
 
     <button id="settingsSaveBtn" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer;margin-top:12px">Сохранить</button>
+    <div id="syncStatusBox" style="margin-top:16px;padding:10px;border-radius:10px;background:#f3f4f6"></div>
+    <button id="syncNowBtn" class="reset-btn" style="color:#16a34a;border-color:#86efac">Синхронизировать сейчас</button>
     <button id="statsBtn" class="reset-btn" style="color:#2563eb;border-color:#93c5fd;margin-top:16px">Статистика</button>
     <button id="forecastBtn" class="reset-btn" style="color:#0891b2;border-color:#67e8f9">Прогноз нагрузки</button>
     <button id="optimizeBtn" class="reset-btn" style="color:#7c3aed;border-color:#c4b5fd">FSRS Оптимизатор</button>
@@ -761,29 +763,97 @@
   const BOOST_REVIEW_KEY = 'arabSrBoostReview';
   const ERROR_LIST_KEY = 'arabSrDevErrors';
 
-  // Логи FSRS в облаке: sr_cards/logs_meta + sr_cards/logs_<NN>
+  // ===== Логи FSRS в облаке: sr_cards/logs_<устройство>_<NN> + logs_meta =====
   //
-  // Схема Append-only. Чанк после заполнения закрывается и больше никогда
-  // не переписывается — иначе устройство с меньшим числом логов затирает
-  // чужие записи (так было раньше: телефон перезаписывал logs_0 своими
-  // 68 записями поверх 400 записей ПК).
+  // Главное правило: устройство пишет ТОЛЬКО в свои документы. Общий хвостовой
+  // чанк на всех не работает — два устройства, пишущие в один документ,
+  // затирают друг друга (так терялись логи: телефон перезаписывал logs_0).
   //
-  // За ответ пишется ровно ОДИН документ — текущий хвостовой чанк.
-  // Прежняя схема перезаписывала все чанки на каждом ответе: при 3000 логах
-  // это 8 записей на ответ, что быстро съедает бесплатный лимит Firestore.
+  // Поэтому у каждого устройства свой поток чанков: logs_a1b2c3_0000,
+  // logs_a1b2c3_0001, ... Чужой поток не переписывается никогда, гонки за
+  // запись не возникает by construction.
+  //
+  // logs_meta — манифест: какие потоки есть и сколько в них записей.
+  // Обновляется через merge по пути streams.<id>, поэтому устройства не
+  // затирают сведения друг о друге.
   const LOGS_CHUNK_SIZE = 400;   // записей в чанке (~70 КБ при лимите 1 МБ)
   const LOGS_META_ID = 'logs_meta';
-  const LOGS_MAX_CHUNKS = 8;     // храним последние 3200 записей
-  const LOGS_LOCAL_MAX = 4000;  // локальный запас под нужный оптимизатору порог
+  const LOGS_MAX_CHUNKS = 8;     // чанков на один поток (3200 записей)
+  const LOGS_LOCAL_MAX = 4000;   // локальный запас под порог оптимизатора 2500
+  const LEGACY_SCAN_MAX = 24;    // сколько старых logs_<N> проверить при миграции
+  // Как часто обновлять манифест, если чанк не переполнился. За это время
+  // другие устройства не увидят новые логи — приемлемо, зато запись в Firestore
+  // идёт один раз на ответ вместо двух.
+  const LOGS_MANIFEST_INTERVAL_MS = 20000;
+
+  const DEVICE_ID_KEY = 'arabSrDeviceId';
+  const UNDONE_KEYS_KEY = 'arabSrUndoneLogs';
+  const CURSOR_KEY = 'arabSrCloudCursor';
 
   // Состояние облачных логов
-  let logsMeta = null;           // { nextChunk, latestChunk }
-  let logsMetaLoaded = false;
+  let deviceId = '';
+  let logsMeta = null;           // { v, streams: { id: {first, chunks, count} } }
   let logsPushTimer = null;
   let logsSyncListener = null;
   let logsListenerStarted = false;
+  let cloudCursor = {};          // id потока -> индекс следующего чанка к чтению
+  let lastSyncError = '';        // последняя ошибка синхронизации (показывается в настройках)
+  let lastSyncAt = 0;            // когда последний раз успешно синхронизировались
+  let logsLoadInFlight = false;
+  let undoneKeys = new Set();    // отменённые ответы, которые уже ушли в облако
+  let lastManifestWrite = 0;     // когда последний раз писали манифест
 
   function logKey(l) { return l.card_id + '@' + l.timestamp; }
+
+  // Идентификатор устройства: живёт в localStorage, поэтому у ПК и телефона
+  // он разный и потоки чанков не пересекаются.
+  function ensureDeviceId() {
+    if (deviceId) return deviceId;
+    try {
+      deviceId = localStorage.getItem(DEVICE_ID_KEY) || '';
+    } catch(e) { deviceId = ''; }
+    if (!deviceId) {
+      const rnd = (typeof crypto !== 'undefined' && crypto.getRandomValues)
+        ? Array.from(crypto.getRandomValues(new Uint8Array(4)), b => b.toString(16).padStart(2, '0')).join('')
+        : Math.random().toString(16).slice(2, 10);
+      deviceId = rnd.slice(0, 8);
+    }
+    try { localStorage.setItem(DEVICE_ID_KEY, deviceId); } catch(e) {}
+    return deviceId;
+  }
+
+  function loadUndoneKeys() {
+    try {
+      const d = JSON.parse(localStorage.getItem(UNDONE_KEYS_KEY));
+      if (Array.isArray(d)) undoneKeys = new Set(d);
+    } catch(e) { undoneKeys = new Set(); }
+  }
+  function saveUndoneKeys() {
+    try {
+      const arr = Array.from(undoneKeys);
+      while (arr.length > 500) arr.shift();
+      localStorage.setItem(UNDONE_KEYS_KEY, JSON.stringify(arr));
+    } catch(e) {}
+  }
+  function loadCloudCursor() {
+    try {
+      const d = JSON.parse(localStorage.getItem(CURSOR_KEY));
+      if (d && typeof d === 'object') cloudCursor = d;
+    } catch(e) { cloudCursor = {}; }
+  }
+  function saveCloudCursor() {
+    try { localStorage.setItem(CURSOR_KEY, JSON.stringify(cloudCursor)); } catch(e) {}
+  }
+
+  function noteSyncError(where, e) {
+    const msg = where + ': ' + ((e && (e.message || e.code)) || e || 'неизвестная ошибка');
+    lastSyncError = msg;
+    console.warn('SR [' + where + ']', e);
+  }
+  function noteSyncOk() {
+    lastSyncError = '';
+    lastSyncAt = Date.now();
+  }
 
   let allWords = [];
   let notesMap = {};
@@ -1373,59 +1443,97 @@
     return window.firestore.collection('users').doc(window.authUser.uid).collection('sr_cards');
   }
 
-  // Метаданные логов: какой чанк сейчас хвостовой и сколько чанков всего.
-  // Без них устройство не узнает, что появился новый закрытый чанк.
+  function streamChunkId(dev, idx) {
+    return 'logs_' + dev + '_' + String(idx).padStart(4, '0');
+  }
+
+  function emptyMeta() {
+    return { v: 2, streams: {} };
+  }
+
   async function loadLogsMeta() {
-    if (logsMetaLoaded && logsMeta) return logsMeta;
     try {
       const snap = await logsColl().doc(LOGS_META_ID).get();
-      logsMeta = (snap.exists && snap.data()) || { nextChunk: 0, latestChunk: 0 };
-      logsMetaLoaded = true;
+      const data = (snap.exists && snap.data()) || null;
+      // logs_meta может остаться в старом виде ({nextChunk, latestChunk})
+      // — тогда потоков в нём нет и мы начинаем с нуля.
+      logsMeta = (data && data.streams) ? data : emptyMeta();
       return logsMeta;
     } catch(e) {
-      console.warn('SR: не удалось прочитать logs_meta:', e);
-      return logsMeta || { nextChunk: 0, latestChunk: 0 };
+      noteSyncError('чтение logs_meta', e);
+      if (!logsMeta) logsMeta = emptyMeta();
+      return logsMeta;
     }
   }
 
-  // Имена закрытых чанков: logs_0 ... logs_(nextChunk-1) с ведущими нулями
-  function closedChunkIds(meta) {
-    const ids = [];
-    const last = (meta && meta.nextChunk) || 0;
-    for (let i = 0; i < last; i++) ids.push('logs_' + String(i).padStart(4, '0'));
-    return ids;
+  // Мои сведения о потоке: first — первый живой чанк, chunks — сколько всего
+  // чанков создано (индексы 0..chunks-1), count — записей всего.
+  function myStreamInfo(meta) {
+    const id = ensureDeviceId();
+    const s = meta && meta.streams && meta.streams[id];
+    if (s && typeof s.chunks === 'number') {
+      return { first: s.first || 0, chunks: s.chunks, count: s.count || 0 };
+    }
+    return null;
   }
 
-  function tailChunkId(meta) {
-    return 'logs_' + String((meta && meta.latestChunk) || 0).padStart(4, '0');
+  // count === null означает «не трогать счётчик» — так при подрезке,
+  // когда меняется только первый живой чанк.
+  async function writeMyStreamMeta(first, chunks, count) {
+    const id = ensureDeviceId();
+    const prev = myStreamInfo(logsMeta);
+    const finalCount = (count === null && prev) ? prev.count : (count || 0);
+    const payload = { v: 2, ['streams.' + id]: { first: first, chunks: chunks, count: finalCount, updatedAt: Date.now() } };
+    await logsColl().doc(LOGS_META_ID).set(payload, { merge: true });
+    if (!logsMeta || !logsMeta.streams) logsMeta = emptyMeta();
+    logsMeta.streams[id] = { first: first, chunks: chunks, count: finalCount, updatedAt: Date.now() };
   }
 
-  // Загрузить облачные логи и слить с локальными по ключу card_id@timestamp
+  // Загрузить облачные логи и слить с локальными по ключу card_id@timestamp.
+  // Читаем только те чанки, которых ещё не видели: курсор по каждому потоку
+  // лежит в localStorage, поэтому повторные загрузки почти не читают ничего.
   async function loadLogsFromFirestore() {
-    if (!window.firestore || !window.auth || !window.authUser) return 0;
+    if (!srFirebaseReady() || logsLoadInFlight) return 0;
+    logsLoadInFlight = true;
     try {
       const meta = await loadLogsMeta();
-      const coll = logsColl();
-      tailCache = { chunk: -1, logs: [] };
-      const ids = closedChunkIds(meta);
-      if (meta.latestChunk !== meta.nextChunk) ids.push(tailChunkId(meta));
-      if (ids.length === 0) return 0;
-
+      const streams = (meta && meta.streams) || {};
       const byKey = new Map();
       logs.forEach(l => byKey.set(logKey(l), l));
-
       let added = 0;
-      for (const id of ids) {
-        const snap = await coll.doc(id).get();
-        if (!snap.exists) continue;
-        const arr = snap.data() && snap.data().logs;
-        if (!Array.isArray(arr)) continue;
-        for (const l of arr) {
-          if (!l || !l.card_id) continue;
-          const k = logKey(l);
-          if (!byKey.has(k)) { byKey.set(k, l); added++; }
+
+      for (const dev in streams) {
+        const info = streams[dev] || {};
+        const chunks = info.chunks || 0;
+        const first = info.first || 0;
+        if (chunks <= 0) continue;
+        // Курсор: какой чанк читать следующим. Если он отстаёт от first
+        // (например, чанки уже подрезали), читаем с first.
+        let from = (typeof cloudCursor[dev] === 'number') ? cloudCursor[dev] : first;
+        if (from < first) from = first;
+        if (from >= chunks) { cloudCursor[dev] = chunks; continue; }
+
+        for (let i = from; i < chunks; i++) {
+          const snap = await logsColl().doc(streamChunkId(dev, i)).get();
+          const arr = snap.exists && snap.data() && snap.data().logs;
+          if (Array.isArray(arr)) {
+            for (const l of arr) {
+              if (!l || !l.card_id) continue;
+              const k = logKey(l);
+              cloudSeenKeys.add(k);
+              if (undoneKeys.has(k)) continue;
+              if (!byKey.has(k)) { byKey.set(k, l); added++; }
+            }
+          }
+          cloudCursor[dev] = i + 1;
         }
+        saveCloudCursor();
       }
+
+      // Одноразовая миграция со старой схемы logs_0, logs_1, ...
+      // Без неё облачные логи, записанные прошлой версией, были не видны
+      // вообще: новый код читал только logs_0000.
+      added += await migrateLegacyLogs(byKey);
 
       if (added > 0) {
         const merged = Array.from(byKey.values()).sort((a, b) => a.timestamp - b.timestamp);
@@ -1433,98 +1541,127 @@
         saveLogs();
         window.__logs = logs;
       }
+      noteSyncOk();
       return added;
     } catch(e) {
-      console.warn('SR: не удалось загрузить логи из Firestore:', e);
+      noteSyncError('загрузка логов', e);
       return 0;
+    } finally {
+      logsLoadInFlight = false;
     }
   }
 
-  // Кэш хвостового чанка: избавляет от чтения из Firestore на каждый ответ.
-  // Пишем сразу, зная содержимое хвоста, и тратим 1 запись вместо чтения+записи.
-  let tailCache = { chunk: -1, logs: [] };
-
-  async function readTail(coll, latestChunk) {
-    if (tailCache.chunk === latestChunk) return tailCache.logs.slice();
-    const id = tailChunkId({ latestChunk: latestChunk });
-    const snap = await coll.doc(id).get();
-    const arr = (snap.exists && snap.data() && Array.isArray(snap.data().logs))
-      ? snap.data().logs.slice() : [];
-    tailCache = { chunk: latestChunk, logs: arr };
-    return arr;
+  // Старая схема: logs_0 ... logs_N без идентификатора устройства.
+  // Забираем их в локальные логи, чтобы данные не пропали, и помечаем как
+  // отправленные — они уже в облаке.
+  async function migrateLegacyLogs(byKey) {
+    if (localStorage.getItem('srLogsMigrated') === '1') return 0;
+    if (!srFirebaseReady()) return 0;
+    let added = 0;
+    try {
+      const coll = logsColl();
+      let consecutiveEmpty = 0;
+      for (let i = 0; i < LEGACY_SCAN_MAX && consecutiveEmpty < 2; i++) {
+        const snap = await coll.doc('logs_' + i).get();
+        if (!snap.exists) { consecutiveEmpty++; continue; }
+        consecutiveEmpty = 0;
+        const arr = snap.data().logs;
+        if (!Array.isArray(arr)) continue;
+        for (const l of arr) {
+          if (!l || !l.card_id) continue;
+          const k = logKey(l);
+          cloudSeenKeys.add(k);
+          if (undoneKeys.has(k)) continue;
+          if (!byKey.has(k)) { byKey.set(k, l); added++; }
+        }
+      }
+      localStorage.setItem('srLogsMigrated', '1');
+      if (added > 0) console.log('SR: перенесено из старой схемы логов:', added);
+    } catch(e) {
+      noteSyncError('миграция старых логов', e);
+    }
+    return added;
   }
 
-  // Дописать новые логи в облако.
-  // Закрытые чанки не трогаем — пишем только хвостовой, и то одним документом.
+  // Дописать новые логи в облако, ТОЛЬКО в свои документы.
   async function appendLogsToFirestore(newLogs) {
-    if (!newLogs || !newLogs.length) return;
-    if (!window.firestore || !window.auth || !window.authUser) return;
+    if (!newLogs || !newLogs.length) return false;
+    if (!srFirebaseReady() || !window.authUser) return false;
     try {
-      const meta = await loadLogsMeta();
       const coll = logsColl();
-      let latestChunk = meta.latestChunk || 0;
+      const id = ensureDeviceId();
+      const meta = await loadLogsMeta();
+      const info = myStreamInfo(meta);
+
+      let first = info ? info.first : 0;
+      let chunks = info ? info.chunks : 0;
+      let count = info ? info.count : 0;
+
+      // Наш хвостовой чанк: последний созданный. Заполненный закрываем.
+      let tailIdx = Math.max(0, chunks - 1);
+      let tail = [];
+      if (chunks > 0) {
+        const snap = await coll.doc(streamChunkId(id, tailIdx)).get();
+        const arr = snap.exists && snap.data() && snap.data().logs;
+        if (Array.isArray(arr)) tail = arr.slice();
+      }
+
       let pending = newLogs.slice();
-
-      let tail = await readTail(coll, latestChunk);
-
       while (pending.length > 0) {
         const room = LOGS_CHUNK_SIZE - tail.length;
-        if (room > 0) {
-          tail = tail.concat(pending.splice(0, room));
-          const id = tailChunkId({ latestChunk: latestChunk });
-          await coll.doc(id).set({ logs: tail, updatedAt: new Date().toISOString() }, { merge: true });
-          tailCache = { chunk: latestChunk, logs: tail };
-        }
-        if (pending.length > 0) {
-          // Хвост заполнен — закрываем его и открываем следующий
-          latestChunk += 1;
+        if (room <= 0) {
+          // Хвост полон — закрываем его и открываем следующий
+          tailIdx += 1;
           tail = [];
-          tailCache = { chunk: -1, logs: [] };
-          tail = await readTail(coll, latestChunk);
-          if (tail.length >= LOGS_CHUNK_SIZE) {
-            // Уже полон (гонка с другим устройством) — берём следующий
-            latestChunk += 1;
-            tail = [];
-            tailCache = { chunk: -1, logs: [] };
-          }
+          continue;
         }
-      }
-
-      const nextChunk = latestChunk + 1;
-      // logs_meta переписываем только при открытии нового чанка — раз в 400
-      // ответов. Прежняя проверка !meta.latestChunk срабатывала и на первом
-      // чанке (его номер 0), из-за чего метаданные писались на каждый ответ.
-      const metaChanged = nextChunk !== meta.nextChunk || !logsMetaLoaded;
-      if (metaChanged) {
-        await coll.doc(LOGS_META_ID).set({
-          nextChunk: nextChunk,
-          latestChunk: latestChunk,
+        const take = pending.splice(0, room);
+        tail = tail.concat(take);
+        count += take.length;
+        await coll.doc(streamChunkId(id, tailIdx)).set({
+          logs: tail,
+          device: id,
+          chunk: tailIdx,
           updatedAt: new Date().toISOString()
         }, { merge: true });
-        logsMeta = { nextChunk: nextChunk, latestChunk: latestChunk };
-        logsMetaLoaded = true;
-
-        // Подрезка старых чанков — только при появлении нового, то есть раз
-        // в 400 ответов. Иначе на каждый ответ шли бы чтения вхолостую.
-        await trimOldLogChunks(coll, nextChunk);
       }
+      // chunks — это СКОЛЬКО чанков создано, то есть индексы 0..chunks-1.
+      // Без этого первая же запись оставалась бы невидимой для других
+      // устройств: манифест сообщал бы chunks: 0 при заполненном logs_<id>_0000.
+      chunks = Math.max(chunks, tailIdx + 1);
+
+      // Манифест — сигнал для слушателей на других устройствах. Пишем его
+      // при появлении нового чанка и не чаще раза в LOGS_MANIFEST_INTERVAL_MS,
+      // иначе на каждый ответ уходило бы по две записи. Merge по streams.<id>
+      // не затирает сведения о других устройствах.
+      const nowTs = Date.now();
+      const structureChanged = chunks !== (info ? info.chunks : 0);
+      const manifestDue = nowTs - lastManifestWrite > LOGS_MANIFEST_INTERVAL_MS;
+      if (structureChanged || manifestDue) {
+        lastManifestWrite = nowTs;
+        await writeMyStreamMeta(first, chunks, count);
+      }
+      if (structureChanged) await trimOldLogChunks(coll, id, first, chunks);
+      noteSyncOk();
+      return true;
     } catch(e) {
-      console.warn('Firestore logs save error:', e);
+      noteSyncError('запись логов', e);
+      return false;
     }
   }
 
-  // Удаляем чанки, выпавшие за пределы LOGS_MAX_CHUNKS.
-  // Вызывается только при открытии нового чанка — раз в 400 ответов.
-  async function trimOldLogChunks(coll, nextChunk) {
+  // Подрезка: держим LOGS_MAX_CHUNKS последних чанков своего потока.
+  // Чужие потоки не трогаем.
+  async function trimOldLogChunks(coll, dev, first, chunks) {
+    const excess = chunks - first - LOGS_MAX_CHUNKS;
+    if (excess <= 0) return;
     try {
-      const keepFrom = Math.max(0, nextChunk - LOGS_MAX_CHUNKS);
-      const batch = [];
-      for (let i = 0; i < keepFrom; i++) {
-        batch.push(coll.doc('logs_' + String(i).padStart(4, '0')).delete());
+      for (let i = 0; i < excess; i++) {
+        try { await coll.doc(streamChunkId(dev, first + i)).delete(); } catch(e) {}
       }
-      if (batch.length) await Promise.all(batch);
+      await writeMyStreamMeta(first + excess, chunks, null);
     } catch(e) {
-      console.warn('SR: не удалось подрезать старые чанки логов:', e);
+      noteSyncError('подрезка чанков', e);
     }
   }
 
@@ -1543,32 +1680,106 @@
   // ответа удаляет запись из logs, и индексы сдвигаются — запись уехала бы
   // повторно. Поэтому сверяемся по ключам.
   let logsPushedKeys = new Set();
+  let logsPushInFlight = false;
+  let logsPushAgain = false;
+  let logsSyncDebounce = null;
 
-  function pushPendingLogs() {
-    if (!srFirebaseReady()) return;
-    if (!window.authUser) return;
+  // Диагностика: что реально лежит в облаке и что осталось неотправленным.
+  function logsSyncReport() {
+    const pending = logs.filter(l => !logsPushedKeys.has(logKey(l)));
+    const streams = (logsMeta && logsMeta.streams) || {};
+    let cloudCount = 0;
+    const lines = [];
+    for (const dev in streams) {
+      const s = streams[dev] || {};
+      const c = s.count || 0;
+      cloudCount += c;
+      const mine = dev === deviceId ? ' ← это устройство' : '';
+      lines.push({ dev: dev, count: c, chunks: s.chunks || 0, first: s.first || 0, mine: mine });
+    }
+    lines.sort((a, b) => b.count - a.count);
+    return { local: logs.length, pending: pending.length, cloudCount: cloudCount, streams: lines };
+  }
+
+  function renderSyncStatus() {
+    const el = document.getElementById('syncStatusBox');
+    if (!el) return;
+    const r = logsSyncReport();
+    let html = '<div style="font-size:0.8rem;line-height:1.6">';
+    html += '<div style="font-weight:600;margin-bottom:4px">Синхронизация логов</div>';
+    html += '<div>В этом устройстве: <b>' + r.local + '</b></div>';
+    html += '<div>Не отправлено в облако: <b style="color:' + (r.pending > 0 ? '#dc2626' : '#16a34a') + '">' + r.pending + '</b></div>';
+    html += '<div>Устройств в облаке: <b>' + r.streams.length + '</b></div>';
+    for (const s of r.streams) {
+      html += '<div style="color:#6b7280">· ' + s.dev + ': ' + s.count + ' записей' + s.mine + '</div>';
+    }
+    if (lastSyncAt) {
+      const d = new Date(lastSyncAt);
+      const p = n => String(n).padStart(2, '0');
+      html += '<div style="color:#6b7280;margin-top:4px">Последняя синхронизация: ' +
+        p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + '</div>';
+    }
+    if (lastSyncError) {
+      html += '<div style="color:#dc2626;margin-top:6px;font-weight:600">Ошибка: ' + escapeHtml(lastSyncError) + '</div>';
+      html += '<div style="color:#6b7280">Логи не потеряны — они ждут отправки. Нажмите «Синхронизировать сейчас».</div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  // Ручная синхронизация: показывает результат, а не молчит об ошибке.
+  async function manualLogsSync() {
+    const btn = document.getElementById('syncNowBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Синхронизация...'; }
+    try {
+      await loadLogsFromFirestore();
+      pushPendingLogs();
+      // Даём записи дойти до Firestore, чтобы показать реальный итог
+      await new Promise(res => setTimeout(res, 1200));
+      const r = logsSyncReport();
+      noteSyncOk();
+      if (lastSyncError) showToast('Ошибка синхронизации: ' + lastSyncError);
+      else if (r.pending > 0) showToast('Не отправлено: ' + r.pending + '. Повторите позже.');
+      else showToast('Синхронизировано. Логов: ' + r.local + ', в облаке: ' + r.cloudCount);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Синхронизировать сейчас'; }
+      renderSyncStatus();
+    }
+  }
+
+function pushPendingLogs() {
+    if (!srFirebaseReady() || !window.authUser) return;
+    if (logsPushInFlight) { logsPushAgain = true; return; }
     const pending = logs.filter(l => !logsPushedKeys.has(logKey(l)));
     if (pending.length === 0) return;
 
-    // Помечаем отправленными сразу, чтобы быстрые ответы подряд не слали
-    // одну и ту же запись дважды, пока предыдущая запись в облако идёт.
-    pending.forEach(l => logsPushedKeys.add(logKey(l)));
-
-    // Подрезаем множество, чтобы оно не росло бесконечно
-    if (logsPushedKeys.size > LOGS_LOCAL_MAX) {
-      const keep = new Set(logs.slice(-LOGS_LOCAL_MAX).map(logKey));
-      logsPushedKeys = keep;
-    }
-
-    appendLogsToFirestore(pending);
+    logsPushInFlight = true;
+    // Помечаем отправленными только ПОСЛЕ успешной записи: прежняя схема
+    // помечала сразу, и при ошибке записи логи больше никогда не уходили.
+    appendLogsToFirestore(pending).then(ok => {
+      logsPushInFlight = false;
+      if (ok) {
+        pending.forEach(l => logsPushedKeys.add(logKey(l)));
+        if (logsPushedKeys.size > LOGS_LOCAL_MAX) {
+          const keep = new Set(logs.slice(-LOGS_LOCAL_MAX).map(logKey));
+          logsPushedKeys = keep;
+        }
+      }
+      // Не удалось — ключи остались неотправленными, повторим позже.
+      if (logsPushAgain) { logsPushAgain = false; scheduleLogsPush(); }
+      else if (!ok) setTimeout(pushPendingLogs, 10000);
+    });
   }
+
+  // Ключи, реально прочитанные из облака. Только их можно считать
+  // отправленными: локальные логи, которых в облаке нет, должны уйти сами.
+  let cloudSeenKeys = new Set();
 
   function markLogsPushed() {
-    logsPushedKeys = new Set(logs.map(logKey));
+    logsPushedKeys = new Set(cloudSeenKeys);
   }
 
-  // Слушатель логов: подхватываем закрытые чанки, записанные другим устройством.
-  // Читаем только метаданные (1 документ), а не все чанки — экономим лимит.
+  // Слушатель манифеста: подхватываем логи, записанные другими устройствами.
   function startLogsSyncListener() {
     stopLogsSyncListener();
     if (!srFirebaseReady()) return;
@@ -1576,24 +1787,36 @@
       logsSyncListener = logsColl().doc(LOGS_META_ID).onSnapshot((snap) => {
         if (!snap.exists || !snap.data()) return;
         const meta = snap.data();
-        const prev = logsMeta;
+        if (!meta.streams) return;
+        const prev = logsMeta && logsMeta.streams;
         logsMeta = meta;
-        logsMetaLoaded = true;
-        if (prev && meta.nextChunk <= (prev.nextChunk || 0)) return;
-        loadLogsFromFirestore().then(added => {
-if (added > 0) {
-          markLogsPushed();
-          const modal = document.getElementById('settingsModal');
-          if (modal && modal.style.display === 'flex') openSettings();
+
+        // Реагируем только на рост числа чанков: это и есть новые логи.
+        let hasNew = false;
+        for (const dev in meta.streams) {
+          const now = (meta.streams[dev] || {}).chunks || 0;
+          const was = prev && prev[dev] ? (prev[dev].chunks || 0) : -1;
+          if (now > was) { hasNew = true; break; }
         }
-        });
+        if (!hasNew) return;
+
+        clearTimeout(logsSyncDebounce);
+        logsSyncDebounce = setTimeout(() => {
+          loadLogsFromFirestore().then(added => {
+            if (added > 0) {
+              markLogsPushed();
+              const modal = document.getElementById('settingsModal');
+              if (modal && modal.style.display === 'flex') renderSyncStatus();
+            }
+          });
+        }, 800);
       }, (err) => {
-        console.warn('SR: logs listener error:', err);
+        noteSyncError('слушатель logs_meta', err);
         setTimeout(startLogsSyncListener, 5000);
       });
       logsListenerStarted = true;
     } catch(e) {
-      console.warn('SR: не удалось запустить logs listener:', e);
+      noteSyncError('запуск слушателя логов', e);
     }
   }
 
@@ -1630,6 +1853,9 @@ if (added > 0) {
     loadBoostLimits();
     loadLogs();
     loadErrorList();
+    loadUndoneKeys();
+    loadCloudCursor();
+    ensureDeviceId();
     // Миграция на настоящий FSRS-5: старые веса обучены на кривой модели — сбрасываем
     const fsrsV2Done = localStorage.getItem('sr_fsrs_v2') === '1';
     if (typeof window.FSRS !== 'function') {
@@ -1688,9 +1914,12 @@ if (added > 0) {
       }
       saveCardsLocal(storedCards);
 
-      // Логи из облака сливаются со локальными по ключу card_id@timestamp
+      // Логи из облака сливаются со локальными по ключу card_id@timestamp.
+      // Ключи отмечаем отправленными только для того, что реально пришло
+      // из облака; локальные логи, которых в облаке нет, уйдут при первом ответе.
       await loadLogsFromFirestore();
       markLogsPushed();
+      pushPendingLogs();
     }
 
     const cardMap = {};
@@ -2152,8 +2381,17 @@ if (added > 0) {
     if (undoStack.length === 0) return;
     const u = undoStack.pop();
 
-    // Убираем последний лог
-    logs.pop();
+    // Убираем последний лог. Если запись уже ушла в облако, запоминаем её
+    // ключ: иначе она вернётся при следующей загрузке логов с сервера.
+    const removed = logs.pop();
+    if (removed) {
+      const k = logKey(removed);
+      if (logsPushedKeys.has(k) || cloudSeenKeys.has(k)) {
+        undoneKeys.add(k);
+        saveUndoneKeys();
+      }
+      logsPushedKeys.delete(k);
+    }
     saveLogs();
 
     // Убираем обновлённую версию карты из очереди (могла быть добавлена в конец как learning)
@@ -2252,13 +2490,20 @@ if (added > 0) {
       if (window.auth && window.authUser) {
         await saveCardsToFirestore(cards);
         try {
-          // Стираем и новые именованные чанки logs_0000, и старые logs_0..
+          // Стираем все потоки: и новые logs_<id>_<NN>, и старые logs_0..
           const coll = logsColl();
-          const names = [LOGS_META_ID];
-          for (let i = 0; i <= LOGS_MAX_CHUNKS + 2; i++) {
-            names.push('logs_' + String(i).padStart(4, '0'));
-            names.push('logs_' + i);
+          const names = [];
+          const metaSnap = await coll.doc(LOGS_META_ID).get();
+          const meta = metaSnap.exists ? metaSnap.data() : null;
+          if (meta && meta.streams) {
+            for (const dev in meta.streams) {
+              const s = meta.streams[dev] || {};
+              const first = s.first || 0;
+              const chunks = s.chunks || 0;
+              for (let i = first; i < chunks; i++) names.push(streamChunkId(dev, i));
+            }
           }
+          for (let i = 0; i < LEGACY_SCAN_MAX; i++) names.push('logs_' + i);
           for (const name of names) {
             try {
               const ref = coll.doc(name);
@@ -2266,9 +2511,13 @@ if (added > 0) {
               if (snap.exists) await ref.delete();
             } catch(e) {}
           }
-          logsMeta = { nextChunk: 0, latestChunk: 0 };
-          logsMetaLoaded = false;
-        } catch(e) { console.warn('Firestore logs reset error:', e); }
+          await coll.doc(LOGS_META_ID).delete().catch(() => {});
+          logsMeta = emptyMeta();
+          cloudCursor = {};
+          cloudSeenKeys = new Set();
+          saveCloudCursor();
+          try { localStorage.removeItem('srLogsMigrated'); } catch(e) {}
+        } catch(e) { noteSyncError('сброс логов', e); }
       }
     } catch(e) { console.warn('Firestore cards reset error:', e); }
     document.getElementById('settingsModal').style.display = 'none';
@@ -2350,17 +2599,21 @@ if (added > 0) {
     let logCount = logs.length;
     try {
       if (srFirebaseReady() && window.authUser) {
-        const fresh = await loadLogsFromFirestore();
-        markLogsPushed();
-        logCount = logs.length;
+const fresh = await loadLogsFromFirestore();
+      markLogsPushed();
+      const r = logsSyncReport();
+      logCount = logs.length;
         if (fresh > 0) console.log('SR: подтянуто логов из облака:', fresh);
+        if (r.pending > 0) console.log('SR: не отправлено в облако:', r.pending);
       }
-    } catch(e) { console.warn('SR: не удалось обновить логи перед оптимизацией:', e); }
+    } catch(e) { noteSyncError('обновление логов перед оптимизацией', e); }
 
     if (logCount < needed) {
+      const extra = lastSyncError ? ('\n\nОшибка синхронизации: ' + lastSyncError) : '';
+      const extra2 = r && r.pending > 0 ? ('\n\nНе отправлено в облако: ' + r.pending + '. Нажмите «Синхронизировать сейчас» в настройках.') : '';
       showConfirm(
         'Недостаточно данных',
-        `Для оптимизации нужно минимум ${needed} ответов. Сейчас собрано ${logCount}. Продолжайте учить слова — логи собираются автоматически.`,
+        `Для оптимизации нужно минимум ${needed} ответов. Сейчас собрано ${logCount}. Продолжайте учить слова — логи собираются автоматически.` + extra + extra2,
         'OK', '', () => {}, () => {}
       );
       return;
@@ -2775,6 +3028,7 @@ if (added > 0) {
     document.getElementById('unlimitedReviews').checked = unlimitedReviews;
     document.getElementById('maxReviewsRow').style.display = unlimitedReviews ? 'none' : 'block';
     renderLimitInfo();
+    renderSyncStatus();
     modal.style.display = 'flex';
   }
 
@@ -2873,6 +3127,7 @@ if (added > 0) {
   document.getElementById('settingsBackBtn').addEventListener('click', () => {
     document.getElementById('settingsModal').style.display = 'none';
   });
+  document.getElementById('syncNowBtn').addEventListener('click', () => manualLogsSync());
   document.getElementById('statsBtn').addEventListener('click', () => {
     document.getElementById('settingsModal').style.display = 'none';
     renderStats();
