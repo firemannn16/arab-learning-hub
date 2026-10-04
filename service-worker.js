@@ -1,6 +1,6 @@
 // 🛡️ Service Worker для offline работы
 // Версия кэша (увеличивай при изменениях)
-const CACHE_VERSION = 'v1.33.0';
+const CACHE_VERSION = 'v1.30.0';
 const CACHE_NAME = `arab-learning-hub-${CACHE_VERSION}`;
 
 // 📦 Файлы для кэширования
@@ -230,5 +230,4 @@ self.addEventListener('message', event => {
 });
 
 console.log('[SW] 🚀 Service Worker загружен');
-
 
