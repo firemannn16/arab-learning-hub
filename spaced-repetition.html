@@ -601,6 +601,12 @@
       <div style="font-size:0.7rem;color:#6b7280;margin-top:4px">Доля правильных ответов, на которую рассчитаны интервалы. Как в Anki. Больше — реже повторения.</div>
     </div>
     <button id="rescheduleBtn" class="reset-btn" style="color:#0891b2;border-color:#67e8f9">Пересчитать интервалы карт</button>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:0.7rem;color:#6b7280;text-align:left;margin:6px 0 2px;cursor:pointer">
+      <input type="checkbox" id="rescheduleProtect" checked style="margin-top:2px">
+      <span>Не делать карточки доступными раньше сегодня при пересчёте (защита от лавины)</span>
+    </label>
+    <button id="ankiWeightsBtn" class="reset-btn" style="color:#16a34a;border-color:#86efac">Вернуть эталонные веса Anki</button>
+    <div style="font-size:0.7rem;color:#6b7280;text-align:center">Сбрасывает веса на проверенные значения Anki. Интервалы снова растут правильно.</div>
     <button id="rollbackRescheduleBtn" class="reset-btn" style="color:#b45309;border-color:#fcd34d">Откатить пересчёт интервалов</button>
     <div id="rollbackInfo" style="font-size:0.7rem;color:#6b7280;text-align:center"></div>
     <button id="resetBtn" class="reset-btn">Сбросить прогресс</button>
@@ -785,7 +791,7 @@
   let limitNew = 50;
   let unlimitedReviews = true;
   let maxReviews = 0;
-  let requestRetention = 0.95;   // желаемая вероятность вспомнить в момент повторения
+  let requestRetention = 0.90;   // желаемая вероятность вспомнить в момент повторения
   let fsrs;
   let newCardsLeft = 0;
   let sessionAnswered = false;
@@ -798,6 +804,7 @@
   let logsPullTimer = null;
   let remoteChunkCards = [];         // последнее известное содержимое чанков all_*
   let lastRescheduleAt = 0;
+  let rescheduleProtect = true;
   let undoStack = [];
   let errorList = [];
   // Множество id карточек, которые есть в текущем words.txt (для отсева «призраков»)
@@ -953,6 +960,7 @@
         if (s.maxReviews !== undefined) maxReviews = s.maxReviews;
         if (typeof s.requestRetention === 'number') requestRetention = s.requestRetention;
         if (typeof s.lastRescheduleAt === 'number') lastRescheduleAt = s.lastRescheduleAt;
+    if (typeof s.rescheduleProtect === 'boolean') rescheduleProtect = s.rescheduleProtect;
         if (s.w && Array.isArray(s.w) && s.w.length === 19) {
           if (fsrs) applyWeights(s.w);
           else window._savedW = s.w;
@@ -964,28 +972,48 @@
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({
       limitNew, unlimitedReviews, maxReviews, requestRetention,
       lastRescheduleAt: lastRescheduleAt || 0,
+      rescheduleProtect: rescheduleProtect,
       w: fsrs ? fsrs.w.slice() : (window._savedW || [])
     }));
     pushSettingsToFirestore();
   }
 
-  // w17/w18 отвечают за внутрисессионные шаги обучения (S' = S*exp(w17*(G-3+w18))).
-  // По логу ответов они почти не идентифицируемы, поэтому оптимизатор их не трогает,
-  // а значения жёстко ограничиваются: exp(w17*(3-3+w18)) не должен превышать ~7.
-  const SHORT_TERM_MAX = 1.0;
+  // w17/w18 отвечают за внутрисессионные шаги обучения: S' = S*exp(w17*(G-2+w18)),
+  // где G — оценка 0..3. По логу ответов они не идентифицируемы, поэтому оптимизатор
+  // их не трогает, а значения фиксируются на эталонных Anki. При w17=w18=1 множитель
+  // для «Лёгко» равнялся exp(2)=7.39, и изучаемая карточка улетала на 11 дней вместо 1.
+  const SHORT_TERM_W = [0.5425, 0.0912];
+  const SHORT_TERM_MAX = 1.0;      // границы оптимизатора (фактические значения всё равно фиксируются)
   const MAX_INTERVAL = 180;      // потолок интервала между повторениями (в днях)
   function clampWeights(w) {
     const out = w.slice();
-    out[17] = Math.max(0, Math.min(SHORT_TERM_MAX, Number(out[17]) || 0));
-    out[18] = Math.max(0, Math.min(SHORT_TERM_MAX, Number(out[18]) || 0));
+    out[17] = SHORT_TERM_W[0];
+    out[18] = SHORT_TERM_W[1];
     return out;
   }
   function applyWeights(w) {
     fsrs.w = clampWeights(w);
     fsrs.requestRetention = requestRetention;
   }
+  function useAnkiWeights() {
+    const old = fsrs.w.slice();
+    // Возвращаем не только эталонный набор, но и рекомендованные 90%.
+    // Иначе старое значение из настроек (0.95) продолжит сжимать интервалы.
+    setRequestRetention(0.90);
+    applyWeights(ANKI_WEIGHTS);
+    setPrevWeights(old);
+    saveSettingsToStorage();
+    try {
+      const inp = document.getElementById('retentionInput');
+      if (inp) inp.value = '90';
+    } catch(e) {}
+  }
+  function setRequestRetention(v) {
+    requestRetention = Math.max(0.7, Math.min(0.99, Number(v) || 0.9));
+    fsrs.requestRetention = requestRetention;
+  }
   function shortTermNote() {
-    const mul = Math.exp(fsrs.w[17] * (3 - 3 + fsrs.w[18]));
+    const mul = Math.exp(fsrs.w[17] * (3 - 2 + fsrs.w[18]));
     return Math.round(mul * 100) / 100;
   }
   // Веса до последней оптимизации — для честного отката
@@ -1523,9 +1551,42 @@
     }
   }
 
-  // ===== Логи: синхронизация по дням (append-only, не затирает другие устройства) =====
+  // ===== Логи: синхронизация по дням в подколлекции log_days =====
+  // Дневные документы лежат в users/<uid>/sr_cards/log_days/<YYYY-MM-DD>.
+  // Подколлекция вместо докуентов log_* в общей коллекции: запрос по documentId
+  // требует window.firestore.FieldPath, которого на экземпляре нет, из-за чего
+  // чтение логов падало на каждом вызове и устройства не видели логи друг друга.
+  const LOG_DAYS_SUBCOL = 'log_days';
+  const LEGACY_MIGRATED_KEY = 'srLogsLegacyMigrated';
+  let syncStatus = { state: 'idle', message: '', at: 0 };
   function logsColl() {
     return window.firestore.collection('users').doc(window.authUser.uid).collection('sr_cards');
+  }
+  function logDaysColl() {
+    return logsColl().collection(LOG_DAYS_SUBCOL);
+  }
+  function isLegacyLogDoc(id) {
+    if (id === 'logs' || id.indexOf('logs_') === 0) return true;
+    // дневные документы, созданные до перехода на подколлекцию log_days
+    return /^log_\d{4}-\d{2}-\d{2}$/.test(id);
+  }
+  function setSyncStatus(state, message) {
+    syncStatus = { state: state, message: message || '', at: Date.now() };
+    try { window.dispatchEvent(new CustomEvent('srSyncStatus', { detail: syncStatus })); } catch(e) {}
+  }
+  async function mergeDayDoc(day, extra) {
+    const ref = logDaysColl().doc(day);
+    let count = 0;
+    await window.firestore.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      const data = snap.exists ? snap.data() : null;
+      const cur = data && Array.isArray(data.logs) ? data.logs : [];
+      const merged = dropUndone(mergeLogs(cur, extra));
+      count = merged.length;
+      tx.set(ref, { logs: merged, updatedAt: new Date().toISOString() });
+    });
+    remoteLogDays[day] = count;
+    return count;
   }
   function scheduleLogsPush(delay) {
     if (!srFirebaseReady()) return;
@@ -1537,60 +1598,97 @@
     if (!logDirtyDays.size) return;
     const days = Array.from(logDirtyDays);
     logDirtyDays.clear();
+    let done = 0;
     try {
-      const coll = logsColl();
       for (const day of days) {
-        const mine = dropUndone(logs.filter(l => srDayKey(l.timestamp) === day));
-        const merged = dropUndone(mergeLogs(remoteLogDays[day] || [], mine));
-        remoteLogDays[day] = merged;
-        await coll.doc('log_' + day).set({ logs: merged, updatedAt: new Date().toISOString() }, { merge: true });
+        await mergeDayDoc(day, dropUndone(logs.filter(l => srDayKey(l.timestamp) === day)));
+        done++;
       }
       trimLogsLocal();
+      setSyncStatus('ok', 'Логи записаны в облако: дней ' + done + ', всего ' + logs.length + '.');
     } catch(e) {
       console.warn('SR: ошибка записи логов в Firestore:', e);
       days.forEach(d => logDirtyDays.add(d));
+      setSyncStatus('error', 'Логи не сохранены (' + (e && e.code ? e.code : e) + '). Повтор через 15 с.');
       scheduleLogsPush(15000);
     }
   }
-  // Забираем логи из облака (документы log_* + старые logs_N) и сливаем с локальными
+  // Разовый перенос документов logs, logs_N, logs_<8hex>_NNNN, logs_meta в log_days.
+  // Старое удаляется только после того, как все уникальные логи найдены в log_days.
+  async function migrateLegacyLogDocs() {
+    if (localStorage.getItem(LEGACY_MIGRATED_KEY)) return 0;
+    const snap = await logsColl().get();
+    const legacy = snap.docs.filter(d => isLegacyLogDoc(d.id));
+    if (!legacy.length) {
+      localStorage.setItem(LEGACY_MIGRATED_KEY, '1');
+      return 0;
+    }
+    const byDay = {};
+    const expected = new Set();
+    logs.forEach(l => expected.add(logKeyOf(l)));
+    legacy.forEach(d => {
+      const arr = d.data() && Array.isArray(d.data().logs) ? d.data().logs : [];
+      arr.forEach(l => {
+        if (!l || typeof l.timestamp !== 'number' || !l.card_id) return;
+        const day = srDayKey(l.timestamp);
+        (byDay[day] = byDay[day] || []).push(l);
+        expected.add(logKeyOf(l));
+      });
+    });
+    const days = Object.keys(byDay);
+    for (const day of days) await mergeDayDoc(day, dropUndone(byDay[day]));
+    logs = mergeLogs(logs, dropUndone(days.reduce((a, d) => a.concat(byDay[d]), [])));
+    logs.sort(logByTs);
+    const check = await logDaysColl().get();
+    const got = new Set();
+    check.docs.forEach(d => {
+      const arr = d.data() && Array.isArray(d.data().logs) ? d.data().logs : [];
+      arr.forEach(l => got.add(logKeyOf(l)));
+    });
+    const missing = Array.from(expected).filter(k => !got.has(k));
+    if (missing.length) {
+      setSyncStatus('error', 'Миграция логов не завершена: не найдено ' + missing.length + '. Старые документы не удалены.');
+      throw new Error('легаси-логи не найдены в log_days: ' + missing.length);
+    }
+    const stillThere = [];
+    for (const d of legacy) {
+      try { await d.ref.delete(); } catch(e) {
+        stillThere.push(d.id);
+        console.warn('SR: не удалось удалить старый документ ' + d.id, e);
+      }
+    }
+    if (stillThere.length) {
+      // Не ставим флаг: попробуем удалить остатки на следующем запуске.
+      setSyncStatus('error', 'Логи перенесены, но не удалось удалить ' + stillThere.length +
+        ' старых документов. Повторю при следующем запуске.');
+      return legacy.length;
+    }
+    localStorage.setItem(LEGACY_MIGRATED_KEY, '1');
+    setSyncStatus('ok', 'Перенесено старых логов: уникальных ' + expected.size + ', документов удалено ' + legacy.length + '.');
+    return legacy.length;
+  }
+  // Забираем логи из облака (подколлекция log_days) и сливаем с локальными
   async function pullLogsFromFirestore() {
     if (!srFirebaseReady()) return 0;
+    const before = logs.length;
     try {
-      const coll = logsColl();
-      const fp = window.firestore.FieldPath.documentId();
-      const snap = await coll.where(fp, '>=', 'log_').get();
-      const legacyDocs = [];
-      let added = 0;
-      const before = logs.length;
+      const snap = await logDaysColl().get();
       snap.forEach(doc => {
-        const data = doc.data();
-        const arr = data && Array.isArray(data.logs) ? data.logs : [];
-        if (/^logs_\d+$/.test(doc.id)) { legacyDocs.push(doc); return; }
-        const day = doc.id.replace(/^log_/, '');
-        remoteLogDays[day] = dropUndone(arr);
+        const arr = doc.data() && Array.isArray(doc.data().logs) ? doc.data().logs : [];
+        remoteLogDays[doc.id] = arr.length;
         logs = mergeLogs(logs, dropUndone(arr));
       });
-      // Старые чанки logs_0..logs_N — переносим в дневные документы и удаляем
-      for (const doc of legacyDocs) {
-        const arr = doc.data() && Array.isArray(doc.data().logs) ? doc.data().logs : [];
-        if (!arr.length) continue;
-        arr.forEach(l => logDirtyDays.add(srDayKey(l.timestamp)));
-        logs = mergeLogs(logs, dropUndone(arr));
-      }
-      added = logs.length - before;
-      if (added > 0) {
-        logs.sort(logByTs);
-        saveLogs(false);
-      }
-      if (legacyDocs.length) {
-        for (const doc of legacyDocs) {
-          try { await doc.ref.delete(); } catch(e) {}
-        }
-        scheduleLogsPush(300);
+      logs.sort(logByTs);
+      await migrateLegacyLogDocs();
+      const added = logs.length - before;
+      if (logs.length > before) saveLogs(false);
+      if (syncStatus.state !== 'error') {
+        setSyncStatus('ok', 'Синхронизация логов: ' + logs.length + (added > 0 ? ' (+' + added + ' с другого устройства)' : ', новых нет') + '.');
       }
       return added;
     } catch(e) {
       console.warn('SR: не удалось загрузить логи из Firestore:', e);
+      setSyncStatus('error', 'Логи не загружены (' + (e && e.code ? e.code : e) + ').');
       return 0;
     }
   }
@@ -1598,10 +1696,31 @@
     if (logsPullTimer) clearInterval(logsPullTimer);
     logsPullTimer = setInterval(() => {
       if (document.visibilityState !== 'visible') return;
-      pullLogsFromFirestore().then(n => { if (n > 0) console.log('SR: подтянуто новых логов с другого устройства:', n); });
+      pullLogsFromFirestore();
     }, 60000);
   }
   async function saveLogsToFirestore() { scheduleLogsPush(0); }
+  function initSyncStatusBadge() {
+    let el = document.getElementById('srSyncBadge');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'srSyncBadge';
+      el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;max-width:70vw;' +
+        'padding:6px 10px;border-radius:8px;font:12px/1.35 system-ui,-apple-system,sans-serif;' +
+        'display:none;box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none';
+      document.body.appendChild(el);
+    }
+    const paint = () => {
+      const s = syncStatus;
+      if (!s.message) { el.style.display = 'none'; return; }
+      el.style.display = 'block';
+      el.style.background = s.state === 'error' ? '#7f1d1d' : '#14532d';
+      el.style.color = '#fff';
+      el.textContent = (s.state === 'error' ? 'Синк: ' : 'Синк: ') + s.message;
+    };
+    window.addEventListener('srSyncStatus', paint);
+    paint();
+  }
 
   function initCard(wordLine, existingCardsMap) {
     const id = wordToId(wordLine);
@@ -1692,7 +1811,8 @@
       // Логи из облака: документы log_<день> (+ миграция старых logs_N)
       await pullLogsFromFirestore();
       markLogsDirty();
-      startLogsPullLoop();
+      initSyncStatusBadge();
+  startLogsPullLoop();
     }
 
     const cardMap = {};
@@ -2386,6 +2506,34 @@
   const W_FROZEN = [17, 18];
   const MIN_LOSS_REVIEWS = 400;      // как в Anki: меньше — смысла нет
   const COMFORT_LOSS_REVIEWS = 2500;
+  const MIN_DEEP_HISTORY = 400;      // карточек с историей хотя бы из 2 ответов
+  const ANKI_WEIGHTS = [0.2120, 1.2931, 2.3065, 8.2956, 6.4133, 0.8334, 3.0194, 0.0010, 1.8722, 0.1666, 0.7960, 1.4835, 0.0614, 0.2629, 1.6483, 0.6014, 1.8729, 0.5425, 0.0912];
+
+  function countDeepHistoryCards(byCard) {
+    let deep = 0;
+    for (const id in byCard) if (byCard[id].length >= 2) deep++;
+    return deep;
+  }
+  // Поведенческая проверка: насколько веса развивают интервал по сравнению с эталоном Anki.
+  // Именно она ловит наборы вроде w8=0, w10=3: они дают около 41% от эталонного роста,
+  // из-за чего карточки копятся в повторении. Абсолютный порог в днях здесь не годится —
+  // при разной retention хорошие веса дают и 73, и 158 дней.
+  function weightsGrowthCheck(w) {
+    const ret = Math.max(0.7, Math.min(0.97, requestRetention));
+    const step = weights => {
+      const model = makeTempModel(weights);
+      model.requestRetention = ret;
+      const c = window.FSRS_defaultCard();
+      c.state = window.FSRS_STATE.REVIEW;
+      c.stability = 60; c.difficulty = 5; c.reps = 6;
+      c.lastReview = Date.now() - 60 * 86400000;
+      const r = model.repeat(c, Date.now())[2];
+      return r && r.scheduledDays > 0 ? r.scheduledDays : 0;
+    };
+    const mine = step(w);
+    const base = step(ANKI_WEIGHTS);
+    return { ok: mine > 0 && base > 0 && mine >= base * 0.7, last: mine, base: base };
+  }
 
   function computeFSRSLoss(w, byCard, out) {
     let total = 0; let count = 0;
@@ -2458,6 +2606,19 @@
       return;
     }
 
+    const deep = countDeepHistoryCards(byCard);
+    if (deep < MIN_DEEP_HISTORY) {
+      showConfirm(
+        'Недостаточно истории карточек',
+        `Подгонка весов требует настоящей истории повторений, а не одного ответа на карточку.<br><br>` +
+        `Ответов всего: <b>${logs.length}</b><br>Долгосрочных в расчёте: <b>${usable}</b><br>` +
+        `Карточек с историей от двух ответов: <b>${deep}</b> (нужно минимум ${MIN_DEEP_HISTORY})<br><br>` +
+        `На таких данных подгонка ломает рост интервалов — карточки уезжают на 2-7 дней и копятся в повторении.`,
+        'OK', '', () => {}, () => {}
+      );
+      return;
+    }
+
     const modal = document.getElementById('settingsModal');
     modal.style.display = 'none';
 
@@ -2513,19 +2674,30 @@
   function planReschedule(model) {
     const byCard = buildLogIndex();
     const changed = [];
-    let earlier = 0, later = 0, same = 0, skipped = 0;
+    let earlier = 0, later = 0, same = 0, skipped = 0, newlyDue = 0, blocked = 0;
+    const now = Date.now();
     cards.forEach(card => {
       if (card.state === window.FSRS_STATE.NEW) return;
       // Карты без полной истории ответов не трогаем: их интервал и так посчитан живой моделью
       const replay = replayCardFromLogs(byCard[card.id], model, false);
       if (!replay) { skipped++; return; }
+      const wasDue = (card.due || 0) > now;
+      const willDue = (replay.due || 0) <= now;
+      if (wasDue && willDue) {
+        newlyDue++;
+        if (rescheduleProtect) {
+          replay.due = card.due;
+          if ((card.stability || 0) > (replay.stability || 0)) replay.stability = card.stability;
+          blocked++;
+        }
+      }
       const diffDays = ((replay.due || 0) - (card.due || 0)) / 86400000;
       if (diffDays < -0.5) earlier++;
       else if (diffDays > 0.5) later++;
       else same++;
       changed.push({ card, replay });
     });
-    return { changed, earlier, later, same, skipped };
+    return { changed, earlier, later, same, skipped, newlyDue, blocked };
   }
   function applyPlan(plan) {
     if (!makeSnapshot()) {
@@ -2556,6 +2728,8 @@
     }
     const text =
       `Раньше срока: <b>${plan.earlier}</b><br>Позже срока: <b>${plan.later}</b><br>` +
+      `Станет доступно сразу: <b style="color:${plan.newlyDue > 0 ? '#f59e0b' : '#22c55e'}">${plan.newlyDue}</b>` +
+      (plan.blocked ? `<br><span style="color:#22c55e">из них защищено от сдвига назад: ${plan.blocked}</span>` : '') + '<br>' +
       `Без изменений: ${plan.same}<br>Пропущено (нет истории ответов): ${plan.skipped}<br><br>` +
       `Всего пересчитано карт: <b>${plan.changed.length}</b>. Перед применением будет сделан снимок — откат одной кнопкой.`;
     showConfirm(
@@ -2569,7 +2743,7 @@
 
   // Веса до оптимизации от 05.10.2026 — восстановление состояния «до пересчёта»,
   // когда пересчёт был сделан старой версией без снимка.
-  const RESCUE_WEIGHTS = [0.2120, 1.2931, 2.3065, 8.2956, 6.4133, 0.8334, 4.0000, 0.7500, 0.0000, 0.8000, 2.6739, 1.4835, 0.0614, 0.2629, 1.6483, 1.0000, 5.8371, 1.9728, 1.6776];
+  const RESCUE_WEIGHTS = ANKI_WEIGHTS.slice();
 
   function rollbackReschedule() {
     // Перед откатом подтягиваем полную историю из облака: локально история могла быть обрезана
@@ -2632,6 +2806,27 @@
   }
 
   function finishOptimization(bestW, bestLoss, initialW, initialLoss, usable) {
+    const growth = weightsGrowthCheck(bestW);
+    if (!growth.ok) {
+      document.getElementById('settingsModal').style.display = 'none';
+      document.getElementById('mainArea').innerHTML = `
+        <div class="done-state">
+          <div class="icon">⚠️</div>
+          <h2>Оптимизация отклонена</h2>
+          <p style="font-size:0.9rem;color:#94a3b8;max-width:340px;margin:8px auto">
+            Найденные веса почти не развивают интервал: карточка со стабильностью 60 дней
+            после одного успешного повторения выходит на ${growth.last} дней вместо ${growth.base}
+            у эталонных весов Anki.
+            Такой набор сжимает расписание до 2-7 дней — именно это и привело к pile-up.
+          </p>
+          <div style="font-size:0.75rem;color:#64748b;margin-top:8px">Веса не применены, прежние сохранены.</div>
+          <button class="big-btn" id="optUseAnkiBtn" style="margin-top:16px;padding:12px 28px;border:none;border-radius:10px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-size:1rem;font-weight:600;cursor:pointer">Поставить эталонные веса Anki</button>
+          <div style="font-size:0.7rem;color:#64748b;margin-top:6px;max-width:300px;margin-left:auto;margin-right:auto">Это проверенные веса из Anki. Интервалы растут правильно, рост стабильности не ломается.</div>
+          <button class="big-btn" onclick="location.reload()" style="margin-top:12px;padding:10px 28px;border:1.5px solid #94a3b8;border-radius:10px;background:transparent;color:#94a3b8;font-size:0.9rem;font-weight:600;cursor:pointer">Оставить как есть</button>
+        </div>`;
+      document.getElementById('optUseAnkiBtn').onclick = () => { useAnkiWeights(); location.reload(); };
+      return;
+    }
     const frozenBefore = initialW.slice(17, 19);
     const frozenClamped = bestW.slice(17, 19);
     const wasClamped = Math.abs(frozenBefore[0] - frozenClamped[0]) > 0.0001 || Math.abs(frozenBefore[1] - frozenClamped[1]) > 0.0001;
@@ -2936,6 +3131,7 @@
     document.getElementById('maxReviewsRow').style.display = unlimitedReviews ? 'none' : 'block';
     document.getElementById('retentionInput').value = Math.round(requestRetention * 100);
     document.getElementById('retentionInfo').textContent = Math.round(requestRetention * 100) + '%';
+    document.getElementById('rescheduleProtect').checked = rescheduleProtect;
     const snap = getSnapshot();
     const prevW = getPrevWeights();
     const rb = document.getElementById('rollbackRescheduleBtn');
@@ -3042,8 +3238,7 @@
     unlimitedReviews = document.getElementById('unlimitedReviews').checked;
     const ret = parseInt(document.getElementById('retentionInput').value);
     if (ret >= 70 && ret <= 99 && Math.abs(ret / 100 - requestRetention) > 0.0001) {
-      requestRetention = ret / 100;
-      fsrs.requestRetention = requestRetention;
+      setRequestRetention(ret / 100);
       if (window.auth && window.authUser) pushSettingsToFirestore();
     }
     saveSettingsToStorage();
@@ -3062,6 +3257,21 @@
     document.getElementById('statsModal').style.display = 'flex';
   });
   document.getElementById('optimizeBtn').addEventListener('click', () => optimizeFSRS());
+  document.getElementById('rescheduleProtect').addEventListener('change', e => {
+    rescheduleProtect = e.target.checked;
+    saveSettingsToStorage();
+  });
+  document.getElementById('ankiWeightsBtn').addEventListener('click', () => {
+    showConfirm(
+      'Вернуть эталонные веса Anki?',
+      'Веса заменятся на проверенные значения Anki. Интервалы начнут расти правильно, ' +
+      'и карточки перестанут скапливаться в повторении.<br><br>' +
+      'Потом нажмите «Пересчитать интервалы карт», чтобы применить новые веса к расписанию.',
+      'Отмена', 'Вернуть',
+      () => {},
+      () => { useAnkiWeights(); location.reload(); }
+    );
+  });
   document.getElementById('rescheduleBtn').addEventListener('click', () => {
     document.getElementById('settingsModal').style.display = 'none';
     requestReschedule('Пересчитать интервалы карт под текущими весами?');
