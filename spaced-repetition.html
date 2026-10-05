@@ -595,6 +595,14 @@
     <button id="statsBtn" class="reset-btn" style="color:#2563eb;border-color:#93c5fd;margin-top:16px">Статистика</button>
     <button id="forecastBtn" class="reset-btn" style="color:#0891b2;border-color:#67e8f9">Прогноз нагрузки</button>
     <button id="optimizeBtn" class="reset-btn" style="color:#7c3aed;border-color:#c4b5fd">FSRS Оптимизатор</button>
+    <div class="setting-row">
+      <div class="setting-label">Желаемая вероятность вспомнить: <span id="retentionInfo">95%</span></div>
+      <input type="number" id="retentionInput" min="70" max="99" style="width:100%;padding:10px;border-radius:8px;border:2px solid #d1d5db;font-size:1rem;text-align:center">
+      <div style="font-size:0.7rem;color:#6b7280;margin-top:4px">Доля правильных ответов, на которую рассчитаны интервалы. Как в Anki. Больше — реже повторения.</div>
+    </div>
+    <button id="rescheduleBtn" class="reset-btn" style="color:#0891b2;border-color:#67e8f9">Пересчитать интервалы карт</button>
+    <button id="rollbackRescheduleBtn" class="reset-btn" style="color:#b45309;border-color:#fcd34d">Откатить пересчёт интервалов</button>
+    <div id="rollbackInfo" style="font-size:0.7rem;color:#6b7280;text-align:center"></div>
     <button id="resetBtn" class="reset-btn">Сбросить прогресс</button>
   </div>
 </div>
@@ -756,10 +764,14 @@
   const TODAY_KEY = 'arabSrToday';
   const NEW_TODAY_KEY = 'arabSrNewToday';
   const REVIEW_TODAY_KEY = 'arabSrReviewToday';
-  const LOGS_KEY = 'arabSrLogs';
+  const LOGS_KEY = 'arabSrLogs';        // старый формат (только для миграции)
+  const LOGS_KEY_V2 = 'arabSrLogsV2';   // компактный формат: {i:[card_id], r:[[...]]}
+  const SNAP_KEY = 'arabSrSnap';        // снимок карт перед пересчётом (для отката)
+  const PREV_W_KEY = 'arabSrPrevW';     // веса до последней оптимизации
   const BOOST_NEW_KEY = 'arabSrBoostNew';
   const BOOST_REVIEW_KEY = 'arabSrBoostReview';
   const ERROR_LIST_KEY = 'arabSrDevErrors';
+  const LOGS_LOCAL_CAP = 25000;         // локальное окно логов (в облаке хранится всё)
 
   let allWords = [];
   let notesMap = {};
@@ -773,12 +785,19 @@
   let limitNew = 50;
   let unlimitedReviews = true;
   let maxReviews = 0;
+  let requestRetention = 0.95;   // желаемая вероятность вспомнить в момент повторения
   let fsrs;
   let newCardsLeft = 0;
   let sessionAnswered = false;
   let sessionTotal = 0;
   let sessionDone = 0;
   let logs = [];
+  let logDirtyDays = new Set();      // дни, которые ещё не отправлены в облако
+  let remoteLogDays = {};            // последнее известное содержимое облачных документов log_*
+  let logsPushTimer = null;
+  let logsPullTimer = null;
+  let remoteChunkCards = [];         // последнее известное содержимое чанков all_*
+  let lastRescheduleAt = 0;
   let undoStack = [];
   let errorList = [];
   // Множество id карточек, которые есть в текущем words.txt (для отсева «призраков»)
@@ -821,13 +840,106 @@
            parts.find(p => p.type === 'day').value;
   }
 
-  function loadLogs() {
-    try { const d = JSON.parse(localStorage.getItem(LOGS_KEY)); if (Array.isArray(d)) logs = d; } catch(e) {}
+  // ===== Логи ответов =====
+  // Хранятся компактно (массивы вместо объектов), в облаке — отдельный документ на день.
+  // Документы по дням не перетирают друг друга, поэтому ПК и телефон не затирают историю друг друга.
+  function logKeyOf(l) { return l.card_id + '|' + l.timestamp; }
+  function logByTs(a, b) { return a.timestamp - b.timestamp; }
+  function mergeLogs(a, b) {
+    const map = new Map();
+    a.forEach(l => map.set(logKeyOf(l), l));
+    b.forEach(l => map.set(logKeyOf(l), l));
+    return Array.from(map.values()).sort(logByTs);
   }
-  function saveLogs() {
-    try { localStorage.setItem(LOGS_KEY, JSON.stringify(logs)); }
-    catch(e) {
-      if (e.name === 'QuotaExceededError') { logs = logs.slice(-1000); localStorage.setItem(LOGS_KEY, JSON.stringify(logs)); }
+  // Отменённые ответы: хранилище логов дописываемое, поэтому удаление помечаем «надгробьем»
+  const LOGS_UNDO_KEY = 'arabSrLogsUndo';
+  let undoneLogs = new Set();
+  function loadUndoneLogs() {
+    try {
+      const d = JSON.parse(localStorage.getItem(LOGS_UNDO_KEY));
+      undoneLogs = new Set(Array.isArray(d) ? d : []);
+    } catch(e) { undoneLogs = new Set(); }
+  }
+  function saveUndoneLogs() {
+    try {
+      const arr = Array.from(undoneLogs);
+      if (arr.length > 200) undoneLogs = new Set(arr.slice(-200));
+      localStorage.setItem(LOGS_UNDO_KEY, JSON.stringify(Array.from(undoneLogs)));
+    } catch(e) {}
+  }
+  function dropUndone(list) {
+    if (!undoneLogs.size) return list;
+    return list.filter(l => !undoneLogs.has(logKeyOf(l)));
+  }
+  function roundTo(x, digits) {
+    const p = Math.pow(10, digits);
+    return Math.round((Number(x) || 0) * p) / p;
+  }
+  function logsCompactJSON() {
+    const ids = []; const idIdx = {};
+    const rows = new Array(logs.length);
+    for (let i = 0; i < logs.length; i++) {
+      const l = logs[i];
+      let ix = idIdx[l.card_id];
+      if (ix === undefined) { ix = ids.length; idIdx[l.card_id] = ix; ids.push(l.card_id); }
+      rows[i] = [
+        l.timestamp, ix, l.rating | 0,
+        roundTo(l.stability_before, 2), roundTo(l.difficulty_before, 2), roundTo(l.elapsed_days, 3),
+        l.state_before | 0, l.lapses_before | 0, l.reps_before | 0
+      ];
+    }
+    return JSON.stringify({ v: 2, i: ids, r: rows });
+  }
+  function logsFromCompact(d) {
+    if (!d || !Array.isArray(d.i) || !Array.isArray(d.r)) return null;
+    const out = new Array(d.r.length);
+    for (let i = 0; i < d.r.length; i++) {
+      const r = d.r[i];
+      out[i] = {
+        card_id: d.i[r[1]], timestamp: r[0], rating: r[2],
+        stability_before: r[3], difficulty_before: r[4], elapsed_days: r[5],
+        state_before: r[6], lapses_before: r[7], reps_before: r[8]
+      };
+    }
+    return out;
+  }
+  function loadLogs() {
+    try {
+      const raw = localStorage.getItem(LOGS_KEY_V2);
+      if (raw) {
+        const parsed = logsFromCompact(JSON.parse(raw));
+        if (parsed) { logs = parsed; return; }
+      }
+    } catch(e) {}
+    try {
+      const d = JSON.parse(localStorage.getItem(LOGS_KEY));
+      if (Array.isArray(d) && d.length) { logs = d; saveLogs(false); }
+    } catch(e) {}
+  }
+  function saveLogs(push) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        localStorage.setItem(LOGS_KEY_V2, logsCompactJSON());
+        localStorage.removeItem(LOGS_KEY);
+        if (push !== false) scheduleLogsPush();
+        return;
+      } catch(e) {
+        // Переполнение: безболезненно отбрасываем самые старые записи
+        // (в облаке они остаются — там хранится вся история).
+        const drop = Math.max(500, Math.floor(logs.length * 0.2));
+        logs = logs.slice(drop);
+      }
+    }
+    console.warn('SR: не удалось сохранить логи ответов');
+  }
+  function markLogsDirty() {
+    const from = Math.max(0, logs.length - 400);
+    for (let i = from; i < logs.length; i++) logDirtyDays.add(srDayKey(logs[i].timestamp));
+  }
+  function trimLogsLocal() {
+    if (logs.length > LOGS_LOCAL_CAP) {
+      logs = logs.slice(-LOGS_LOCAL_CAP);
+      saveLogs(false);
     }
   }
 
@@ -839,16 +951,55 @@
         if (s.limitNew) limitNew = s.limitNew;
         if (s.unlimitedReviews !== undefined) unlimitedReviews = s.unlimitedReviews;
         if (s.maxReviews !== undefined) maxReviews = s.maxReviews;
+        if (typeof s.requestRetention === 'number') requestRetention = s.requestRetention;
+        if (typeof s.lastRescheduleAt === 'number') lastRescheduleAt = s.lastRescheduleAt;
         if (s.w && Array.isArray(s.w) && s.w.length === 19) {
-          if (fsrs) fsrs.w = s.w;
+          if (fsrs) applyWeights(s.w);
           else window._savedW = s.w;
         }
       }
     } catch(e) {}
   }
   function saveSettingsToStorage() {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ limitNew, unlimitedReviews, maxReviews, w: fsrs.w }));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      limitNew, unlimitedReviews, maxReviews, requestRetention,
+      lastRescheduleAt: lastRescheduleAt || 0,
+      w: fsrs ? fsrs.w.slice() : (window._savedW || [])
+    }));
     pushSettingsToFirestore();
+  }
+
+  // w17/w18 отвечают за внутрисессионные шаги обучения (S' = S*exp(w17*(G-3+w18))).
+  // По логу ответов они почти не идентифицируемы, поэтому оптимизатор их не трогает,
+  // а значения жёстко ограничиваются: exp(w17*(3-3+w18)) не должен превышать ~7.
+  const SHORT_TERM_MAX = 1.0;
+  const MAX_INTERVAL = 180;      // потолок интервала между повторениями (в днях)
+  function clampWeights(w) {
+    const out = w.slice();
+    out[17] = Math.max(0, Math.min(SHORT_TERM_MAX, Number(out[17]) || 0));
+    out[18] = Math.max(0, Math.min(SHORT_TERM_MAX, Number(out[18]) || 0));
+    return out;
+  }
+  function applyWeights(w) {
+    fsrs.w = clampWeights(w);
+    fsrs.requestRetention = requestRetention;
+  }
+  function shortTermNote() {
+    const mul = Math.exp(fsrs.w[17] * (3 - 3 + fsrs.w[18]));
+    return Math.round(mul * 100) / 100;
+  }
+  // Веса до последней оптимизации — для честного отката
+  function getPrevWeights() {
+    try {
+      const s = JSON.parse(localStorage.getItem(PREV_W_KEY));
+      if (s && Array.isArray(s.w) && s.w.length === 19) return s.w;
+    } catch(e) {}
+    return null;
+  }
+  function setPrevWeights(w) {
+    try {
+      localStorage.setItem(PREV_W_KEY, JSON.stringify({ w: w.slice(), at: Date.now() }));
+    } catch(e) {}
   }
 
   
@@ -964,7 +1115,10 @@
       limitNew,
       unlimitedReviews,
       maxReviews,
-      w: fsrs ? fsrs.w.slice() : []
+      requestRetention,
+      w: fsrs ? fsrs.w.slice() : [],
+      prevW: getPrevWeights() || [],
+      lastRescheduleAt: lastRescheduleAt || 0
     };
   }
 
@@ -988,9 +1142,19 @@
       maxReviews = p.maxReviews;
       changed = true;
     }
-    if (Array.isArray(p.w) && p.w.length === 19 && fsrs && JSON.stringify(p.w) !== JSON.stringify(fsrs.w)) {
-      fsrs.w = p.w.slice();
+    if (typeof p.requestRetention === 'number' && Math.abs(p.requestRetention - requestRetention) > 0.0001) {
+      requestRetention = p.requestRetention;
       changed = true;
+    }
+    if (Array.isArray(p.w) && p.w.length === 19 && fsrs && JSON.stringify(p.w) !== JSON.stringify(fsrs.w)) {
+      applyWeights(p.w);
+      changed = true;
+    }
+    if (Array.isArray(p.prevW) && p.prevW.length === 19 && !getPrevWeights()) {
+      setPrevWeights(p.prevW);
+    }
+    if (typeof p.lastRescheduleAt === 'number' && p.lastRescheduleAt > lastRescheduleAt) {
+      lastRescheduleAt = p.lastRescheduleAt;
     }
     if (changed) saveSettingsToStorage();
     return changed;
@@ -1021,6 +1185,15 @@
     }
   }
 
+  // Версия карточки: чем свежее, тем главнее. modTs меняется при ЛЮБОМ изменении
+  // (ответ, отмена, пересчёт), поэтому пересчёт корректно расходится между устройствами.
+  function cardVersion(c) { return (c && (c.modTs || c.lastReview)) || 0; }
+  function isCardNewer(a, b) {
+    const va = cardVersion(a), vb = cardVersion(b);
+    if (va !== vb) return va > vb;
+    return ((a && a.lastReview) || 0) > ((b && b.lastReview) || 0);
+  }
+
   // Realtime: карточки (users/{uid}/sr_cards/all_N)
   function startCardsSyncListener() {
     stopCardsSyncListener();
@@ -1032,19 +1205,12 @@
         const listener = coll.doc('all_' + i).onSnapshot((snap) => {
           if (!snap.exists || !snap.data() || !Array.isArray(snap.data().cards)) return;
           const remote = snap.data().cards;
+          remoteChunkCards[i] = remote;
           // Отсев «призраков»: карточек, которых нет в текущем words.txt
           const valid = remote.filter(c => c && c.id && isKnownCardId(c.id));
-          if (valid.length !== remote.length) {
-            // Чистим облако: перезаписываем чанк только реально существующими словами
-            try {
-              coll.doc('all_' + i).set({
-                cards: valid,
-                updatedAt: new Date().toISOString()
-              }, { merge: true });
-            } catch(e) {
-              console.warn('SR: не удалось убрать призрачные карты:', e);
-            }
+          if (valid.length !== remote.length && initDone) {
             console.log('SR: убрано призрачных карт:', remote.length - valid.length, 'в чанке', i);
+            writeCardsChunk(coll, i, valid);
           }
           let changed = false;
           const localMap = {};
@@ -1054,7 +1220,7 @@
             if (!local) {
               cards.push(c);
               changed = true;
-            } else if ((c.lastReview || 0) > (local.lastReview || 0)) {
+            } else if (isCardNewer(c, local)) {
               const idx = cards.findIndex(x => x.id === c.id);
               if (idx !== -1) cards[idx] = c;
               changed = true;
@@ -1286,7 +1452,12 @@
       const chunks = [];
       for (let i = 0; i < CARD_CHUNKS; i++) {
         const snap = await coll.doc('all_' + i).get();
-        if (snap.exists && Array.isArray(snap.data().cards)) chunks.push(...snap.data().cards);
+        if (snap.exists && Array.isArray(snap.data().cards)) {
+          remoteChunkCards[i] = snap.data().cards;
+          chunks.push(...snap.data().cards);
+        } else {
+          remoteChunkCards[i] = [];
+        }
       }
       if (chunks.length > 0) return chunks;
       // Миграция из старого однодокументного хранилища `all`
@@ -1314,6 +1485,24 @@
     return Math.abs(h) % CARD_CHUNKS;
   }
 
+  // Запись чанка со СЛИЯНИЕМ с последним известным облачным состоянием.
+  // Раньше чанк перезаписывался целиком версией одного устройства — и второе устройство
+  // стирало карточки первого. Теперь побеждает более свежая версия каждой карточки.
+  async function writeCardsChunk(coll, ci, myCardsInChunk) {
+    const base = remoteChunkCards[ci] || [];
+    const mine = new Map();
+    myCardsInChunk.forEach(c => mine.set(c.id, c));
+    const out = [];
+    base.forEach(rc => { if (rc && rc.id && !mine.has(rc.id)) out.push(rc); });
+    mine.forEach(c => {
+      const rc = (base.find(x => x && x.id === c.id)) || null;
+      out.push((rc && isCardNewer(rc, c)) ? rc : c);
+    });
+    remoteChunkCards[ci] = out;
+    await coll.doc('all_' + ci).set({ cards: out, updatedAt: new Date().toISOString() }, { merge: true });
+    return out;
+  }
+
   async   function saveCardsToFirestore(cardsData, onlyCardId) {
     if (!window.firestore || !window.auth || !window.authUser) return;
     try {
@@ -1326,35 +1515,93 @@
       const chunkSet = new Set();
       if (onlyCardId) chunkSet.add(cardChunkIndex(onlyCardId));
       else for (let i = 0; i < CARD_CHUNKS; i++) chunkSet.add(i);
-      const now = new Date().toISOString();
       for (const ci of chunkSet) {
-        await coll.doc('all_' + ci).set({ cards: chunks[ci], updatedAt: now }, { merge: true });
+        await writeCardsChunk(coll, ci, chunks[ci]);
       }
     } catch(e) {
       console.warn('Firestore save error:', e);
     }
   }
 
-  async function saveLogsToFirestore() {
-    if (!window.firestore || !window.auth || !window.authUser) return;
+  // ===== Логи: синхронизация по дням (append-only, не затирает другие устройства) =====
+  function logsColl() {
+    return window.firestore.collection('users').doc(window.authUser.uid).collection('sr_cards');
+  }
+  function scheduleLogsPush(delay) {
+    if (!srFirebaseReady()) return;
+    if (logsPushTimer) clearTimeout(logsPushTimer);
+    logsPushTimer = setTimeout(() => { logsPushTimer = null; flushLogsPush(); }, delay == null ? 2000 : delay);
+  }
+  async function flushLogsPush() {
+    if (!srFirebaseReady() || logsPushTimer) return;
+    if (!logDirtyDays.size) return;
+    const days = Array.from(logDirtyDays);
+    logDirtyDays.clear();
     try {
-      const uid = window.authUser.uid;
-      if (typeof window.firestore.collection !== 'function') return;
-      const batchSize = 400;
-      const recent = logs.slice(-3000);
-      let chunkIndex = 0;
-      for (let i = 0; i < recent.length; i += batchSize) {
-        const chunk = recent.slice(i, i + batchSize);
-        await window.firestore.collection('users').doc(uid).collection('sr_cards').doc('logs_' + chunkIndex).set({
-          logs: chunk,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-        chunkIndex++;
+      const coll = logsColl();
+      for (const day of days) {
+        const mine = dropUndone(logs.filter(l => srDayKey(l.timestamp) === day));
+        const merged = dropUndone(mergeLogs(remoteLogDays[day] || [], mine));
+        remoteLogDays[day] = merged;
+        await coll.doc('log_' + day).set({ logs: merged, updatedAt: new Date().toISOString() }, { merge: true });
       }
+      trimLogsLocal();
     } catch(e) {
-      console.warn('Firestore logs save error:', e);
+      console.warn('SR: ошибка записи логов в Firestore:', e);
+      days.forEach(d => logDirtyDays.add(d));
+      scheduleLogsPush(15000);
     }
   }
+  // Забираем логи из облака (документы log_* + старые logs_N) и сливаем с локальными
+  async function pullLogsFromFirestore() {
+    if (!srFirebaseReady()) return 0;
+    try {
+      const coll = logsColl();
+      const fp = window.firestore.FieldPath.documentId();
+      const snap = await coll.where(fp, '>=', 'log_').get();
+      const legacyDocs = [];
+      let added = 0;
+      const before = logs.length;
+      snap.forEach(doc => {
+        const data = doc.data();
+        const arr = data && Array.isArray(data.logs) ? data.logs : [];
+        if (/^logs_\d+$/.test(doc.id)) { legacyDocs.push(doc); return; }
+        const day = doc.id.replace(/^log_/, '');
+        remoteLogDays[day] = dropUndone(arr);
+        logs = mergeLogs(logs, dropUndone(arr));
+      });
+      // Старые чанки logs_0..logs_N — переносим в дневные документы и удаляем
+      for (const doc of legacyDocs) {
+        const arr = doc.data() && Array.isArray(doc.data().logs) ? doc.data().logs : [];
+        if (!arr.length) continue;
+        arr.forEach(l => logDirtyDays.add(srDayKey(l.timestamp)));
+        logs = mergeLogs(logs, dropUndone(arr));
+      }
+      added = logs.length - before;
+      if (added > 0) {
+        logs.sort(logByTs);
+        saveLogs(false);
+      }
+      if (legacyDocs.length) {
+        for (const doc of legacyDocs) {
+          try { await doc.ref.delete(); } catch(e) {}
+        }
+        scheduleLogsPush(300);
+      }
+      return added;
+    } catch(e) {
+      console.warn('SR: не удалось загрузить логи из Firestore:', e);
+      return 0;
+    }
+  }
+  function startLogsPullLoop() {
+    if (logsPullTimer) clearInterval(logsPullTimer);
+    logsPullTimer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      pullLogsFromFirestore().then(n => { if (n > 0) console.log('SR: подтянуто новых логов с другого устройства:', n); });
+    }, 60000);
+  }
+  async function saveLogsToFirestore() { scheduleLogsPush(0); }
 
   function initCard(wordLine, existingCardsMap) {
     const id = wordToId(wordLine);
@@ -1381,6 +1628,7 @@
     loadReviewTodayCount();
     loadBoostLimits();
     loadLogs();
+    loadUndoneLogs();
     loadErrorList();
     // Миграция на настоящий FSRS-5: старые веса обучены на кривой модели — сбрасываем
     const fsrsV2Done = localStorage.getItem('sr_fsrs_v2') === '1';
@@ -1395,7 +1643,8 @@
     }
     fsrs = new window.FSRS(fsrsV2Done ? (window._savedW || undefined) : undefined);
     delete window._savedW;
-    fsrs.maxInterval = 180; // полгода
+    applyWeights(fsrs.w);
+    fsrs.maxInterval = MAX_INTERVAL; // полгода
 
     try {
       const resp = await fetch('words.txt');
@@ -1430,7 +1679,7 @@
             const r = remoteMap[c.id];
             const l = localMap[c.id];
             if (r && l) {
-              merged.push((r.lastReview || 0) > (l.lastReview || 0) ? r : l);
+              merged.push(isCardNewer(r, l) ? r : l);
             } else {
               merged.push(r || l);
             }
@@ -1440,27 +1689,10 @@
       }
       saveCardsLocal(storedCards);
 
-      // Загружаем логи из Firestore (из чанков)
-      try {
-        const uid = window.authUser.uid;
-        if (typeof window.firestore.collection === 'function') {
-          const merged = [...logs];
-          const localIds = new Set(logs.map(l => l.card_id + l.timestamp));
-          let chunkIdx = 0;
-          while (true) {
-            const snap = await window.firestore.collection('users').doc(uid).collection('sr_cards').doc('logs_' + chunkIdx).get();
-            if (!snap.exists || !Array.isArray(snap.data().logs)) break;
-            snap.data().logs.forEach(l => {
-              const key = l.card_id + l.timestamp;
-              if (!localIds.has(key)) { merged.push(l); localIds.add(key); }
-            });
-            chunkIdx++;
-          }
-          merged.sort((a, b) => a.timestamp - b.timestamp);
-          logs = merged.slice(-10000);
-          saveLogs();
-        }
-      } catch(e) { console.warn('Firestore logs load error:', e); }
+      // Логи из облака: документы log_<день> (+ миграция старых logs_N)
+      await pullLogsFromFirestore();
+      markLogsDirty();
+      startLogsPullLoop();
     }
 
     const cardMap = {};
@@ -1484,39 +1716,118 @@
     ensureSrSync();
   }
 
+  // ===== Общий реплей истории ответов (используется миграцией, пересчётом и откатом) =====
+  function buildLogIndex() {
+    const byCard = {};
+    for (const l of logs) {
+      if (!l || !l.card_id) continue;
+      if (!byCard[l.card_id]) byCard[l.card_id] = [];
+      byCard[l.card_id].push(l);
+    }
+    for (const id in byCard) byCard[id].sort(logByTs);
+    return byCard;
+  }
+  function makeTempModel(w) {
+    const m = new window.FSRS(clampWeights(w));
+    m.maxInterval = (fsrs && fsrs.maxInterval) ? fsrs.maxInterval : MAX_INTERVAL;
+    m.requestRetention = requestRetention;
+    return m;
+  }
+// Первый лог карты: считаем, что история началась с новой карты, только если это явно видно.
+  // В старых логах поля state_before могло не быть — тогда ориентируемся на reps_before.
+  function logStartsNewCard(first) {
+    if (!first) return false;
+    if (first.state_before === window.FSRS_STATE.NEW) return true;
+    if (first.state_before === undefined || first.state_before === null) return !(first.reps_before > 0);
+    return false;
+  }
+  function replayCardFromLogs(cardLogs, model, seedFromLog) {
+    if (!cardLogs || !cardLogs.length) return null;
+    const first = cardLogs[0];
+    let c = window.FSRS_defaultCard();
+    if (!logStartsNewCard(first)) {
+      if (!seedFromLog) return null;
+      c.state = first.state_before;
+      c.stability = first.stability_before || 0;
+      c.difficulty = first.difficulty_before || 0;
+      c.lapses = first.lapses_before || 0;
+      c.reps = first.reps_before || 0;
+      if (!(c.stability > 0)) return null;
+      c.step = (c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING) ? 0 : -1;
+    }
+    for (const log of cardLogs) {
+      if (log.elapsed_days) c.lastReview = log.timestamp - log.elapsed_days * 86400000;
+      const res = model.repeat(c, log.timestamp);
+      const next = res[log.rating];
+      if (!next) return null;
+      c = next;
+    }
+    return c;
+  }
+  function applyReplayToCard(card, replay) {
+    card.state = replay.state;
+    card.stability = replay.stability;
+    card.difficulty = replay.difficulty;
+    card.elapsedDays = replay.elapsedDays;
+    card.scheduledDays = replay.scheduledDays;
+    card.reps = replay.reps;
+    card.lapses = replay.lapses;
+    card.lastReview = replay.lastReview;
+    card.due = replay.due;
+    card.step = replay.step;
+    card.modTs = Date.now();
+  }
+  // Снимок карт перед пересчётом — чтобы откатить его одной кнопкой
+  function makeSnapshot() {
+    const snap = {
+      ts: Date.now(), w: fsrs.w.slice(), replayOnly: false,
+      cards: cards.map(c => ({ ...c }))
+    };
+    try {
+      localStorage.setItem(SNAP_KEY, JSON.stringify(snap));
+    } catch(e) {
+      // не влезает в localStorage — оставляем только веса, откат через реплей
+      try { localStorage.setItem(SNAP_KEY, JSON.stringify({ ts: snap.ts, w: snap.w, replayOnly: true, cards: [] })); }
+      catch(e2) { return false; }
+    }
+    return true;
+  }
+  function getSnapshot() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SNAP_KEY));
+      if (s && Array.isArray(s.w) && s.w.length === 19) return s;
+    } catch(e) {}
+    return null;
+  }
+  function copyFsrsFields(target, src) {
+    target.state = src.state;
+    target.stability = src.stability;
+    target.difficulty = src.difficulty;
+    target.elapsedDays = src.elapsedDays;
+    target.scheduledDays = src.scheduledDays;
+    target.reps = src.reps;
+    target.lapses = src.lapses;
+    target.lastReview = src.lastReview;
+    target.due = src.due;
+    target.step = src.step;
+    target.modTs = Date.now();
+  }
+
   // Одноразовая миграция на настоящий FSRS-5:
   // пересчитываем stability/difficulty карт, прогоняя историю ответов через правильные формулы
   function migrateToFSRSv2() {
     if (localStorage.getItem('sr_fsrs_v2') === '1') return;
 
-    const byCard = {};
-    logs.forEach(l => {
-      if (!byCard[l.card_id]) byCard[l.card_id] = [];
-      byCard[l.card_id].push(l);
-    });
-    for (const id in byCard) byCard[id].sort((a, b) => a.timestamp - b.timestamp);
+    const byCard = buildLogIndex();
+    const model = makeTempModel(fsrs.w);
 
     cards.forEach(card => {
       if (card.state === window.FSRS_STATE.NEW) return;
 
       const cardLogs = byCard[card.id];
-      if (cardLogs && cardLogs.length > 0) {
-        // Полный пересчёт из истории ответов
-        let replay = window.FSRS_defaultCard();
-        cardLogs.forEach(log => {
-          const res = fsrs.repeat(replay, log.timestamp);
-          replay = res[log.rating];
-        });
-        card.state = replay.state;
-        card.stability = replay.stability;
-        card.difficulty = replay.difficulty;
-        card.elapsedDays = replay.elapsedDays;
-        card.scheduledDays = replay.scheduledDays;
-        card.reps = replay.reps;
-        card.lapses = replay.lapses;
-        card.lastReview = replay.lastReview;
-        card.due = replay.due;
-        card.step = replay.step;
+      const replay = replayCardFromLogs(cardLogs, model, true);
+      if (replay) {
+        applyReplayToCard(card, replay);
       } else {
         // Логов нет — консервативно ограничиваем раздутые значения старой модели
         card.stability = Math.min(Math.max(0.1, card.stability || 1), 30);
@@ -1525,6 +1836,7 @@
           card.scheduledDays = 30;
           card.due = card.lastReview + 30 * 86400000;
         }
+        card.modTs = Date.now();
       }
     });
 
@@ -1878,10 +2190,12 @@
       rating: rating,
       timestamp: now
     });
+    logDirtyDays.add(srDayKey(now));
     saveLogs();
 
     const results = fsrs.repeat(card, now);
     const updated = results[rating];
+    updated.modTs = now;
 
     const idx = cards.findIndex(c => c.id === card.id);
     if (idx !== -1) {
@@ -1922,9 +2236,15 @@
     if (undoStack.length === 0) return;
     const u = undoStack.pop();
 
-    // Убираем последний лог
-    logs.pop();
-    saveLogs();
+    // Убираем последний лог (в облаке он тоже должен исчезнуть — перезаписываем день)
+    if (logs.length) {
+      const last = logs[logs.length - 1];
+      undoneLogs.add(logKeyOf(last));
+      saveUndoneLogs();
+      logs.pop();
+      logDirtyDays.add(srDayKey(last.timestamp));
+      saveLogs();
+    }
 
     // Убираем обновлённую версию карты из очереди (могла быть добавлена в конец как learning)
     const qi = queue.findIndex(c => c.id === u.card.id);
@@ -1932,7 +2252,10 @@
 
     // Восстанавливаем карту
     const idx = cards.findIndex(c => c.id === u.card.id);
-    if (idx !== -1) cards[idx] = u.card;
+    if (idx !== -1) {
+      u.card.modTs = Date.now();
+      cards[idx] = u.card;
+    }
 
     // Возвращаем её в очередь на прежнюю позицию
     queue.splice(Math.min(u.queueIndex, queue.length), 0, u.card);
@@ -2039,8 +2362,9 @@
     renderDeckSelection();
   }
 
-  // FSRS Оптимизатор — Adam с численными градиентами
-  // Границы весов w0..w18 как в официальном FSRS-5 оптимизаторе
+  // ===== FSRS Оптимизатор — Adam с численными градиентами =====
+  // Границы весов w0..w18. w17/w18 отвечают за внутрисессионные шаги обучения и по логу
+  // ответов практически не идентифицируемы, поэтому они не оптимизируются, а жёстко ограничены.
   const W_BOUNDS = [
     [0.001, 100], [0.001, 100], [0.001, 100], [0.001, 100], // w0-w3: начальные стабильности
     [1, 10],       // w4: начальная сложность
@@ -2056,31 +2380,35 @@
     [0, 4],        // w14
     [0, 1],        // w15: штраф Hard
     [1, 6],        // w16: бонус Easy
-    [0, 2],        // w17: краткосрочная стабильность
-    [0, 2]         // w18
+    [0, SHORT_TERM_MAX], // w17: краткосрочная стабильность (не оптимизируется)
+    [0, SHORT_TERM_MAX]  // w18 (не оптимизируется)
   ];
+  const W_FROZEN = [17, 18];
+  const MIN_LOSS_REVIEWS = 400;      // как в Anki: меньше — смысла нет
+  const COMFORT_LOSS_REVIEWS = 2500;
 
-  function computeFSRSLoss(w, byCard) {
+  function computeFSRSLoss(w, byCard, out) {
     let total = 0; let count = 0;
-    const tempFSRS = new window.FSRS(w);
-    tempFSRS.maxInterval = fsrs.maxInterval;
+    const model = makeTempModel(w);
     for (const id in byCard) {
       const cardLogs = byCard[id];
       // Реплей истории карты с нуля на кандидатских весах w —
       // стабильность и сложность пересчитываются моделью, а не берутся из лога
       let card = window.FSRS_defaultCard();
       const first = cardLogs[0];
-      if (first.state_before !== window.FSRS_STATE.NEW) {
+      if (!logStartsNewCard(first)) {
         // История начата не с новой карты — стартуем с состояния из первого лога
         card.state = first.state_before;
         card.stability = first.stability_before || 0;
         card.difficulty = first.difficulty_before || 0;
         card.lapses = first.lapses_before || 0;
         card.reps = first.reps_before || 0;
+        if (!(card.stability > 0)) continue;
+        card.step = (card.state === window.FSRS_STATE.LEARNING || card.state === window.FSRS_STATE.RELEARNING) ? 0 : -1;
       }
       for (const log of cardLogs) {
         // Лосс только по долгосрочным повторениям (интервал >= 1 дня),
-        // внутрисессионные шаги обучения — шум для к��ивой забывания
+        // внутрисессионные шаги обучения — шум для кривой забывания
         if (card.state === window.FSRS_STATE.REVIEW && card.stability > 0 && log.elapsed_days >= 1) {
           const R = window.FSRS_retrievability(log.elapsed_days, card.stability);
           const p = Math.min(0.999, Math.max(0.001, R));
@@ -2089,41 +2417,46 @@
           total += -(actual * Math.log(p) + (1 - actual) * Math.log(1 - p));
           count++;
         }
-        card.lastReview = log.timestamp - log.elapsed_days * 86400000;
-        const res = tempFSRS.repeat(card, log.timestamp);
-        card = res[log.rating];
+        if (log.elapsed_days) card.lastReview = log.timestamp - log.elapsed_days * 86400000;
+        const res = model.repeat(card, log.timestamp);
+        const next = res[log.rating];
+        if (!next) break;
+        card = next;
       }
     }
+    if (out) out.count = count;
     return count > 0 ? total / count : Infinity;
   }
 
   function computeGradient(w, byCard, eps) {
-    const grad = new Array(19);
+    const grad = new Array(19).fill(0);
     for (let i = 0; i < 19; i++) {
-      const wp = w.slice(); wp[i] += eps;
-      const wn = w.slice(); wn[i] -= eps;
+      if (W_FROZEN.indexOf(i) !== -1) continue;
+      const lo = W_BOUNDS[i][0], hi = W_BOUNDS[i][1];
+      const wp = w.slice(); wp[i] = Math.min(hi, wp[i] + eps);
+      const wn = w.slice(); wn[i] = Math.max(lo, wn[i] - eps);
+      if (wp[i] === wn[i]) continue;
       grad[i] = (computeFSRSLoss(wp, byCard) - computeFSRSLoss(wn, byCard)) / (2 * eps);
     }
     return grad;
   }
 
   function optimizeFSRS() {
-    const needed = 2500;
-    if (logs.length < needed) {
+    const byCard = buildLogIndex();
+    const probe = { count: 0 };
+    const initialLoss = computeFSRSLoss(fsrs.w, byCard, probe);
+    const usable = probe.count;
+
+    if (!isFinite(initialLoss) || usable < MIN_LOSS_REVIEWS) {
       showConfirm(
         'Недостаточно данных',
-        `Для оптимизации нужно минимум ${needed} ответов. Сейчас собрано ${logs.length}. Продолжайте учить слова — логи собираются автоматически.`,
+        `Для оптимизации нужно минимум ${MIN_LOSS_REVIEWS} долгосрочных повторений — таких ответов, когда карта была в повторении и до следующего прошло хотя бы сутки.<br><br>` +
+        `Всего ответов в истории: <b>${logs.length}</b><br>Участвует в расчёте: <b>${usable}</b><br><br>` +
+        `Продолжайте учить слова — логи собираются автоматически.`,
         'OK', '', () => {}, () => {}
       );
       return;
     }
-
-    const byCard = {};
-    for (const log of logs) {
-      if (!byCard[log.card_id]) byCard[log.card_id] = [];
-      byCard[log.card_id].push(log);
-    }
-    for (const id in byCard) byCard[id].sort((a, b) => a.timestamp - b.timestamp);
 
     const modal = document.getElementById('settingsModal');
     modal.style.display = 'none';
@@ -2132,6 +2465,7 @@
       <div class="loading-state">
         <div class="loading-spinner"></div>
         <div>Оптимизация FSRS (Adam)... <span id="optProgress">0%</span></div>
+        <div style="font-size:0.8rem;color:#94a3b8">Ответов в расчёте: ${usable}</div>
       </div>
     `;
 
@@ -2140,16 +2474,18 @@
     const beta1 = 0.9, beta2 = 0.999, adamEps = 1e-8;
     let m = new Array(19).fill(0);
     let v = new Array(19).fill(0);
-    const initialLoss = computeFSRSLoss(fsrs.w, byCard);
     const initialW = fsrs.w.slice();
-    let bestW = fsrs.w.slice();
+    let bestW = initialW.slice();
     let bestLoss = initialLoss;
     let iter = 0;
+    const startW = initialW.slice();
+    for (let i = 0; i < 19; i++) fsrs.w[i] = startW[i];
 
     function adamStep() {
       const eps = 1e-5;
       const grad = computeGradient(fsrs.w, byCard, eps);
       for (let i = 0; i < 19; i++) {
+        if (W_FROZEN.indexOf(i) !== -1) continue;
         m[i] = beta1 * m[i] + (1 - beta1) * grad[i];
         v[i] = beta2 * v[i] + (1 - beta2) * grad[i] * grad[i];
         const mHat = m[i] / (1 - Math.pow(beta1, iter + 1));
@@ -2165,100 +2501,172 @@
       if (iter < maxIter) {
         setTimeout(adamStep, 0);
       } else {
-        finishOptimization(bestW, bestLoss, initialW, initialLoss);
+        finishOptimization(bestW, bestLoss, initialW, initialLoss, usable);
       }
     }
 
     setTimeout(adamStep, 100);
   }
 
-  function computeRetention(w) {
-    const temp = new window.FSRS(w);
-    temp.maxInterval = fsrs.maxInterval;
-    let totalR = 0, count = 0;
-    cards.forEach(c => {
-      if (c.state === window.FSRS_STATE.NEW || !c.lastReview || c.stability <= 0) return;
-      const elapsed = ((c.due || Date.now()) - c.lastReview) / 86400000;
-      if (elapsed <= 0) return;
-      const R = window.FSRS_retrievability(elapsed, c.stability);
-      totalR += R; count++;
-    });
-    return count > 0 ? totalR / count : 0;
-  }
-
-  // Пересчёт расписания всех карт под текущие веса (как Reschedule в Anki после оптимизации):
-  // реплей истории каждой карты с нуля на новых весах — обновляются stability, difficulty и due
-  function rescheduleAllCards() {
-    const byCard = {};
-    logs.forEach(l => {
-      if (!byCard[l.card_id]) byCard[l.card_id] = [];
-      byCard[l.card_id].push(l);
-    });
-    for (const id in byCard) byCard[id].sort((a, b) => a.timestamp - b.timestamp);
-
+  // ===== Пересчёт расписания (Reschedule) =====
+  // Считаем новые сроки без применения, чтобы показать пользователю масштаб изменения.
+  function planReschedule(model) {
+    const byCard = buildLogIndex();
+    const changed = [];
+    let earlier = 0, later = 0, same = 0, skipped = 0;
     cards.forEach(card => {
       if (card.state === window.FSRS_STATE.NEW) return;
-      const cardLogs = byCard[card.id];
-      if (cardLogs && cardLogs.length > 0) {
-        let replay = window.FSRS_defaultCard();
-        cardLogs.forEach(log => {
-          const res = fsrs.repeat(replay, log.timestamp);
-          replay = res[log.rating];
-        });
-        card.state = replay.state;
-        card.stability = replay.stability;
-        card.difficulty = replay.difficulty;
-        card.elapsedDays = replay.elapsedDays;
-        card.scheduledDays = replay.scheduledDays;
-        card.reps = replay.reps;
-        card.lapses = replay.lapses;
-        card.lastReview = replay.lastReview;
-        card.due = replay.due;
-        card.step = replay.step;
-      } else if (card.state === window.FSRS_STATE.REVIEW && card.lastReview && card.stability > 0) {
-        // Логов нет — пересчитываем только интервал из текущей стабильности
-        const interval = fsrs._capInterval(Math.max(1, Math.round(fsrs._nextInterval(card.stability))));
-        card.scheduledDays = interval;
-        card.due = card.lastReview + interval * 86400000;
-      }
+      // Карты без полной истории ответов не трогаем: их интервал и так посчитан живой моделью
+      const replay = replayCardFromLogs(byCard[card.id], model, false);
+      if (!replay) { skipped++; return; }
+      const diffDays = ((replay.due || 0) - (card.due || 0)) / 86400000;
+      if (diffDays < -0.5) earlier++;
+      else if (diffDays > 0.5) later++;
+      else same++;
+      changed.push({ card, replay });
     });
-
+    return { changed, earlier, later, same, skipped };
+  }
+  function applyPlan(plan) {
+    if (!makeSnapshot()) {
+      showConfirm('Нет места для снимка', 'Не удалось сохранить резервную копию карт — пересчёт отменён.', 'OK', '', () => {}, () => {});
+      return false;
+    }
+    plan.changed.forEach(p => applyReplayToCard(p.card, p.replay));
+    lastRescheduleAt = Date.now();
     saveCardsLocal(cards);
+    saveSettingsToStorage();
     if (window.auth && window.authUser) saveCardsToFirestore(cards);
+    return true;
+  }
+  function requestReschedule(title) {
+    showToast('Проверяю историю ответов...');
+    pullLogsFromFirestore().then(() => planAndRequestReschedule(title));
+  }
+  function planAndRequestReschedule(title) {
+    const model = makeTempModel(fsrs.w);
+    const plan = planReschedule(model);
+    if (!plan.changed.length) {
+      showConfirm(
+        'Нечего пересчитывать',
+        'Ни у одной карты нет непрерывной истории ответов с момента первого изучения. Пересчёт невозможен — карты не изменятся.',
+        'OK', '', () => {}, () => {}
+      );
+      return;
+    }
+    const text =
+      `Раньше срока: <b>${plan.earlier}</b><br>Позже срока: <b>${plan.later}</b><br>` +
+      `Без изменений: ${plan.same}<br>Пропущено (нет истории ответов): ${plan.skipped}<br><br>` +
+      `Всего пересчитано карт: <b>${plan.changed.length}</b>. Перед применением будет сделан снимок — откат одной кнопкой.`;
+    showConfirm(
+      title || 'Пересчитать интервалы карт?',
+      text,
+      'Отмена', 'Пересчитать',
+      () => {},
+      () => { if (applyPlan(plan)) location.reload(); }
+    );
   }
 
-  function finishOptimization(bestW, bestLoss, initialW, initialLoss) {
-    const oldR = computeRetention(initialW);
-    const newR = computeRetention(bestW);
-    fsrs.w = bestW;
-    cards.forEach(c => {
-      if (c.state !== window.FSRS_STATE.NEW) {
-        fsrs.getRetrievability(c, Date.now());
+  // Веса до оптимизации от 05.10.2026 — восстановление состояния «до пересчёта»,
+  // когда пересчёт был сделан старой версией без снимка.
+  const RESCUE_WEIGHTS = [0.2120, 1.2931, 2.3065, 8.2956, 6.4133, 0.8334, 4.0000, 0.7500, 0.0000, 0.8000, 2.6739, 1.4835, 0.0614, 0.2629, 1.6483, 1.0000, 5.8371, 1.9728, 1.6776];
+
+  function rollbackReschedule() {
+    // Перед откатом подтягиваем полную историю из облака: локально история могла быть обрезана
+    showToast('Загружаю историю ответов из облака...');
+    pullLogsFromFirestore().then(() => doRollbackReschedule());
+  }
+  function doRollbackReschedule() {
+    const snap = getSnapshot();
+    const prevW = getPrevWeights() || RESCUE_WEIGHTS;
+    if (!snap && !getPrevWeights() && !RESCUE_WEIGHTS) {
+      showConfirm('Откат невозможен', 'Не найдено ни снимка карт, ни весов до оптимизации.', 'OK', '', () => {}, () => {});
+      return;
+    }
+    const src = snap && !snap.replayOnly
+      ? `Снимок карт от ${new Date(snap.ts).toLocaleString('ru-RU')} будет восстановлен точно.`
+      : `История ответов будет заново прогнана на весах до последней оптимизации.`;
+    showConfirm(
+      'Откатить пересчёт интервалов?',
+      src + '<br><br>Текущие веса сохранятся — пересчёт можно будет повторить.',
+      'Отмена', 'Откатить',
+      () => {},
+      () => {
+        // Текущие веса запоминаем, чтобы откат был обратимым
+        setPrevWeights(fsrs.w);
+        if (snap && !snap.replayOnly) {
+          applyWeights(snap.w);
+          const map = {};
+          snap.cards.forEach(sc => { map[sc.id] = sc; });
+          let restored = 0;
+          cards.forEach(c => {
+            const sc = map[c.id];
+            if (sc) { copyFsrsFields(c, sc); restored++; }
+          });
+          lastRescheduleAt = 0;
+          saveCardsLocal(cards);
+          saveSettingsToStorage();
+          if (window.auth && window.authUser) saveCardsToFirestore(cards);
+          showToast('Восстановлено карт: ' + restored);
+        } else {
+          applyWeights(prevW);
+          const model = makeTempModel(prevW);
+          const byCard = buildLogIndex();
+          let restored = 0, skipped = 0;
+          cards.forEach(card => {
+            if (card.state === window.FSRS_STATE.NEW) return;
+            const replay = replayCardFromLogs(byCard[card.id], model, false);
+            if (!replay) { skipped++; return; }
+            applyReplayToCard(card, replay);
+            restored++;
+          });
+          lastRescheduleAt = 0;
+          saveCardsLocal(cards);
+          saveSettingsToStorage();
+          if (window.auth && window.authUser) saveCardsToFirestore(cards);
+          showToast('Восстановлено карт: ' + restored + (skipped ? ', пропущено без истории: ' + skipped : ''));
+        }
+        setTimeout(() => location.reload(), 600);
       }
-    });
+    );
+  }
+
+  function finishOptimization(bestW, bestLoss, initialW, initialLoss, usable) {
+    const frozenBefore = initialW.slice(17, 19);
+    const frozenClamped = bestW.slice(17, 19);
+    const wasClamped = Math.abs(frozenBefore[0] - frozenClamped[0]) > 0.0001 || Math.abs(frozenBefore[1] - frozenClamped[1]) > 0.0001;
+    setPrevWeights(initialW);
+    applyWeights(bestW);
     saveSettingsToStorage();
-    const rChange = ((newR - oldR) * 100).toFixed(1);
-    const rColor = newR >= oldR ? '#22c55e' : '#ef4444';
+
+    const lossDelta = isFinite(initialLoss) && initialLoss > 0 ? ((bestLoss - initialLoss) / initialLoss * 100) : 0;
+    const improved = bestLoss < initialLoss;
+    const lossColor = improved ? '#22c55e' : '#ef4444';
+    const few = usable < COMFORT_LOSS_REVIEWS;
+    const shortTerm = shortTermNote();
     document.getElementById('mainArea').innerHTML = `
       <div class="done-state">
         <div class="icon">✅</div>
         <h2>Оптимизация завершена</h2>
-        <p style="font-size:0.9rem;color:#94a3b8;margin:4px 0">Предполагаемый уровень запоминания:</p>
-        <p style="font-size:1.3rem;font-weight:700;color:${rColor}">${(newR * 100).toFixed(1)}%</p>
-        <p style="font-size:0.85rem;color:#94a3b8">Было: ${(oldR * 100).toFixed(1)}% ${newR >= oldR ? '↑' : '↓'}${rChange}%</p>
-        <div style="font-size:0.75rem;color:#64748b;margin-top:12px">Это значит: когда карта придёт на повторение, ты скорее всего вспомнишь её в ~${(newR * 100).toFixed(0)}% случаев.</div>
+        <div style="font-size:0.9rem;color:#94a3b8;margin:10px 0 2px">Ошибка модели (log loss, меньше — лучше):</div>
+        <p style="font-size:1.3rem;font-weight:700;color:${lossColor}">${initialLoss.toFixed(4)} → ${bestLoss.toFixed(4)}</p>
+        <p style="font-size:0.85rem;color:#94a3b8">${improved ? 'лучше на ' + Math.abs(lossDelta).toFixed(1) + '%' : 'улучшения нет'}</p>
+        <div style="font-size:0.8rem;color:#94a3b8;margin-top:10px">Ответов в расчёте: <b>${usable}</b> (всего в истории: ${logs.length})</div>
+        <div style="font-size:0.8rem;color:#94a3b8">Желаемая вероятность вспомнить: <b>${Math.round(requestRetention * 100)}%</b></div>
+        ${few ? `<div style="font-size:0.75rem;color:#f59e0b;margin-top:8px;max-width:300px">Данных пока мало (нужно ${COMFORT_LOSS_REVIEWS} для надёжных весов). Карточки лучше не пересчитывать — дождитесь большей истории.</div>` : ''}
+        ${wasClamped ? `<div style="font-size:0.75rem;color:#f59e0b;margin-top:6px;max-width:300px">w17/w18 (внутрисессионные шаги) были вне допустимых значений и зафиксированы на ${frozenClamped[0].toFixed(2)}/${frozenClamped[1].toFixed(2)} — иначе «Лёгко» на изучаемых карточках давало бы сотни дней.</div>` : ''}
+        <div style="font-size:0.75rem;color:#64748b;margin-top:10px;max-width:300px">Множитель стабильности на шаге обучения: ×${shortTerm} (нормально 1–3)</div>
         <div style="margin-top:12px;font-size:0.7rem;color:#64748b;cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">📊 показать веса (w0–w18)</div>
         <div style="display:none;margin-top:6px;font-size:0.6rem;color:#64748b;text-align:left;max-width:280px;margin-left:auto;margin-right:auto;line-height:1.5">
-          ${initialW.map((v, i) => `<span style="${Math.abs(v - bestW[i]) > 0.001 ? 'color:#facc15;font-weight:600' : ''}">w${i}: ${v.toFixed(4)} → ${bestW[i].toFixed(4)}${Math.abs(v - bestW[i]) > 0.001 ? ' ✓' : ''}</span>`).join('<br>')}
+          ${initialW.map((v, i) => `<span style="${Math.abs(v - bestW[i]) > 0.001 ? 'color:#facc15;font-weight:600' : ''}">w${i}: ${v.toFixed(4)} → ${bestW[i].toFixed(4)}${Math.abs(v - bestW[i]) > 0.001 ? ' ✓' : ''}${W_FROZEN.indexOf(i) !== -1 ? ' (зафиксирован)' : ''}</span>`).join('<br>')}
         </div>
         <button class="big-btn" id="optRescheduleBtn" style="margin-top:16px;padding:12px 32px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer;display:block;margin-left:auto;margin-right:auto">Пересчитать интервалы карт</button>
-        <div style="font-size:0.7rem;color:#64748b;margin-top:6px;max-width:280px;margin-left:auto;margin-right:auto">Реплей истории всех карт на новых весах — сроки повторений обновятся (как Reschedule в Anki)</div>
+        <div style="font-size:0.7rem;color:#64748b;margin-top:6px;max-width:300px;margin-left:auto;margin-right:auto">Сроки пересчитаются по истории ответов. Перед применением покажем, сколько карт сдвинется, и сделаем снимок для отката.</div>
         <button class="big-btn" onclick="location.reload()" style="margin-top:12px;padding:10px 28px;border:1.5px solid #94a3b8;border-radius:10px;background:transparent;color:#94a3b8;font-size:0.9rem;font-weight:600;cursor:pointer">Продолжить без пересчёта</button>
       </div>
     `;
     document.getElementById('optRescheduleBtn').addEventListener('click', () => {
-      rescheduleAllCards();
-      location.reload();
+      requestReschedule('Пересчитать интервалы карт под новые веса?');
     });
   }
 
@@ -2526,6 +2934,23 @@
     document.getElementById('maxReviewsInput').value = maxReviews;
     document.getElementById('unlimitedReviews').checked = unlimitedReviews;
     document.getElementById('maxReviewsRow').style.display = unlimitedReviews ? 'none' : 'block';
+    document.getElementById('retentionInput').value = Math.round(requestRetention * 100);
+    document.getElementById('retentionInfo').textContent = Math.round(requestRetention * 100) + '%';
+    const snap = getSnapshot();
+    const prevW = getPrevWeights();
+    const rb = document.getElementById('rollbackRescheduleBtn');
+    const rbInfo = document.getElementById('rollbackInfo');
+    rb.style.display = 'block';
+    if (lastRescheduleAt) {
+      rbInfo.textContent = 'Последний пересчёт: ' + new Date(lastRescheduleAt).toLocaleString('ru-RU')
+        + (snap && !snap.replayOnly ? ' · есть снимок карт от ' + new Date(snap.ts).toLocaleString('ru-RU') : ' · откат по истории ответов');
+    } else if (snap) {
+      rbInfo.textContent = 'Есть снимок карт от ' + new Date(snap.ts).toLocaleString('ru-RU');
+    } else if (prevW) {
+      rbInfo.textContent = 'Есть веса до оптимизации — откат будет пересчётом по истории ответов';
+    } else {
+      rbInfo.textContent = 'Снимка нет: интервалы будут восстановлены пересчётом истории ответов на весах до оптимизации';
+    }
     renderLimitInfo();
     modal.style.display = 'flex';
   }
@@ -2615,6 +3040,12 @@
     limitNew = Math.max(0, parseInt(document.getElementById('limitNewInput').value) || 0);
     maxReviews = Math.max(0, parseInt(document.getElementById('maxReviewsInput').value) || 0);
     unlimitedReviews = document.getElementById('unlimitedReviews').checked;
+    const ret = parseInt(document.getElementById('retentionInput').value);
+    if (ret >= 70 && ret <= 99 && Math.abs(ret / 100 - requestRetention) > 0.0001) {
+      requestRetention = ret / 100;
+      fsrs.requestRetention = requestRetention;
+      if (window.auth && window.authUser) pushSettingsToFirestore();
+    }
     saveSettingsToStorage();
     document.getElementById('settingsModal').style.display = 'none';
   });
@@ -2631,6 +3062,14 @@
     document.getElementById('statsModal').style.display = 'flex';
   });
   document.getElementById('optimizeBtn').addEventListener('click', () => optimizeFSRS());
+  document.getElementById('rescheduleBtn').addEventListener('click', () => {
+    document.getElementById('settingsModal').style.display = 'none';
+    requestReschedule('Пересчитать интервалы карт под текущими весами?');
+  });
+  document.getElementById('rollbackRescheduleBtn').addEventListener('click', () => {
+    document.getElementById('settingsModal').style.display = 'none';
+    rollbackReschedule();
+  });
   document.getElementById('forecastBtn').addEventListener('click', () => {
     document.getElementById('settingsModal').style.display = 'none';
     renderForecast();
