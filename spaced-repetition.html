@@ -606,7 +606,7 @@
       <span>Не делать карточки доступными раньше сегодня при пересчёте (защита от лавины)</span>
     </label>
     <button id="ankiWeightsBtn" class="reset-btn" style="color:#16a34a;border-color:#86efac">Вернуть эталонные веса Anki</button>
-    <div style="font-size:0.7rem;color:#6b7280;text-align:center">Сбрасывает веса на проверенные значения Anki. Интервалы снова растут правильно.</div>
+    <div style="font-size:0.7rem;color:#6b7280;text-align:center">Сбрасывает веса на проверенные значения Anki и ставит 90%. Интервалы снова растут правильно.</div>
     <button id="rollbackRescheduleBtn" class="reset-btn" style="color:#b45309;border-color:#fcd34d">Откатить пересчёт интервалов</button>
     <div id="rollbackInfo" style="font-size:0.7rem;color:#6b7280;text-align:center"></div>
     <button id="resetBtn" class="reset-btn">Сбросить прогресс</button>
@@ -1551,31 +1551,33 @@
     }
   }
 
-  // ===== Логи: синхронизация по дням в подколлекции log_days =====
-  // Дневные документы лежат в users/<uid>/sr_cards/log_days/<YYYY-MM-DD>.
-  // Подколлекция вместо докуентов log_* в общей коллекции: запрос по documentId
-  // требует window.firestore.FieldPath, которого на экземпляре нет, из-за чего
-  // чтение логов падало на каждом вызове и устройства не видели логи друг друга.
-  const LOG_DAYS_SUBCOL = 'log_days';
+  // ===== Логи: синхронизация по дням, документы log_<YYYY-MM-DD> =====
+// Дневные логи лежат прямо в users/<uid>/sr_cards под именами log_<YYYY-MM-DD>.
+  // Подколлекция здесь невозможна: у CollectionReference в Firebase нет метода
+  // collection(), а запрос по documentId требует window.firestore.FieldPath,
+  // которого на этом экземпляре тоже нет. Все операции идут через
+  // collection()/doc()/runTransaction() — только они в этом SDK работают.
   const LEGACY_MIGRATED_KEY = 'srLogsLegacyMigrated';
   let syncStatus = { state: 'idle', message: '', at: 0 };
   function logsColl() {
     return window.firestore.collection('users').doc(window.authUser.uid).collection('sr_cards');
   }
-  function logDaysColl() {
-    return logsColl().collection(LOG_DAYS_SUBCOL);
+  function logDayDocId(day) {
+    return 'log_' + day;
+  }
+  function isDayLogDoc(id) {
+    return /^log_\d{4}-\d{2}-\d{2}$/.test(id);
   }
   function isLegacyLogDoc(id) {
-    if (id === 'logs' || id.indexOf('logs_') === 0) return true;
-    // дневные документы, созданные до перехода на подколлекцию log_days
-    return /^log_\d{4}-\d{2}-\d{2}$/.test(id);
+    // старые куски: logs, logs_N, logs_<8hex>_NNNN, logs_meta
+    return id === 'logs' || id.indexOf('logs_') === 0;
   }
   function setSyncStatus(state, message) {
     syncStatus = { state: state, message: message || '', at: Date.now() };
     try { window.dispatchEvent(new CustomEvent('srSyncStatus', { detail: syncStatus })); } catch(e) {}
   }
   async function mergeDayDoc(day, extra) {
-    const ref = logDaysColl().doc(day);
+    const ref = logsColl().doc(logDayDocId(day));
     let count = 0;
     await window.firestore.runTransaction(async tx => {
       const snap = await tx.get(ref);
@@ -1613,8 +1615,8 @@
       scheduleLogsPush(15000);
     }
   }
-  // Разовый перенос документов logs, logs_N, logs_<8hex>_NNNN, logs_meta в log_days.
-  // Старое удаляется только после того, как все уникальные логи найдены в log_days.
+  // Разовый перенос документов logs, logs_N, logs_<8hex>_NNNN, logs_meta в log_<день>.
+  // Старое удаляется только после того, как все уникальные логи найдены в дневных документах.
   async function migrateLegacyLogDocs() {
     if (localStorage.getItem(LEGACY_MIGRATED_KEY)) return 0;
     const snap = await logsColl().get();
@@ -1639,16 +1641,17 @@
     for (const day of days) await mergeDayDoc(day, dropUndone(byDay[day]));
     logs = mergeLogs(logs, dropUndone(days.reduce((a, d) => a.concat(byDay[d]), [])));
     logs.sort(logByTs);
-    const check = await logDaysColl().get();
+    const check = await logsColl().get();
     const got = new Set();
     check.docs.forEach(d => {
+      if (!isDayLogDoc(d.id)) return;
       const arr = d.data() && Array.isArray(d.data().logs) ? d.data().logs : [];
       arr.forEach(l => got.add(logKeyOf(l)));
     });
     const missing = Array.from(expected).filter(k => !got.has(k));
     if (missing.length) {
       setSyncStatus('error', 'Миграция логов не завершена: не найдено ' + missing.length + '. Старые документы не удалены.');
-      throw new Error('легаси-логи не найдены в log_days: ' + missing.length);
+      throw new Error('легаси-логи не найдены в дневных документах: ' + missing.length);
     }
     const stillThere = [];
     for (const d of legacy) {
@@ -1667,15 +1670,19 @@
     setSyncStatus('ok', 'Перенесено старых логов: уникальных ' + expected.size + ', документов удалено ' + legacy.length + '.');
     return legacy.length;
   }
-  // Забираем логи из облака (подколлекция log_days) и сливаем с локальными
+  // Забираем логи из облака (дневные документы log_<YYYY-MM-DD>) и сливаем с локальными
   async function pullLogsFromFirestore() {
-    if (!srFirebaseReady()) return 0;
+    if (!srFirebaseReady()) {
+      setSyncStatus('wait', 'Ожидание входа в Firebase...');
+      return 0;
+    }
     const before = logs.length;
     try {
-      const snap = await logDaysColl().get();
+      const snap = await logsColl().get();
       snap.forEach(doc => {
+        if (!isDayLogDoc(doc.id)) return;
         const arr = doc.data() && Array.isArray(doc.data().logs) ? doc.data().logs : [];
-        remoteLogDays[doc.id] = arr.length;
+        remoteLogDays[doc.id.slice(4)] = arr.length;
         logs = mergeLogs(logs, dropUndone(arr));
       });
       logs.sort(logByTs);
@@ -1707,18 +1714,19 @@
       el.id = 'srSyncBadge';
       el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;max-width:70vw;' +
         'padding:6px 10px;border-radius:8px;font:12px/1.35 system-ui,-apple-system,sans-serif;' +
-        'display:none;box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none';
+        'display:none;box-shadow:0 2px 10px rgba(0,0,0,.25);cursor:pointer';
       document.body.appendChild(el);
     }
     const paint = () => {
       const s = syncStatus;
       if (!s.message) { el.style.display = 'none'; return; }
       el.style.display = 'block';
-      el.style.background = s.state === 'error' ? '#7f1d1d' : '#14532d';
+      el.style.background = s.state === 'error' ? '#7f1d1d' : (s.state === 'wait' ? '#78350f' : '#14532d');
       el.style.color = '#fff';
-      el.textContent = (s.state === 'error' ? 'Синк: ' : 'Синк: ') + s.message;
+      el.textContent = 'Синк: ' + s.message;
     };
     window.addEventListener('srSyncStatus', paint);
+    if (!syncStatus.message) setSyncStatus('wait', 'Запускаю синхронизацию...');
     paint();
   }
 
@@ -1809,10 +1817,10 @@
       saveCardsLocal(storedCards);
 
       // Логи из облака: документы log_<день> (+ миграция старых logs_N)
+      initSyncStatusBadge();
       await pullLogsFromFirestore();
       markLogsDirty();
-      initSyncStatusBadge();
-  startLogsPullLoop();
+      startLogsPullLoop();
     }
 
     const cardMap = {};
@@ -3264,8 +3272,8 @@
   document.getElementById('ankiWeightsBtn').addEventListener('click', () => {
     showConfirm(
       'Вернуть эталонные веса Anki?',
-      'Веса заменятся на проверенные значения Anki. Интервалы начнут расти правильно, ' +
-      'и карточки перестанут скапливаться в повторении.<br><br>' +
+      'Веса заменятся на проверенные значения Anki, желаемая вероятность станет 90%. ' +
+      'Интервалы начнут расти правильно, и карточки перестанут скапливаться в повторении.<br><br>' +
       'Потом нажмите «Пересчитать интервалы карт», чтобы применить новые веса к расписанию.',
       'Отмена', 'Вернуть',
       () => {},
