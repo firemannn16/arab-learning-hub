@@ -1714,7 +1714,7 @@
       el.id = 'srSyncBadge';
       el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;max-width:70vw;' +
         'padding:6px 10px;border-radius:8px;font:12px/1.35 system-ui,-apple-system,sans-serif;' +
-        'display:none;box-shadow:0 2px 10px rgba(0,0,0,.25);cursor:pointer';
+        'display:none;box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none';
       document.body.appendChild(el);
     }
     const paint = () => {
@@ -1728,6 +1728,60 @@
     window.addEventListener('srSyncStatus', paint);
     if (!syncStatus.message) setSyncStatus('wait', 'Запускаю синхронизацию...');
     paint();
+    // init() пропускает блок с логами, пока Firebase не поднял authUser — тогда
+    // бейдж вообще не создавался. Поднимаем синк самостоятельно, как только auth готов.
+    if (!window.__srSyncStarted) {
+      window.__srSyncStarted = true;
+      let kicked = false;
+      const tryStart = (left) => {
+        if (kicked || syncStatus.state === 'error') return;
+        if (!srFirebaseReady()) { if (left > 0) setTimeout(() => tryStart(left - 1), 1000); return; }
+        kicked = true;
+        pullLogsFromFirestore();
+      };
+      tryStart(20);
+      window.addEventListener('authChanged', () => {
+        kicked = false;
+        setTimeout(() => { tryStart(3); }, 500);
+      });
+    }
+  }
+  // Диагностика из консоли браузера: __srSync.diag()
+  window.__srSync = {
+    get status() { return syncStatus; },
+    get ready() { return srFirebaseReady(); },
+    get count() { return logs.length; },
+    get badge() { return !!document.getElementById('srSyncBadge'); },
+    pull: () => pullLogsFromFirestore(),
+    diag: async () => {
+      const out = { ready: srFirebaseReady(), badge: !!document.getElementById('srSyncBadge'),
+                    status: syncStatus, logs: logs.length };
+      try {
+        const api = window.firestore;
+        out.firestore = !!api;
+        out.apiCollectionIsFn = !!(api && typeof api.collection === 'function');
+        if (out.ready) {
+          const coll = api.collection('users').doc(window.authUser.uid).collection('sr_cards');
+          out.collDocIsFn = typeof coll.doc === 'function';
+          out.collCollectionIsFn = typeof coll.collection; // у CollectionReference нет этого метода
+          const snap = await coll.get();
+          const ids = snap.docs.map(d => d.id);
+          out.docCount = ids.length;
+          out.dayDocs = ids.filter(i => /^log_\d{4}-\d{2}-\d{2}$/.test(i)).length;
+          out.legacy = ids.filter(i => i === 'logs' || i.indexOf('logs_') === 0);
+          out.samples = ids.slice(0, 12);
+        }
+      } catch(e) { out.error = String(e); }
+      console.table(out);
+      return out;
+    }
+  };
+  // бейдж создаётся сразу, независимо от того, успела ли авторизация в init()
+  try { initSyncStatusBadge(); } catch(e) { console.warn('SR: бейдж не создан', e); }
+  if (!document.getElementById('srSyncBadge')) {
+    document.addEventListener('DOMContentLoaded', () => {
+      try { initSyncStatusBadge(); } catch(e) { console.warn('SR: бейдж не создан', e); }
+    });
   }
 
   function initCard(wordLine, existingCardsMap) {
