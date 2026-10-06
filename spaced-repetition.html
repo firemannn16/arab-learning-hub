@@ -1627,18 +1627,22 @@
     }
     const byDay = {};
     const expected = new Set();
-    logs.forEach(l => expected.add(logKeyOf(l)));
+    // Пишем ВСЮ историю — и локальную, и легаси. Раньше в expected попадали все
+    // локальные логи, а в облако уходили только легаси-порции, из-за чего сверка
+    // находила «потери» и миграция висела в ошибке навсегда.
+    const collect = l => {
+      if (!l || !isFinite(l.timestamp) || !l.card_id) return;
+      const day = srDayKey(l.timestamp);
+      (byDay[day] = byDay[day] || []).push(l);
+      expected.add(logKeyOf(l));
+    };
+    dropUndone(logs).forEach(collect);
     legacy.forEach(d => {
       const arr = d.data() && Array.isArray(d.data().logs) ? d.data().logs : [];
-      arr.forEach(l => {
-        if (!l || typeof l.timestamp !== 'number' || !l.card_id) return;
-        const day = srDayKey(l.timestamp);
-        (byDay[day] = byDay[day] || []).push(l);
-        expected.add(logKeyOf(l));
-      });
+      dropUndone(arr).forEach(collect);
     });
     const days = Object.keys(byDay);
-    for (const day of days) await mergeDayDoc(day, dropUndone(byDay[day]));
+    for (const day of days) await mergeDayDoc(day, byDay[day]);
     logs = mergeLogs(logs, dropUndone(days.reduce((a, d) => a.concat(byDay[d]), [])));
     logs.sort(logByTs);
     const check = await logsColl().get();
@@ -1650,6 +1654,7 @@
     });
     const missing = Array.from(expected).filter(k => !got.has(k));
     if (missing.length) {
+      console.warn('SR: не найдены в дневных документах, старое не удалено:', missing.slice(0, 20));
       setSyncStatus('error', 'Миграция логов не завершена: не найдено ' + missing.length + '. Старые документы не удалены.');
       throw new Error('легаси-логи не найдены в дневных документах: ' + missing.length);
     }
