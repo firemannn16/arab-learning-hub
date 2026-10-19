@@ -595,11 +595,6 @@
     <button id="statsBtn" class="reset-btn" style="color:#2563eb;border-color:#93c5fd;margin-top:16px">Статистика</button>
     <button id="forecastBtn" class="reset-btn" style="color:#0891b2;border-color:#67e8f9">Прогноз нагрузки</button>
     <button id="optimizeBtn" class="reset-btn" style="color:#7c3aed;border-color:#c4b5fd">FSRS Оптимизатор</button>
-    <div class="setting-row">
-      <div class="setting-label">Желаемая вероятность вспомнить: <span id="retentionInfo">95%</span></div>
-      <input type="number" id="retentionInput" min="70" max="99" style="width:100%;padding:10px;border-radius:8px;border:2px solid #d1d5db;font-size:1rem;text-align:center">
-      <div style="font-size:0.7rem;color:#6b7280;margin-top:4px">Доля правильных ответов, на которую рассчитаны интервалы. Как в Anki. Больше — реже повторения.</div>
-    </div>
     <button id="resetBtn" class="reset-btn">Сбросить прогресс</button>
   </div>
 </div>
@@ -827,14 +822,29 @@
     if (!due) return true;
     return dayStartTs(due) <= dayStartTs(now);
   }
+  // Форматтер создаём ОДИН раз: new Intl.DateTimeFormat очень дорогой,
+  // а вызывался он по каждой записи лога (до 25000 раз за один проход).
+  const SR_DAY_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  });
+  // Europe/Moscow — постоянный UTC+3 (без перехода на летнее время), поэтому
+  // сутки = целые UTC-часы: ключ дня кэшируем по номеру суток от начала эпохи.
+  // Значение зависит только от timestamp, а не от часового пояса устройства.
+  const SR_DAY_CACHE = new Map();
+  const SR_DAY_CACHE_CAP = 5000;
   function srDayKey(now) {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Europe/Moscow',
-      year: 'numeric', month: '2-digit', day: '2-digit'
-    }).formatToParts(new Date(now || Date.now()));
-    return parts.find(p => p.type === 'year').value + '-' +
-           parts.find(p => p.type === 'month').value + '-' +
-           parts.find(p => p.type === 'day').value;
+    const ts = now || Date.now();
+    const bucket = Math.floor((ts + 3 * 3600000) / 86400000);
+    const cached = SR_DAY_CACHE.get(bucket);
+    if (cached !== undefined) return cached;
+    const parts = SR_DAY_FORMATTER.formatToParts(new Date(ts));
+    const key = parts.find(p => p.type === 'year').value + '-' +
+                parts.find(p => p.type === 'month').value + '-' +
+                parts.find(p => p.type === 'day').value;
+    if (SR_DAY_CACHE.size >= SR_DAY_CACHE_CAP) SR_DAY_CACHE.clear();
+    SR_DAY_CACHE.set(bucket, key);
+    return key;
   }
 
   // ===== Логи ответов =====
@@ -1216,16 +1226,16 @@
             writeCardsChunk(coll, i, valid);
           }
           let changed = false;
-          const localMap = {};
-          cards.forEach(c => { localMap[c.id] = c; });
+          const idxById = {};
+          cards.forEach((c, i) => { idxById[c.id] = i; });
           valid.forEach(c => {
-            const local = localMap[c.id];
-            if (!local) {
+            const idx = idxById[c.id];
+            if (idx === undefined) {
+              idxById[c.id] = cards.length;
               cards.push(c);
               changed = true;
-            } else if (isCardNewer(c, local)) {
-              const idx = cards.findIndex(x => x.id === c.id);
-              if (idx !== -1) cards[idx] = c;
+            } else if (isCardNewer(c, cards[idx])) {
+              cards[idx] = c;
               changed = true;
             }
           });
@@ -1577,8 +1587,15 @@
     logDirtyDays.clear();
     let done = 0;
     try {
+      // Раскладываем логи по дням за один проход (раньше был полный filter по
+      // всему массиву на каждый «грязный» день — O(дни × логи)).
+      const byDay = {};
+      for (const l of logs) {
+        const k = srDayKey(l.timestamp);
+        (byDay[k] || (byDay[k] = [])).push(l);
+      }
       for (const day of days) {
-        await mergeDayDoc(day, dropUndone(logs.filter(l => srDayKey(l.timestamp) === day)));
+        await mergeDayDoc(day, dropUndone(byDay[day] || []));
         done++;
       }
       trimLogsLocal();
@@ -2130,10 +2147,13 @@
       }
       render();
     });
-    document.addEventListener('click', function limitHandler(e) {
-      const link = e.target.closest('#limitToSettings');
-      if (link) { e.preventDefault(); openSettings(); return; }
-    });
+    if (!window.__limitHandlerInstalled) {
+      window.__limitHandlerInstalled = true;
+      document.addEventListener('click', function limitHandler(e) {
+        const link = e.target.closest('#limitToSettings');
+        if (link) { e.preventDefault(); openSettings(); return; }
+      });
+    }
     document.getElementById('settingsBtn').addEventListener('click', openSettings);
   }
 
@@ -2764,7 +2784,6 @@
         <p style="font-size:1.3rem;font-weight:700;color:${lossColor}">${initialLoss.toFixed(4)} → ${bestLoss.toFixed(4)}</p>
         <p style="font-size:0.85rem;color:#94a3b8">${improved ? 'лучше на ' + Math.abs(lossDelta).toFixed(1) + '%' : 'улучшения нет'}</p>
         <div style="font-size:0.8rem;color:#94a3b8;margin-top:10px">Ответов в расчёте: <b>${usable}</b> (всего в истории: ${logs.length})</div>
-        <div style="font-size:0.8rem;color:#94a3b8">Желаемая вероятность вспомнить: <b>${Math.round(requestRetention * 100)}%</b></div>
         ${few ? `<div style="font-size:0.75rem;color:#f59e0b;margin-top:8px;max-width:300px">Данных пока мало (нужно ${COMFORT_LOSS_REVIEWS} для надёжных весов). Карточки лучше не пересчитывать — дождитесь большей истории.</div>` : ''}
         ${wasClamped ? `<div style="font-size:0.75rem;color:#f59e0b;margin-top:6px;max-width:300px">w17/w18 (внутрисессионные шаги) были вне допустимых значений и зафиксированы на ${frozenClamped[0].toFixed(2)}/${frozenClamped[1].toFixed(2)} — иначе «Лёгко» на изучаемых карточках давало бы сотни дней.</div>` : ''}
         <div style="font-size:0.75rem;color:#64748b;margin-top:10px;max-width:300px">Множитель стабильности на шаге обучения: ×${shortTerm} (нормально 1–3)</div>
@@ -3041,8 +3060,6 @@
     document.getElementById('maxReviewsInput').value = maxReviews;
     document.getElementById('unlimitedReviews').checked = unlimitedReviews;
     document.getElementById('maxReviewsRow').style.display = unlimitedReviews ? 'none' : 'block';
-    document.getElementById('retentionInput').value = Math.round(requestRetention * 100);
-    document.getElementById('retentionInfo').textContent = Math.round(requestRetention * 100) + '%';
     renderLimitInfo();
     modal.style.display = 'flex';
   }
@@ -3132,11 +3149,6 @@
     limitNew = Math.max(0, parseInt(document.getElementById('limitNewInput').value) || 0);
     maxReviews = Math.max(0, parseInt(document.getElementById('maxReviewsInput').value) || 0);
     unlimitedReviews = document.getElementById('unlimitedReviews').checked;
-    const ret = parseInt(document.getElementById('retentionInput').value);
-    if (ret >= 70 && ret <= 99 && Math.abs(ret / 100 - requestRetention) > 0.0001) {
-      setRequestRetention(ret / 100);
-      if (window.auth && window.authUser) pushSettingsToFirestore();
-    }
     saveSettingsToStorage();
     document.getElementById('settingsModal').style.display = 'none';
   });

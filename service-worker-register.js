@@ -6,6 +6,9 @@
     const APP_VERSION = 'v1.2.4';
     const STORED_VERSION = localStorage.getItem('app_version');
 
+    // Обновление страницы выполняем только по явному действию пользователя
+    let userRequestedUpdate = false;
+
     // 🔥 Принудительное обновление при изменении версии
     if (STORED_VERSION && STORED_VERSION !== APP_VERSION) {
         console.log('🔥 Обнаружена новая версия! Очищаем кэш...');
@@ -56,10 +59,10 @@
             .then(registration => {
                 console.log('✅ Service Worker зарегистрирован:', registration.scope);
 
-                // ✅ СРАЗУ активируем ожидающий SW если есть
+                // Найден ожидающий SW — показываем уведомление, не перезагружаем страницу
                 if (registration.waiting) {
-                    console.log('🔄 Найден ожидающий SW — активируем...');
-                    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    console.log('🔄 Найден ожидающий SW — ждём действия пользователя');
+                    showUpdateNotification();
                 }
 
                 // Проверяем обновления каждые 60 секунд
@@ -74,9 +77,9 @@
 
                     newWorker.addEventListener('statechange', () => {
                         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            // Новая версия доступна — СРАЗУ активируем без ожидания
-                            console.log('✨ Новая версия — автоматическое обновление...');
-                            newWorker.postMessage({ type: 'SKIP_WAITING' });
+                            // Новая версия доступна — сообщаем пользователю, активируем по его желанию
+                            console.log('✨ Новая версия доступна — показываем уведомление');
+                            showUpdateNotification();
                         }
                     });
                 });
@@ -95,7 +98,12 @@
                 console.log('✅ SW впервые контролирует страницу — перезагрузка не нужна');
                 return;
             }
-            console.log('🔄 Service Worker обновлен, перезагружаем страницу...');
+            if (!userRequestedUpdate) {
+                // Обновление в фоне — страницу не перезагружаем
+                console.log('🔄 SW обновлён в фоне — перезагрузка не нужна');
+                return;
+            }
+            console.log('🔄 Service Worker обновлен по запросу, перезагружаем страницу...');
             window.location.reload();
         });
     });
@@ -177,6 +185,7 @@
 
     // Обновить Service Worker
     window.updateServiceWorker = function() {
+        userRequestedUpdate = true;
         navigator.serviceWorker.getRegistration().then(registration => {
             if (registration && registration.waiting) {
                 // Отправляем сообщение новому SW чтобы он активировался
