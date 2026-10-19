@@ -600,15 +600,6 @@
       <input type="number" id="retentionInput" min="70" max="99" style="width:100%;padding:10px;border-radius:8px;border:2px solid #d1d5db;font-size:1rem;text-align:center">
       <div style="font-size:0.7rem;color:#6b7280;margin-top:4px">Доля правильных ответов, на которую рассчитаны интервалы. Как в Anki. Больше — реже повторения.</div>
     </div>
-    <button id="rescheduleBtn" class="reset-btn" style="color:#0891b2;border-color:#67e8f9">Пересчитать интервалы карт</button>
-    <label style="display:flex;gap:8px;align-items:flex-start;font-size:0.7rem;color:#6b7280;text-align:left;margin:6px 0 2px;cursor:pointer">
-      <input type="checkbox" id="rescheduleProtect" checked style="margin-top:2px">
-      <span>Не делать карточки доступными раньше сегодня при пересчёте (защита от лавины)</span>
-    </label>
-    <button id="ankiWeightsBtn" class="reset-btn" style="color:#16a34a;border-color:#86efac">Вернуть эталонные веса Anki</button>
-    <div style="font-size:0.7rem;color:#6b7280;text-align:center">Сбрасывает веса на проверенные значения Anki и ставит 90%. Интервалы снова растут правильно.</div>
-    <button id="rollbackRescheduleBtn" class="reset-btn" style="color:#b45309;border-color:#fcd34d">Откатить пересчёт интервалов</button>
-    <div id="rollbackInfo" style="font-size:0.7rem;color:#6b7280;text-align:center"></div>
     <button id="resetBtn" class="reset-btn">Сбросить прогресс</button>
   </div>
 </div>
@@ -791,7 +782,7 @@
   let limitNew = 50;
   let unlimitedReviews = true;
   let maxReviews = 0;
-  let requestRetention = 0.90;   // желаемая вероятность вспомнить в момент повторения
+  let requestRetention = 0.95;   // желаемая вероятность вспомнить в момент повторения
   let fsrs;
   let newCardsLeft = 0;
   let sessionAnswered = false;
@@ -804,7 +795,6 @@
   let logsPullTimer = null;
   let remoteChunkCards = [];         // последнее известное содержимое чанков all_*
   let lastRescheduleAt = 0;
-  let rescheduleProtect = true;
   let undoStack = [];
   let errorList = [];
   // Множество id карточек, которые есть в текущем words.txt (для отсева «призраков»)
@@ -960,7 +950,6 @@
         if (s.maxReviews !== undefined) maxReviews = s.maxReviews;
         if (typeof s.requestRetention === 'number') requestRetention = s.requestRetention;
         if (typeof s.lastRescheduleAt === 'number') lastRescheduleAt = s.lastRescheduleAt;
-    if (typeof s.rescheduleProtect === 'boolean') rescheduleProtect = s.rescheduleProtect;
         if (s.w && Array.isArray(s.w) && s.w.length === 19) {
           if (fsrs) applyWeights(s.w);
           else window._savedW = s.w;
@@ -972,7 +961,6 @@
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({
       limitNew, unlimitedReviews, maxReviews, requestRetention,
       lastRescheduleAt: lastRescheduleAt || 0,
-      rescheduleProtect: rescheduleProtect,
       w: fsrs ? fsrs.w.slice() : (window._savedW || [])
     }));
     pushSettingsToFirestore();
@@ -994,19 +982,6 @@
   function applyWeights(w) {
     fsrs.w = clampWeights(w);
     fsrs.requestRetention = requestRetention;
-  }
-  function useAnkiWeights() {
-    const old = fsrs.w.slice();
-    // Возвращаем не только эталонный набор, но и рекомендованные 90%.
-    // Иначе старое значение из настроек (0.95) продолжит сжимать интервалы.
-    setRequestRetention(0.90);
-    applyWeights(ANKI_WEIGHTS);
-    setPrevWeights(old);
-    saveSettingsToStorage();
-    try {
-      const inp = document.getElementById('retentionInput');
-      if (inp) inp.value = '90';
-    } catch(e) {}
   }
   function setRequestRetention(v) {
     requestRetention = Math.max(0.7, Math.min(0.99, Number(v) || 0.9));
@@ -2736,142 +2711,6 @@
     setTimeout(adamStep, 100);
   }
 
-  // ===== Пересчёт расписания (Reschedule) =====
-  // Считаем новые сроки без применения, чтобы показать пользователю масштаб изменения.
-  function planReschedule(model) {
-    const byCard = buildLogIndex();
-    const changed = [];
-    let earlier = 0, later = 0, same = 0, skipped = 0, newlyDue = 0, blocked = 0;
-    const now = Date.now();
-    cards.forEach(card => {
-      if (card.state === window.FSRS_STATE.NEW) return;
-      // Карты без полной истории ответов не трогаем: их интервал и так посчитан живой моделью
-      const replay = replayCardFromLogs(byCard[card.id], model, false);
-      if (!replay) { skipped++; return; }
-      const wasDue = (card.due || 0) > now;
-      const willDue = (replay.due || 0) <= now;
-      if (wasDue && willDue) {
-        newlyDue++;
-        if (rescheduleProtect) {
-          replay.due = card.due;
-          if ((card.stability || 0) > (replay.stability || 0)) replay.stability = card.stability;
-          blocked++;
-        }
-      }
-      const diffDays = ((replay.due || 0) - (card.due || 0)) / 86400000;
-      if (diffDays < -0.5) earlier++;
-      else if (diffDays > 0.5) later++;
-      else same++;
-      changed.push({ card, replay });
-    });
-    return { changed, earlier, later, same, skipped, newlyDue, blocked };
-  }
-  function applyPlan(plan) {
-    if (!makeSnapshot()) {
-      showConfirm('Нет места для снимка', 'Не удалось сохранить резервную копию карт — пересчёт отменён.', 'OK', '', () => {}, () => {});
-      return false;
-    }
-    plan.changed.forEach(p => applyReplayToCard(p.card, p.replay));
-    lastRescheduleAt = Date.now();
-    saveCardsLocal(cards);
-    saveSettingsToStorage();
-    if (window.auth && window.authUser) saveCardsToFirestore(cards);
-    return true;
-  }
-  function requestReschedule(title) {
-    showToast('Проверяю историю ответов...');
-    pullLogsFromFirestore().then(() => planAndRequestReschedule(title));
-  }
-  function planAndRequestReschedule(title) {
-    const model = makeTempModel(fsrs.w);
-    const plan = planReschedule(model);
-    if (!plan.changed.length) {
-      showConfirm(
-        'Нечего пересчитывать',
-        'Ни у одной карты нет непрерывной истории ответов с момента первого изучения. Пересчёт невозможен — карты не изменятся.',
-        'OK', '', () => {}, () => {}
-      );
-      return;
-    }
-    const text =
-      `Раньше срока: <b>${plan.earlier}</b><br>Позже срока: <b>${plan.later}</b><br>` +
-      `Станет доступно сразу: <b style="color:${plan.newlyDue > 0 ? '#f59e0b' : '#22c55e'}">${plan.newlyDue}</b>` +
-      (plan.blocked ? `<br><span style="color:#22c55e">из них защищено от сдвига назад: ${plan.blocked}</span>` : '') + '<br>' +
-      `Без изменений: ${plan.same}<br>Пропущено (нет истории ответов): ${plan.skipped}<br><br>` +
-      `Всего пересчитано карт: <b>${plan.changed.length}</b>. Перед применением будет сделан снимок — откат одной кнопкой.`;
-    showConfirm(
-      title || 'Пересчитать интервалы карт?',
-      text,
-      'Отмена', 'Пересчитать',
-      () => {},
-      () => { if (applyPlan(plan)) location.reload(); }
-    );
-  }
-
-  // Веса до оптимизации от 05.10.2026 — восстановление состояния «до пересчёта»,
-  // когда пересчёт был сделан старой версией без снимка.
-  const RESCUE_WEIGHTS = ANKI_WEIGHTS.slice();
-
-  function rollbackReschedule() {
-    // Перед откатом подтягиваем полную историю из облака: локально история могла быть обрезана
-    showToast('Загружаю историю ответов из облака...');
-    pullLogsFromFirestore().then(() => doRollbackReschedule());
-  }
-  function doRollbackReschedule() {
-    const snap = getSnapshot();
-    const prevW = getPrevWeights() || RESCUE_WEIGHTS;
-    if (!snap && !getPrevWeights() && !RESCUE_WEIGHTS) {
-      showConfirm('Откат невозможен', 'Не найдено ни снимка карт, ни весов до оптимизации.', 'OK', '', () => {}, () => {});
-      return;
-    }
-    const src = snap && !snap.replayOnly
-      ? `Снимок карт от ${new Date(snap.ts).toLocaleString('ru-RU')} будет восстановлен точно.`
-      : `История ответов будет заново прогнана на весах до последней оптимизации.`;
-    showConfirm(
-      'Откатить пересчёт интервалов?',
-      src + '<br><br>Текущие веса сохранятся — пересчёт можно будет повторить.',
-      'Отмена', 'Откатить',
-      () => {},
-      () => {
-        // Текущие веса запоминаем, чтобы откат был обратимым
-        setPrevWeights(fsrs.w);
-        if (snap && !snap.replayOnly) {
-          applyWeights(snap.w);
-          const map = {};
-          snap.cards.forEach(sc => { map[sc.id] = sc; });
-          let restored = 0;
-          cards.forEach(c => {
-            const sc = map[c.id];
-            if (sc) { copyFsrsFields(c, sc); restored++; }
-          });
-          lastRescheduleAt = 0;
-          saveCardsLocal(cards);
-          saveSettingsToStorage();
-          if (window.auth && window.authUser) saveCardsToFirestore(cards);
-          showToast('Восстановлено карт: ' + restored);
-        } else {
-          applyWeights(prevW);
-          const model = makeTempModel(prevW);
-          const byCard = buildLogIndex();
-          let restored = 0, skipped = 0;
-          cards.forEach(card => {
-            if (card.state === window.FSRS_STATE.NEW) return;
-            const replay = replayCardFromLogs(byCard[card.id], model, false);
-            if (!replay) { skipped++; return; }
-            applyReplayToCard(card, replay);
-            restored++;
-          });
-          lastRescheduleAt = 0;
-          saveCardsLocal(cards);
-          saveSettingsToStorage();
-          if (window.auth && window.authUser) saveCardsToFirestore(cards);
-          showToast('Восстановлено карт: ' + restored + (skipped ? ', пропущено без истории: ' + skipped : ''));
-        }
-        setTimeout(() => location.reload(), 600);
-      }
-    );
-  }
-
   function finishOptimization(bestW, bestLoss, initialW, initialLoss, usable) {
     const growth = weightsGrowthCheck(bestW);
     if (!growth.ok) {
@@ -2887,11 +2726,8 @@
             Такой набор сжимает расписание до 2-7 дней — именно это и привело к pile-up.
           </p>
           <div style="font-size:0.75rem;color:#64748b;margin-top:8px">Веса не применены, прежние сохранены.</div>
-          <button class="big-btn" id="optUseAnkiBtn" style="margin-top:16px;padding:12px 28px;border:none;border-radius:10px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-size:1rem;font-weight:600;cursor:pointer">Поставить эталонные веса Anki</button>
-          <div style="font-size:0.7rem;color:#64748b;margin-top:6px;max-width:300px;margin-left:auto;margin-right:auto">Это проверенные веса из Anki. Интервалы растут правильно, рост стабильности не ломается.</div>
-          <button class="big-btn" onclick="location.reload()" style="margin-top:12px;padding:10px 28px;border:1.5px solid #94a3b8;border-radius:10px;background:transparent;color:#94a3b8;font-size:0.9rem;font-weight:600;cursor:pointer">Оставить как есть</button>
+          <button class="big-btn" onclick="location.reload()" style="margin-top:16px;padding:10px 28px;border:1.5px solid #94a3b8;border-radius:10px;background:transparent;color:#94a3b8;font-size:0.9rem;font-weight:600;cursor:pointer">Оставить как есть</button>
         </div>`;
-      document.getElementById('optUseAnkiBtn').onclick = () => { useAnkiWeights(); location.reload(); };
       return;
     }
     const frozenBefore = initialW.slice(17, 19);
@@ -2922,14 +2758,9 @@
         <div style="display:none;margin-top:6px;font-size:0.6rem;color:#64748b;text-align:left;max-width:280px;margin-left:auto;margin-right:auto;line-height:1.5">
           ${initialW.map((v, i) => `<span style="${Math.abs(v - bestW[i]) > 0.001 ? 'color:#facc15;font-weight:600' : ''}">w${i}: ${v.toFixed(4)} → ${bestW[i].toFixed(4)}${Math.abs(v - bestW[i]) > 0.001 ? ' ✓' : ''}${W_FROZEN.indexOf(i) !== -1 ? ' (зафиксирован)' : ''}</span>`).join('<br>')}
         </div>
-        <button class="big-btn" id="optRescheduleBtn" style="margin-top:16px;padding:12px 32px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:1rem;font-weight:600;cursor:pointer;display:block;margin-left:auto;margin-right:auto">Пересчитать интервалы карт</button>
-        <div style="font-size:0.7rem;color:#64748b;margin-top:6px;max-width:300px;margin-left:auto;margin-right:auto">Сроки пересчитаются по истории ответов. Перед применением покажем, сколько карт сдвинется, и сделаем снимок для отката.</div>
-        <button class="big-btn" onclick="location.reload()" style="margin-top:12px;padding:10px 28px;border:1.5px solid #94a3b8;border-radius:10px;background:transparent;color:#94a3b8;font-size:0.9rem;font-weight:600;cursor:pointer">Продолжить без пересчёта</button>
+        <button class="big-btn" onclick="location.reload()" style="margin-top:16px;padding:10px 28px;border:1.5px solid #94a3b8;border-radius:10px;background:transparent;color:#94a3b8;font-size:0.9rem;font-weight:600;cursor:pointer">Продолжить</button>
       </div>
     `;
-    document.getElementById('optRescheduleBtn').addEventListener('click', () => {
-      requestReschedule('Пересчитать интервалы карт под новые веса?');
-    });
   }
 
   function renderStats() {
@@ -3198,22 +3029,6 @@
     document.getElementById('maxReviewsRow').style.display = unlimitedReviews ? 'none' : 'block';
     document.getElementById('retentionInput').value = Math.round(requestRetention * 100);
     document.getElementById('retentionInfo').textContent = Math.round(requestRetention * 100) + '%';
-    document.getElementById('rescheduleProtect').checked = rescheduleProtect;
-    const snap = getSnapshot();
-    const prevW = getPrevWeights();
-    const rb = document.getElementById('rollbackRescheduleBtn');
-    const rbInfo = document.getElementById('rollbackInfo');
-    rb.style.display = 'block';
-    if (lastRescheduleAt) {
-      rbInfo.textContent = 'Последний пересчёт: ' + new Date(lastRescheduleAt).toLocaleString('ru-RU')
-        + (snap && !snap.replayOnly ? ' · есть снимок карт от ' + new Date(snap.ts).toLocaleString('ru-RU') : ' · откат по истории ответов');
-    } else if (snap) {
-      rbInfo.textContent = 'Есть снимок карт от ' + new Date(snap.ts).toLocaleString('ru-RU');
-    } else if (prevW) {
-      rbInfo.textContent = 'Есть веса до оптимизации — откат будет пересчётом по истории ответов';
-    } else {
-      rbInfo.textContent = 'Снимка нет: интервалы будут восстановлены пересчётом истории ответов на весах до оптимизации';
-    }
     renderLimitInfo();
     modal.style.display = 'flex';
   }
@@ -3324,29 +3139,6 @@
     document.getElementById('statsModal').style.display = 'flex';
   });
   document.getElementById('optimizeBtn').addEventListener('click', () => optimizeFSRS());
-  document.getElementById('rescheduleProtect').addEventListener('change', e => {
-    rescheduleProtect = e.target.checked;
-    saveSettingsToStorage();
-  });
-  document.getElementById('ankiWeightsBtn').addEventListener('click', () => {
-    showConfirm(
-      'Вернуть эталонные веса Anki?',
-      'Веса заменятся на проверенные значения Anki, желаемая вероятность станет 90%. ' +
-      'Интервалы начнут расти правильно, и карточки перестанут скапливаться в повторении.<br><br>' +
-      'Потом нажмите «Пересчитать интервалы карт», чтобы применить новые веса к расписанию.',
-      'Отмена', 'Вернуть',
-      () => {},
-      () => { useAnkiWeights(); location.reload(); }
-    );
-  });
-  document.getElementById('rescheduleBtn').addEventListener('click', () => {
-    document.getElementById('settingsModal').style.display = 'none';
-    requestReschedule('Пересчитать интервалы карт под текущими весами?');
-  });
-  document.getElementById('rollbackRescheduleBtn').addEventListener('click', () => {
-    document.getElementById('settingsModal').style.display = 'none';
-    rollbackReschedule();
-  });
   document.getElementById('forecastBtn').addEventListener('click', () => {
     document.getElementById('settingsModal').style.display = 'none';
     renderForecast();
