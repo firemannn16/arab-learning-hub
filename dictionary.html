@@ -14,7 +14,8 @@
   if (location.hash === '#note') {
     var check = function() {
       if (window.auth && window.authUser !== undefined) {
-        if (window.auth.isLoggedIn && ['komnenado@gmail.com','test@gmail.com'].indexOf(window.auth.getUserEmail()) !== -1) {
+        var isAdmin = window.auth.isAdminMode && window.auth.isAdminMode();
+        if (window.auth.isLoggedIn && window.auth.isLoggedIn() && (isAdmin || ['komnenado@gmail.com','test@gmail.com'].indexOf(window.auth.getUserEmail()) !== -1)) {
           window.location.replace('note.html');
         }
       } else {
@@ -1283,10 +1284,10 @@ function enableEditMode(item) {
   var ALLOWED_EMAILS = ['komnenado@gmail.com', 'test@gmail.com'];
 
   function goToNote() {
-    if (window.auth && window.auth.isLoggedIn && window.auth.isLoggedIn()) {
-      if (ALLOWED_EMAILS.indexOf(window.auth.getUserEmail()) !== -1) {
-        window.location.href = 'note.html';
-      }
+    if (!window.auth || !window.auth.isLoggedIn || !window.auth.isLoggedIn()) return;
+    var isAdmin = window.auth.isAdminMode && window.auth.isAdminMode();
+    if (isAdmin || ALLOWED_EMAILS.indexOf(window.auth.getUserEmail()) !== -1) {
+      window.location.href = 'note.html';
     }
   }
 

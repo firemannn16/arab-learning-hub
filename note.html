@@ -269,6 +269,78 @@
             color: #333;
         }
 
+        .words-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .words-header h2 {
+            margin-bottom: 0;
+        }
+
+        .search-words-btn {
+            background: #f0f0f0;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 16px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .search-words-btn:active {
+            background: #e0e0e0;
+        }
+
+        .words-search {
+            display: none;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .words-search.show {
+            display: flex;
+        }
+
+        .words-search input {
+            flex: 1;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            -webkit-appearance: none;
+        }
+
+        .words-search input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .search-clear-btn {
+            background: transparent;
+            border: none;
+            font-size: 18px;
+            padding: 6px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: #999;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .search-clear-btn:active {
+            background: #f0f0f0;
+        }
+
         .words-list {
             height: 400px;
             overflow-y: auto;
@@ -723,7 +795,16 @@
         document.documentElement.style.display = 'none';
         function showPage() { document.documentElement.style.display = ''; }
         function checkAuth() {
-            if (!window.auth || window.authUser === undefined) {
+            if (!window.auth) {
+                setTimeout(checkAuth, 100);
+                return;
+            }
+            var isAdmin = window.auth.isAdminMode && window.auth.isAdminMode();
+            if (isAdmin) {
+                showPage();
+                return;
+            }
+            if (window.authUser === undefined) {
                 setTimeout(checkAuth, 100);
                 return;
             }
@@ -740,9 +821,10 @@
             showPage();
         }
         window.addEventListener('authChanged', function onAuth(e) {
-            if (e.detail.user) {
+            var isAdmin = window.auth && window.auth.isAdminMode && window.auth.isAdminMode();
+            if (e.detail.user || isAdmin) {
                 var allowed = ['komnenado@gmail.com', 'test@gmail.com'];
-                if (allowed.indexOf(window.auth.getUserEmail()) !== -1) {
+                if (isAdmin || allowed.indexOf(window.auth.getUserEmail()) !== -1) {
                     showPage();
                 } else {
                     window.location.href = 'dictionary.html';
@@ -825,7 +907,14 @@
     </div>
 
     <div class="words-section">
-        <h2>📚 Список слов</h2>
+        <div class="words-header">
+            <h2>📚 Список слов</h2>
+            <button class="search-words-btn" id="searchWordsBtn" title="Поиск слов">🔍</button>
+        </div>
+        <div class="words-search" id="wordsSearch">
+            <input type="text" id="wordsSearchInput" placeholder="Поиск среди добавленных..." autocomplete="off">
+            <button class="search-clear-btn" id="wordsSearchClear" title="Очистить">✕</button>
+        </div>
         <div class="words-list" id="wordsList"></div>
         <div class="actions-buttons">
             <button class="copy-all-btn" onclick="copyAllWords()">
@@ -880,6 +969,7 @@
 
     <script>
         let currentEditIndex = null;
+        let wordsFilter = '';
 
         function addColumn(lang) {
             const container = document.getElementById(lang === 'ru' ? 'russianColumns' : 'arabicColumns');
@@ -1027,6 +1117,88 @@
             checkForm();
         }
 
+        // ===== Поиск: опечатки + игнорирование огласовок =====
+        const SEARCH_DIACRITICS_RE = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g;
+
+        function normalizeSearchText(text) {
+            if (!text) return '';
+            let t = text.toLowerCase();
+            t = t.replace(SEARCH_DIACRITICS_RE, '');
+            t = t.replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627');
+            t = t.replace(/\u0649/g, '\u064A');
+            t = t.replace(/\u0640/g, '');
+            t = t.replace(/[\u0624\u0626]/g, '\u0621');
+            t = t.replace(/\s+/g, ' ').trim();
+            return t;
+        }
+
+        function levenshtein(a, b) {
+            if (a === b) return 0;
+            const al = a.length, bl = b.length;
+            if (al === 0) return bl;
+            if (bl === 0) return al;
+            let prev = new Array(bl + 1);
+            let cur = new Array(bl + 1);
+            for (let j = 0; j <= bl; j++) prev[j] = j;
+            for (let i = 1; i <= al; i++) {
+                cur[0] = i;
+                const ca = a.charCodeAt(i - 1);
+                for (let j = 1; j <= bl; j++) {
+                    const cost = ca === b.charCodeAt(j - 1) ? 0 : 1;
+                    cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+                }
+                const tmp = prev; prev = cur; cur = tmp;
+            }
+            return prev[bl];
+        }
+
+        function searchMatchRadius(len) {
+            return Math.max(1, Math.floor(len / 3));
+        }
+
+        function tokenMatchScore(text, token) {
+            if (!token) return 0;
+            if (text.indexOf(token) !== -1) return 1;
+            if (token.length < 3) return -1;
+
+            const maxD = searchMatchRadius(token.length);
+            let bestSim = -1;
+
+            const check = (candidate) => {
+                const d = levenshtein(token, candidate);
+                if (d <= maxD) {
+                    const sim = 1 - d / Math.max(token.length, candidate.length);
+                    if (sim > bestSim) bestSim = sim;
+                }
+            };
+
+            const parts = text.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+            for (let k = 0; k < parts.length; k++) {
+                const w = parts[k];
+                check(w.substring(0, Math.min(w.length, token.length + 2)));
+            }
+
+            const tl = token.length;
+            for (let i = 0; i + tl <= text.length; i++) {
+                check(text.substr(i, tl));
+            }
+            return bestSim;
+        }
+
+        function searchScore(text, query) {
+            const t = normalizeSearchText(text);
+            const q = normalizeSearchText(query);
+            if (!q) return 0;
+            const tokens = q.split(' ').filter(Boolean);
+            let total = 0;
+            for (let i = 0; i < tokens.length; i++) {
+                const s = tokenMatchScore(t, tokens[i]);
+                if (s < 0) return -1;
+                total += s;
+            }
+            return total / tokens.length;
+        }
+
         function renderWords() {
             const wordsList = document.getElementById('wordsList');
             const words = JSON.parse(localStorage.getItem('words') || '[]');
@@ -1038,7 +1210,21 @@
                 return;
             }
 
-            wordsList.innerHTML = words.map((word, index) => `
+            const filter = wordsFilter.trim();
+            let items = words.map((word, index) => ({ word, index }));
+            if (filter) {
+                items = items
+                    .map(item => { item.score = searchScore(item.word, filter); return item; })
+                    .filter(item => item.score > 0)
+                    .sort((a, b) => b.score - a.score);
+            }
+
+            if (items.length === 0) {
+                wordsList.innerHTML = '<div class="empty-state">Ничего не найдено</div>';
+                return;
+            }
+
+            wordsList.innerHTML = items.map(({ word, index }) => `
                 <div class="word-item">
                     <div class="word-text" onclick="editWord(${index})">${word}</div>
                     <div class="word-actions">
@@ -1047,6 +1233,27 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        function toggleWordsSearch() {
+            const box = document.getElementById('wordsSearch');
+            const input = document.getElementById('wordsSearchInput');
+            const shown = box.classList.toggle('show');
+            if (shown) {
+                setTimeout(() => input.focus(), 50);
+            } else {
+                input.value = '';
+                wordsFilter = '';
+                renderWords();
+            }
+        }
+
+        function clearWordsSearch() {
+            const input = document.getElementById('wordsSearchInput');
+            input.value = '';
+            wordsFilter = '';
+            renderWords();
+            input.focus();
         }
 
         function deleteWord(index) {
@@ -1673,6 +1880,14 @@
         // Кнопка назад в словарь
         document.getElementById('backToDictBtn').addEventListener('click', function() {
             window.location.href = 'dictionary.html';
+        });
+
+        // Поиск среди добавленных слов
+        document.getElementById('searchWordsBtn').addEventListener('click', toggleWordsSearch);
+        document.getElementById('wordsSearchClear').addEventListener('click', clearWordsSearch);
+        document.getElementById('wordsSearchInput').addEventListener('input', function() {
+            wordsFilter = this.value;
+            renderWords();
         });
 
         // Инициализация

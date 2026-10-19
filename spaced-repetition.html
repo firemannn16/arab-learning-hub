@@ -2661,6 +2661,20 @@
       return;
     }
 
+    showConfirm(
+      'Оптимизация FSRS',
+      `Логов в базе: <b>${logs.length}</b><br>` +
+      `Долгосрочных повторений в расчёте: <b>${usable}</b><br>` +
+      `Карточек с историей от двух ответов: <b>${deep}</b><br><br>` +
+      `Запустить оптимизацию весов сейчас?`,
+      'Отмена',
+      'Оптимизировать',
+      () => {},
+      () => runOptimization(byCard, usable, initialLoss)
+    );
+  }
+
+  function runOptimization(byCard, usable, initialLoss) {
     const modal = document.getElementById('settingsModal');
     modal.style.display = 'none';
 
