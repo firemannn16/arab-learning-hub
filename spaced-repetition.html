@@ -763,6 +763,7 @@
   const BOOST_NEW_KEY = 'arabSrBoostNew';
   const BOOST_REVIEW_KEY = 'arabSrBoostReview';
   const ERROR_LIST_KEY = 'arabSrDevErrors';
+  const SESSION_KEY = 'arabSrSession';
   const LOGS_LOCAL_CAP = 25000;         // локальное окно логов (в облаке хранится всё)
 
   let allWords = [];
@@ -783,6 +784,7 @@
   let sessionAnswered = false;
   let sessionTotal = 0;
   let sessionDone = 0;
+  let deckSelectionVisible = false;
   let logs = [];
   let logDirtyDays = new Set();      // дни, которые ещё не отправлены в облако
   let remoteLogDays = {};            // последнее известное содержимое облачных документов log_*
@@ -1235,14 +1237,14 @@
               cards.push(c);
               changed = true;
             } else if (isCardNewer(c, cards[idx])) {
-              cards[idx] = c;
+              Object.assign(cards[idx], c);
               changed = true;
             }
           });
           if (changed) {
             saveCardsLocal(cards);
             window.__cards = cards;
-            if (queue.length === 0) renderDeckSelection();
+            if (deckSelectionVisible) renderDeckSelection();
           }
         }, (err) => {
           console.warn('SR: cards listener error:', err);
@@ -1278,7 +1280,7 @@
             lastPushedSettingsJSON = currentSettingsSerialized();
             const modal = document.getElementById('settingsModal');
             if (modal && modal.style.display === 'flex') openSettings();
-            if (queue.length === 0) renderDeckSelection();
+            if (deckSelectionVisible) renderDeckSelection();
           }
         }, (err) => {
           console.warn('SR: settings listener error:', err);
@@ -1304,13 +1306,13 @@
       const remote = await loadSettingsFromFirestore();
       if (remote) {
         const changed = applySettingsFromPayload(remote);
-        if (changed && queue.length === 0) renderDeckSelection();
+        if (changed && deckSelectionVisible) renderDeckSelection();
         lastPushedSettingsJSON = currentSettingsSerialized();
       }
       const dayRemote = await loadDayFromFirestore();
       if (dayRemote) {
         const dayChanged = applyDayPayload(dayRemote);
-        if (dayChanged && queue.length === 0) renderDeckSelection();
+        if (dayChanged && deckSelectionVisible) renderDeckSelection();
         lastPushedDayJSON = JSON.stringify(srDayPayload());
       }
     } catch(e) {
@@ -1417,7 +1419,7 @@
             if (settingsModal && settingsModal.style.display === 'flex') openSettings();
             const statsModal = document.getElementById('statsModal');
             if (statsModal && statsModal.style.display === 'flex') renderStats();
-            if (queue.length === 0) renderDeckSelection();
+            if (deckSelectionVisible) renderDeckSelection();
           }
         }, (err) => {
           console.warn('SR: day listener error:', err);
@@ -1891,7 +1893,7 @@
     window.__cards = cards;
     window.__queue = queue;
     initDone = true;
-    renderDeckSelection();
+    if (!restoreSession()) renderDeckSelection();
     ensureSrSync();
   }
 
@@ -2024,6 +2026,46 @@
     localStorage.setItem('sr_fsrs_v2', '1');
   }
 
+  function saveSession() {
+    try {
+      if (!queue.length) { localStorage.removeItem(SESSION_KEY); return; }
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        v: 1,
+        day: srDayKey(),
+        ids: queue.map(c => c.id),
+        index: currentIndex,
+        total: sessionTotal,
+        done: sessionDone,
+        answered: sessionAnswered,
+        ts: Date.now()
+      }));
+    } catch(e) {}
+  }
+  function clearSession() {
+    try { localStorage.removeItem(SESSION_KEY); } catch(e) {}
+  }
+  function restoreSession() {
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(SESSION_KEY)); } catch(e) { s = null; }
+    if (!s || s.v !== 1 || s.day !== srDayKey() || !Array.isArray(s.ids) || !s.ids.length) {
+      clearSession();
+      return false;
+    }
+    const byId = {};
+    cards.forEach(c => { byId[c.id] = c; });
+    const restored = [];
+    s.ids.forEach(id => { if (byId[id]) restored.push(byId[id]); });
+    if (!restored.length) { clearSession(); return false; }
+    queue = restored;
+    currentIndex = Math.max(0, Math.min((s.index | 0) || 0, queue.length - 1));
+    sessionDone = Math.max(0, s.done | 0);
+    sessionTotal = Math.max(s.total | 0, sessionDone + 1, queue.length);
+    sessionAnswered = !!s.answered;
+    window.__queue = queue;
+    render();
+    return true;
+  }
+
   // Построение очереди как в Anki:
   // 1) Повторяемые (review) — у кого due ≤ сейчас
   // 2) Новые — до лимита
@@ -2104,6 +2146,7 @@
   function renderDeckSelection() {
     const area = document.getElementById('mainArea');
     const stats = getStats();
+    deckSelectionVisible = true;
 
     area.innerHTML = `
       <div class="deck-card">
@@ -2160,6 +2203,8 @@
   function render() {
     const area = document.getElementById('mainArea');
     const stats = getStats();
+    deckSelectionVisible = false;
+    if (queue.length === 0) clearSession(); else saveSession();
 
     if (queue.length === 0) {
       const hasLearning = cards.filter(c => c.state === window.FSRS_STATE.LEARNING || c.state === window.FSRS_STATE.RELEARNING);
@@ -2473,6 +2518,7 @@
     currentIndex = 0;
     sessionAnswered = false;
     undoStack = [];
+    clearSession();
     renderDeckSelection();
   }
 
@@ -2541,6 +2587,11 @@
       }
     } catch(e) { console.warn('Firestore cards reset error:', e); }
     document.getElementById('settingsModal').style.display = 'none';
+    queue = [];
+    currentIndex = 0;
+    sessionAnswered = false;
+    undoStack = [];
+    clearSession();
     renderDeckSelection();
   }
 
@@ -3211,7 +3262,7 @@
         return;
       }
       const remote = await loadCardsFromFirestore();
-      if (remote && remote.length > 0) {
+      if (remote && remote.length > 0 && queue.length === 0) {
         const remoteMap = {};
         remote.forEach(c => { remoteMap[c.id] = c; });
         let changed = false;
