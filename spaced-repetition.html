@@ -1353,6 +1353,18 @@
     startCardsSyncListener();
     startDaySyncListener();
     startCardsReconcileLoop();
+    // Мобильный браузер замораживает таймеры в фоне: пока телефон в кармане,
+    // ни сверка карточек, ни подтягивание логов не идут. Как только вкладка
+    // снова видна — сразу забираем актуальное состояние из облака.
+    if (!window.__srVisBound) {
+      window.__srVisBound = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
+        if (!srFirebaseReady()) return;
+        reconcileCardsFromCloud();
+        pullLogsFromFirestore();
+      });
+    }
   }
 
   // ===== Страховка: раз в минуту сверяем карточки с облаком =====
@@ -1369,8 +1381,13 @@
     }, 60000);
   }
   async function reconcileCardsFromCloud() {
+    if (!srFirebaseReady()) return 0;
     const remote = await loadCardsFromFirestore();
-    if (!remote || !remote.length) return 0;
+    if (!remote || !remote.length) {
+      // Облако пустое (или недоступно) — отправляем то, что есть локально.
+      if (cards.length) await saveCardsToFirestore(cards);
+      return 0;
+    }
     const map = {};
     remote.forEach(c => { if (c && c.id) map[c.id] = c; });
     // Карточки, которые сейчас в очереди, не трогаем — чтобы не менять
@@ -1378,15 +1395,32 @@
     const busy = new Set();
     queue.forEach(c => { if (c && c.id) busy.add(c.id); });
     let changed = 0;
+    const dirtyChunks = new Set();
     cards.forEach(c => {
       if (busy.has(c.id)) return;
       const r = map[c.id];
-      if (r && isCardNewer(r, c)) { Object.assign(c, r); changed++; }
+      if (!r) { dirtyChunks.add(cardChunkIndex(c.id)); return; }
+      if (isCardNewer(r, c)) {
+        Object.assign(c, r);
+        changed++;
+      } else if (isCardNewer(c, r)) {
+        // Локальная версия свежее облачной — значит прошлая отправка не дошла
+        // (телефон был офлайн / вкладку закрыли сразу после ответа). Раньше такие
+        // ответы висели только на устройстве и счётчики расходились навсегда.
+        dirtyChunks.add(cardChunkIndex(c.id));
+      }
     });
     if (changed) {
       saveCardsLocal(cards);
       window.__cards = cards;
       if (deckSelectionVisible) renderDeckSelection();
+    }
+    if (dirtyChunks.size) {
+      const coll = window.firestore.collection('users').doc(window.authUser.uid).collection('sr_cards');
+      for (const ci of dirtyChunks) {
+        const chunk = cards.filter(c => cardChunkIndex(c.id) === ci);
+        await queueChunkWrite(coll, ci, chunk);
+      }
     }
     return changed;
   }
@@ -1966,7 +2000,10 @@
     fsrs.maxInterval = MAX_INTERVAL; // полгода
 
     try {
-      const resp = await fetch('words.txt');
+      // cache:'no-store' — принципиально: список слов НЕ должен браться из кэша
+      // браузера/Service Worker. Раньше телефон мог держать старый words.txt,
+      // и его колода была меньше, чем на ПК (523 против 527 «повторяемых»).
+      const resp = await fetch('words.txt', { cache: 'no-store' });
       const text = await resp.text();
       const lines = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#') && /[-–—]/.test(l));
       if (lines.length === 0) throw new Error('No words');
@@ -3444,6 +3481,9 @@
         }
       }
       ensureSrSync();
+      // Двусторонняя сверка: забрать свежее из облака И отправить то, что
+      // успело накопиться локально (ответы, не доехавшие из-за обрыва связи).
+      reconcileCardsFromCloud();
     } else {
       stopCardsSyncListener();
       stopSettingsSyncListener();

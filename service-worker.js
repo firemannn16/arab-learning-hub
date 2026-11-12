@@ -1,6 +1,6 @@
 // 🛡️ Service Worker для offline работы
 // Версия кэша (увеличивай при изменениях)
-const CACHE_VERSION = 'v1.40.0';
+const CACHE_VERSION = 'v1.41.0';
 const CACHE_NAME = `arab-learning-hub-${CACHE_VERSION}`;
 
 // 📦 Файлы для кэширования
@@ -118,9 +118,11 @@ self.addEventListener('fetch', event => {
     }
     
     // ✅ ИСПРАВЛЕНО: Для HTML файлов и words.txt — НАСТОЯЩИЙ Network First
-    // Сначала пробуем сеть, только потом кэш
-    if (event.request.url.endsWith('.html') || 
-        event.request.url.endsWith('words.txt') || 
+    // Сначала пробуем сеть, только потом кэш.
+    // Матчим по pathname, а не по всей строке: иначе words.txt?ts=123
+    // (запрос с обходом кэша) проваливался в ветку «cache first».
+    if (url.pathname.endsWith('.html') ||
+        url.pathname.endsWith('/words.txt') ||
         event.request.destination === 'document') {
         event.respondWith(
             fetch(event.request)
