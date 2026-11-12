@@ -4,7 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Заметки</title>
-    <script src="theme.js"></script>
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com">
+<!-- Firebase: defer — скачивается параллельно, не блокирует отрисовку -->
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="theme.js"></script>
     <link rel="stylesheet" href="theme.css">
     <script src="auth.js"></script>
     <style>
@@ -1664,6 +1671,44 @@
         let arabicWords = null;
         let russianWords = null;
 
+        // Словари грузятся ЛЕНИВО, при первом обращении к полю ввода.
+        // arabic-words.json — 23 МБ (1 044 996 пар): если парсить его при открытии
+        // страницы, «ручка» открывается несколько секунд. Теперь страница
+        // отрисовывается сразу, а словарь подтягивается только когда реально
+        // начали печатать (и кэшируется браузером для следующих заходов).
+        let arabicWordsPromise = null;
+        let russianWordsPromise = null;
+        function loadArabicWords() {
+            if (arabicWords) return Promise.resolve(arabicWords);
+            if (!arabicWordsPromise) {
+                arabicWordsPromise = fetch('arabic-words.json', { cache: 'force-cache' })
+                    .then(r => r.json())
+                    .then(arr => { arabicWords = arr; return arr; })
+                    .catch(err => {
+                        console.warn('Ошибка загрузки арабского словаря:', err);
+                        arabicWordsPromise = null;
+                        return null;
+                    });
+            }
+            return arabicWordsPromise;
+        }
+        function loadRussianWords() {
+            if (russianWords) return Promise.resolve(russianWords);
+            if (!russianWordsPromise) {
+                russianWordsPromise = fetch('russian-words.json', { cache: 'force-cache' })
+                    .then(r => r.json())
+                    // Пары [слово, ключ сортировки] для бинарного поиска.
+                    // Раньше это делалось через flatMap при загрузке страницы.
+                    .then(arr => { russianWords = arr.flatMap(w => [w, w]); return russianWords; })
+                    .catch(err => {
+                        console.warn('Ошибка загрузки русского словаря:', err);
+                        russianWordsPromise = null;
+                        return null;
+                    });
+            }
+            return russianWordsPromise;
+        }
+
         function searchWords(words, prefix, limit, offset) {
             if (!words || !prefix) return { results: [], hasMore: false };
             const totalPairs = words.length >>> 1;
@@ -1707,6 +1752,20 @@
             const lang = input.dataset.lang;
             const isArabic = lang === 'ar';
             const wordList = () => isArabic ? arabicWords : russianWords;
+            const loadWords = isArabic ? loadArabicWords : loadRussianWords;
+            let wordsLoading = false;
+            // Выполнить поиск, когда словарь доступен. Если его ещё нет —
+            // запустить загрузку и повторить поиск после неё.
+            function withWords(cb) {
+                const list = wordList();
+                if (list) { cb(list); return; }
+                if (wordsLoading) return;
+                wordsLoading = true;
+                loadWords().then(list2 => {
+                    wordsLoading = false;
+                    if (list2) cb(list2);
+                });
+            }
 
             let activeIndex = -1;
             let currentResults = [];
@@ -1804,14 +1863,20 @@
                 if (val.endsWith(' ')) { hideDropdown(); return; }
                 const trimmed = val.trim();
                 if (trimmed.length >= 1) {
-                    const prepared = isArabic ? stripTashkeel(trimmed) : trimmed;
-                    if (prepared) {
-                        searchPrefix = prepared;
+                    withWords((list) => {
+                        // Берём ТЕКУЩЕЕ значение поля: пока словарь грузился,
+                        // пользователь мог напечатать ещё — искать надо по
+                        // актуальному вводу, а не по первому символу.
+                        const cur = input.value.trim();
+                        if (!cur) return;
+                        const p = isArabic ? stripTashkeel(cur) : cur;
+                        if (!p) return;
+                        searchPrefix = p;
                         searchOffset = 0;
-                        const { results, hasMore } = searchWords(wordList(), prepared, 8, 0);
+                        const { results, hasMore } = searchWords(list, p, 8, 0);
                         renderResults(results, hasMore);
-                        return;
-                    }
+                    });
+                    return;
                 }
                 hideDropdown();
             });
@@ -1852,28 +1917,24 @@
                 clearTimeout(hideTimeout);
                 const val = input.value.trim();
                 if (val.length >= 1 && !val.includes(' ')) {
-                    const prepared = isArabic ? stripTashkeel(val) : val;
-                    if (prepared && wordList()) {
-                        searchPrefix = prepared;
+                    withWords((list) => {
+                        const cur = input.value.trim();
+                        if (!cur || cur.includes(' ')) return;
+                        const p = isArabic ? stripTashkeel(cur) : cur;
+                        if (!p) return;
+                        searchPrefix = p;
                         searchOffset = 0;
-                        const { results, hasMore } = searchWords(wordList(), prepared, 8, 0);
+                        const { results, hasMore } = searchWords(list, p, 8, 0);
                         renderResults(results, hasMore);
-                    }
+                    });
                 }
             });
         }
 
-        async function initAutocomplete() {
-            try {
-                const [ar, ru] = await Promise.all([
-                    fetch('arabic-words.json').then(r => r.json()),
-                    fetch('russian-words.json').then(r => r.json())
-                ]);
-                arabicWords = ar;
-                russianWords = ru.flatMap(w => [w, w]);
-            } catch (err) {
-                console.warn('Ошибка загрузки словарей:', err);
-            }
+        function initAutocomplete() {
+            // Словари здесь НЕ загружаются — только навешиваем обработчики.
+            // Сам словарь подтянется при первом вводе (см. withWords выше),
+            // поэтому страница открывается сразу, а не после парсинга 23 МБ JSON.
             document.querySelectorAll('input[data-lang="ar"], input[data-lang="ru"]').forEach(setupAutocomplete);
         }
 

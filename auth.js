@@ -43,18 +43,22 @@
       if (!window.firebase) {
         await loadScript('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
       }
-      // 2. Firestore (нужен favorites.js)
-      if (!window.firebase || !window.firebase.firestore) {
-        await loadScript('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js');
-      }
-      // 3. Auth
-      if (!window.firebase || !window.firebase.auth) {
-        await loadScript('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js');
-      }
+      // 2 и 3. Firestore и Auth грузим ПАРАЛЛЕЛЬНО: они независимы друг от
+      // друга и требуют только ядро. Раньше это были два последовательных
+      // запроса — на медленной сети каждый лишний round-trip заметно
+      // задерживал старт приложения (страница ждёт статус входа).
+      const needFirestore = !window.firebase || !window.firebase.firestore;
+      const needAuth = !window.firebase || !window.firebase.auth;
+      const extra = [];
+      if (needFirestore) extra.push(loadScript('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js'));
+      if (needAuth) extra.push(loadScript('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js'));
+      if (extra.length) await Promise.all(extra);
 
-      // Если сеть недоступна и часть модулей не приехала — ждём, не падаем
+      // Если сеть недоступна и часть модулей не приехала — ждём, не падаем.
+      // 20 попыток по 100 мс = максимум 2 с (раньше было 5 с: при плохой сети
+      // страница всё это время оставалась пустой в ожидании статуса входа).
       var tries = 0;
-      while ((!window.firebase || !window.firebase.auth || !window.firebase.firestore) && tries < 50) {
+      while ((!window.firebase || !window.firebase.auth || !window.firebase.firestore) && tries < 20) {
         await new Promise(function (r) { setTimeout(r, 100); });
         tries++;
       }

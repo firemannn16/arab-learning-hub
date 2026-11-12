@@ -5,7 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ХАБ - Арабские слова</title>
   <script src="dua.js"></script>
-  <script src="theme.js"></script>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com">
+<!-- Firebase: defer — скачивается параллельно, не блокирует отрисовку -->
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="theme.js"></script>
   <link rel="stylesheet" href="theme.css">
   <script src="service-worker-register.js"></script>
   <script src="sidebar-menu.js"></script>
@@ -2198,7 +2205,7 @@
       if (!rulesDefsLoadPromise) {
         rulesDefsLoadPromise = (async () => {
           try {
-            const response = await fetch('definitions.json?' + Date.now());
+            const response = await fetch('definitions.json', { cache: 'no-cache' });
             if (!response.ok) throw new Error('Файл не найден');
             rulesDefs = await response.json();
             console.log('📖 Загружено определений:', rulesDefs.length);

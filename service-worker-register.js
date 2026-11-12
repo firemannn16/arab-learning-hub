@@ -65,10 +65,15 @@
                     showUpdateNotification();
                 }
 
-                // Проверяем обновления каждые 60 секунд
-                setInterval(() => {
-                    registration.update();
-                }, 60000);
+                // Проверяем обновления при возврате на вкладку и раз в 30 минут.
+                // Раньше registration.update() вызывался каждую минуту: это
+                // постоянный фоновый запрос, который на слабом канале заметно
+                // замедлял открытие страниц и переходы.
+                const checkUpdate = () => { registration.update().catch(() => {}); };
+                setInterval(checkUpdate, 30 * 60 * 1000);
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible') checkUpdate();
+                });
 
                 // Обработка обновления SW
                 registration.addEventListener('updatefound', () => {

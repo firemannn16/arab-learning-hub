@@ -193,7 +193,17 @@ function cleanOldBackups(days = 7) {
  * @param {number} maxRetries - Максимальное количество попыток
  * @returns {Promise<string|null>} - Содержимое файла или null
  */
+// Результат последней загрузки на время текущей страницы: phases.html
+// вызывает safeLoadWordsFile() дважды подряд (loadWords + checkAndApplyFileChanges).
+// Каждый вызов заново скачивал 216 КБ и писал их в localStorage — из-за этого
+// переход в тренажёр заметно тормозил.
+let __wordsFileMemo = { url: null, text: null, at: 0 };
+
 async function safeLoadWordsFile(url = 'words.txt', maxRetries = 3) {
+    if (__wordsFileMemo.url === url && __wordsFileMemo.text !== null &&
+        Date.now() - __wordsFileMemo.at < 10000) {
+        return __wordsFileMemo.text;
+    }
     let lastError = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -241,13 +251,25 @@ async function safeLoadWordsFile(url = 'words.txt', maxRetries = 3) {
 
             console.log(`✓ words.txt загружен успешно (${lines.length} строк, ${validLines.length} валидных)`);
             
-            // Сохранить в localStorage как backup (с timestamp, чтобы обновлять раз в неделю)
-            safeLocalStorageSet('words_txt_cache', {
-                content: text,
-                linesCount: validLines.length,
-                loadedAt: Date.now()
-            }, true);
+            // Аварийный бэкап в localStorage — не чаще раза в 7 дней.
+            // Раньше 216 КБ перезаписывались (плюс такая же backup-копия)
+            // при КАЖДОМ открытии тренажёра: синхронная запись ~0.5 МБ
+            // ощутимо подвешивала переход между страницами.
+            const WORDS_CACHE_META = 'words_txt_cache_saved_at';
+            let savedAt = 0;
+            try { savedAt = parseInt(localStorage.getItem(WORDS_CACHE_META) || '0', 10) || 0; } catch (e) {}
+            if (Date.now() - savedAt > 7 * 24 * 60 * 60 * 1000) {
+                const ok = safeLocalStorageSet('words_txt_cache', {
+                    content: text,
+                    linesCount: validLines.length,
+                    loadedAt: Date.now()
+                }, true);
+                if (ok) {
+                    try { localStorage.setItem(WORDS_CACHE_META, String(Date.now())); } catch (e) {}
+                }
+            }
 
+            __wordsFileMemo = { url: url, text: text, at: Date.now() };
             return text;
 
         } catch (error) {

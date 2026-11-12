@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Словарь - Арабские слова</title>
 
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com">
 <script src="theme.js"></script>
 <link rel="stylesheet" href="theme.css">
 <script src="service-worker-register.js"></script>
@@ -27,10 +30,12 @@
 })();
 </script>
 
-<!-- Firebase для синхронизации (избранное и др.) -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<!-- Firebase для синхронизации (избранное и др.).
+     defer: не блокируем разбор HTML и первую отрисовку страницы —
+     скрипты выполнятся после построения DOM, но до DOMContentLoaded. -->
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
   <!-- Yandex.Metrika counter -->
 <script type="text/javascript">
@@ -47,7 +52,7 @@
 <!-- /Yandex.Metrika counter -->
   
 <script>
-  (function initFirebaseForDictionary() {
+  function initFirebaseForDictionary() {
     // Уже инициализировано где-то? выходим.
     if (window.firebaseEnabled && window.firestore) {
       window.dispatchEvent(new CustomEvent('firebaseReady'));
@@ -78,7 +83,13 @@
       console.warn('Firebase не инициализирован на dictionary:', e);
       window.firebaseEnabled = false;
     }
-  })();
+  }
+  // Firebase-скрипты теперь с defer, поэтому инициализируемся после DOM.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initFirebaseForDictionary);
+  } else {
+    initFirebaseForDictionary();
+  }
 </script>
 
 <script src="sidebar-menu.js"></script>
@@ -1330,7 +1341,10 @@ document.getElementById('ghTokenSaveBtn').addEventListener('click', () => {
 /* ===== loading and init ===== */
 async function loadFromServer() {
   try {
-    const res = await fetch("words.txt", { cache: "no-store" });
+    // cache:'no-cache' — всегда проверяем актуальность на сервере (304 без тела,
+    // если файл не менялся). Раньше телефон мог держать старый words.txt,
+    // и его колода была меньше, чем на ПК (523 против 527 «повторяемых»).
+    const res = await fetch("words.txt", { cache: "no-cache" });
     if (!res.ok) throw new Error("not found");
     const txt = await res.text();
     entries = parseWordText(txt);

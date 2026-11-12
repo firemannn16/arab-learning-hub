@@ -4,19 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Интервальное повторение - Арабские слова</title>
-  <script src="theme.js"></script>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com">
+<script src="theme.js"></script>
   <link rel="stylesheet" href="theme.css">
   <script src="dua.js"></script>
   <script src="service-worker-register.js"></script>
   <script src="sidebar-menu.js"></script>
   <script src="favorites.js"></script>
 
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <!-- Firebase. defer: скачивание идёт параллельно разбору страницы и не
+       блокирует первую отрисовку. Инициализация — после построения DOM. -->
+  <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script>
-    (async function initFirebase() {
+    async function initFirebaseSR() {
       try {
         if (!firebase.apps.length) {
           firebase.initializeApp({
@@ -39,7 +43,12 @@
         console.warn('Firebase init error:', e);
         window.firebaseEnabled = false;
       }
-    })();
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initFirebaseSR);
+    } else {
+      initFirebaseSR();
+    }
   </script>
   <script src="fsrs.js"></script>
   <script src="auth.js"></script>
@@ -1567,15 +1576,20 @@
       if (typeof window.firestore.collection !== 'function') return null;
       const coll = window.firestore.collection('users').doc(uid).collection('sr_cards');
       const chunks = [];
-      for (let i = 0; i < CARD_CHUNKS; i++) {
-        const snap = await coll.doc('all_' + i).get();
+      // 6 документов читаем ПАРАЛЛЕЛЬНО. Раньше это были 6 последовательных
+      // запросов (await в цикле) — при long-polling каждый даёт полный
+      // round-trip, и открытие тренажёра растягивалось на секунды.
+      const snaps = await Promise.all(
+        Array.from({ length: CARD_CHUNKS }, (_, i) => coll.doc('all_' + i).get())
+      );
+      snaps.forEach((snap, i) => {
         if (snap.exists && Array.isArray(snap.data().cards)) {
           remoteChunkCards[i] = snap.data().cards;
           chunks.push(...snap.data().cards);
         } else {
           remoteChunkCards[i] = [];
         }
-      }
+      });
       if (chunks.length > 0) return chunks;
       // Миграция из старого однодокументного хранилища `all`
       const oldSnap = await coll.doc('all').get();
@@ -2000,10 +2014,10 @@
     fsrs.maxInterval = MAX_INTERVAL; // полгода
 
     try {
-      // cache:'no-store' — принципиально: список слов НЕ должен браться из кэша
-      // браузера/Service Worker. Раньше телефон мог держать старый words.txt,
-      // и его колода была меньше, чем на ПК (523 против 527 «повторяемых»).
-      const resp = await fetch('words.txt', { cache: 'no-store' });
+      // cache:'no-cache' — всегда сверяемся с сервером (если файл не менялся,
+      // приходит 304 без тела — быстро). Раньше телефон мог держать старый
+      // words.txt, и его колода была меньше, чем на ПК (523 против 527).
+      const resp = await fetch('words.txt', { cache: 'no-cache' });
       const text = await resp.text();
       const lines = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#') && /[-–—]/.test(l));
       if (lines.length === 0) throw new Error('No words');

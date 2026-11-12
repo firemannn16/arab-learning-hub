@@ -1,6 +1,6 @@
 // 🛡️ Service Worker для offline работы
 // Версия кэша (увеличивай при изменениях)
-const CACHE_VERSION = 'v1.41.0';
+const CACHE_VERSION = 'v1.42.0';
 const CACHE_NAME = `arab-learning-hub-${CACHE_VERSION}`;
 
 // 📦 Файлы для кэширования
@@ -116,13 +116,23 @@ self.addEventListener('fetch', event => {
         url.hostname.includes('firebase')) {
         return;
     }
+
+    // Внешние API (например api.github.com для примечаний) не кэшируем вовсе:
+    // ответ зависит от заголовка Authorization, а Cache API сопоставляет только
+    // по URL — можно получить чужие или устаревшие данные. Только сеть.
+    if (event.request.method !== 'GET' || url.origin !== self.location.origin) {
+        return;
+    }
     
-    // ✅ ИСПРАВЛЕНО: Для HTML файлов и words.txt — НАСТОЯЩИЙ Network First
+    // ✅ ИСПРАВЛЕНО: Для HTML файлов, words.txt и notes.json — НАСТОЯЩИЙ Network First
     // Сначала пробуем сеть, только потом кэш.
     // Матчим по pathname, а не по всей строке: иначе words.txt?ts=123
     // (запрос с обходом кэша) проваливался в ветку «cache first».
+    // notes.json меняется при правках примечаний — его нельзя отдавать
+    // из кэша, иначе новые заметки не появятся до смены версии SW.
     if (url.pathname.endsWith('.html') ||
         url.pathname.endsWith('/words.txt') ||
+        url.pathname.endsWith('/notes.json') ||
         event.request.destination === 'document') {
         event.respondWith(
             fetch(event.request)
@@ -196,6 +206,32 @@ self.addEventListener('fetch', event => {
         return;
     }
     
+    // Данные (.json) — Cache First БЕЗ фоновой перезагрузки.
+    // arabic-words.json весит 23 МБ, definitions.json — 461 КБ. Раньше ветка
+    // stale-while-revalidate на каждом заходе в фоне перекачивала их целиком,
+    // даже если они уже лежали в кэше — это и было главной причиной тормозов
+    // при открытии «ручки» и списка слов. Обновление подхватится после смены
+    // CACHE_VERSION (каждый деплой её увеличивает).
+    if (url.pathname.endsWith('.json')) {
+        event.respondWith(
+            caches.match(event.request).then(cachedResponse => {
+                if (cachedResponse) return cachedResponse;
+                return fetch(event.request)
+                    .then(networkResponse => {
+                        if (networkResponse && networkResponse.status === 200) {
+                            const responseToCache = networkResponse.clone();
+                            caches.open(CACHE_NAME).then(cache => {
+                                cache.put(event.request, responseToCache);
+                            });
+                        }
+                        return networkResponse;
+                    })
+                    .catch(() => new Response('', { status: 504, statusText: 'Offline' }));
+            })
+        );
+        return;
+    }
+
     // Для остальных файлов (JS, CSS, картинки) — Cache First с безопасным фолбэком
     event.respondWith(
         caches.match(event.request)

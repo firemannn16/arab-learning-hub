@@ -4,7 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Тесты по правилам — Арабский</title>
-    <script src="theme.js"></script>
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com">
+<!-- Firebase: defer — скачивается параллельно, не блокирует отрисовку -->
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="theme.js"></script>
     <link rel="stylesheet" href="theme.css">
     <script src="dua.js"></script>
     <script src="service-worker-register.js"></script>
@@ -645,7 +652,7 @@
         async function loadQuestions() {
             let fileQuestions = [];
             try {
-                const resp = await fetch('questions.json?' + Date.now());
+                const resp = await fetch('questions.json', { cache: 'no-cache' });
                 if (resp.ok) {
                     fileQuestions = await resp.json();
                 }
