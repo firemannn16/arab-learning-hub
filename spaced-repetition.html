@@ -791,6 +791,7 @@
   let logsPushTimer = null;
   let logsPullTimer = null;
   let remoteChunkCards = [];         // последнее известное содержимое чанков all_*
+  let phantomWarned = [];            // предупреждали ли уже про карточки вне words.txt
   let lastRescheduleAt = 0;
   let undoStack = [];
   let errorList = [];
@@ -815,10 +816,14 @@
   // Карта со сроком "завтра" доступна с начала дня, а не с точного времени ответа.
   const DAY_CUTOFF_HOUR = 4;
   function dayStartTs(ts) {
-    const d = new Date(ts);
-    d.setHours(DAY_CUTOFF_HOUR, 0, 0, 0);
-    if (ts < d.getTime()) d.setDate(d.getDate() - 1);
-    return d.getTime();
+    // Сутки считаем по Москве — так же, как srDayKey для логов. Раньше здесь
+    // использовался часовой пояс устройства: если у ПК и телефона он разный,
+    // граница дня сдвигалась на часы и счётчик «повторяемых» расходился.
+    const MSK = 3 * 3600000, DAY = 86400000, CUT = DAY_CUTOFF_HOUR * 3600000;
+    const x = ts + MSK;
+    let idx = Math.floor(x / DAY);
+    if (x - idx * DAY < CUT) idx -= 1;
+    return idx * DAY + CUT - MSK;
   }
   function isDueByDay(due, now) {
     if (!due) return true;
@@ -1117,7 +1122,16 @@
     return [];
   }
   function saveCardsLocal(data) {
-    localStorage.setItem(CARD_STORE_KEY, JSON.stringify(data));
+    // Никогда не бросаем исключение: раньше переполнение localStorage ломало
+    // answer() ДО отправки в облако — ответ оставался только в памяти и терялся
+    // при перезагрузке, из-за чего устройства расходились.
+    try {
+      localStorage.setItem(CARD_STORE_KEY, JSON.stringify(data));
+      return true;
+    } catch(e) {
+      console.warn('SR: не удалось сохранить карточки локально:', e);
+      return false;
+    }
   }
 
   function srFirebaseReady() {
@@ -1203,10 +1217,22 @@
   // Версия карточки: чем свежее, тем главнее. modTs меняется при ЛЮБОМ изменении
   // (ответ, отмена, пересчёт), поэтому пересчёт корректно расходится между устройствами.
   function cardVersion(c) { return (c && (c.modTs || c.lastReview)) || 0; }
+  // Отпечаток состояния: нужен, когда версии совпали, а содержимое разное
+  // (два устройства ответили в одну и ту же миллисекунду).
+  function cardFingerprint(c) {
+    if (!c) return '';
+    return [c.state, c.due, c.stability, c.difficulty, c.reps, c.lapses,
+      c.lastReview, c.step, c.scheduledDays].join('|');
+  }
   function isCardNewer(a, b) {
     const va = cardVersion(a), vb = cardVersion(b);
     if (va !== vb) return va > vb;
-    return ((a && a.lastReview) || 0) > ((b && b.lastReview) || 0);
+    const la = (a && a.lastReview) || 0, lb = (b && b.lastReview) || 0;
+    if (la !== lb) return la > lb;
+    // Версии равны — раньше каждое устройство оставляло СВОЮ версию, поэтому
+    // расхождение (527 против 523) не исчезало никогда. Теперь выбор
+    // детерминированный: оба устройства приходят к одному и тому же ответу.
+    return cardFingerprint(a) > cardFingerprint(b);
   }
 
   // Realtime: карточки (users/{uid}/sr_cards/all_N)
@@ -1220,12 +1246,17 @@
         const listener = coll.doc('all_' + i).onSnapshot((snap) => {
           if (!snap.exists || !snap.data() || !Array.isArray(snap.data().cards)) return;
           const remote = snap.data().cards;
-          remoteChunkCards[i] = remote;
-          // Отсев «призраков»: карточек, которых нет в текущем words.txt
+          // Карточки, которых нет в текущем words.txt, локально НЕ показываем,
+          // но из облака и не удаляем: если слово вернётся в список, вся история
+          // ответов сохранится. Раньше такая «чистка» возвращала карточку через
+          // слияние обратно — получался бесконечный цикл записи (каждая запись
+          // меняла updatedAt → новый snapshot → снова запись) и браузер умирал.
           const valid = remote.filter(c => c && c.id && isKnownCardId(c.id));
-          if (valid.length !== remote.length && initDone) {
-            console.log('SR: убрано призрачных карт:', remote.length - valid.length, 'в чанке', i);
-            writeCardsChunk(coll, i, valid);
+          remoteChunkCards[i] = valid;
+          if (valid.length !== remote.length && initDone && !phantomWarned[i]) {
+            phantomWarned[i] = true;
+            console.log('SR: в облаке ' + (remote.length - valid.length) +
+              ' карточек вне words.txt (чанк ' + i + ') — локально скрыты, в облаке сохранены');
           }
           let changed = false;
           const idxById = {};
@@ -1321,6 +1352,43 @@
     startSettingsSyncListener();
     startCardsSyncListener();
     startDaySyncListener();
+    startCardsReconcileLoop();
+  }
+
+  // ===== Страховка: раз в минуту сверяем карточки с облаком =====
+  // Realtime-слушатель может молча умереть (сеть, спящий телефон, ошибка SDK).
+  // Тогда устройство «застревает» со своим состоянием, и счётчики расходятся.
+  // Этот цикл добирает более свежие версии карточек с сервера.
+  let cardsReconcileTimer = null;
+  function startCardsReconcileLoop() {
+    if (cardsReconcileTimer) clearInterval(cardsReconcileTimer);
+    cardsReconcileTimer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (!srFirebaseReady()) return;
+      reconcileCardsFromCloud();
+    }, 60000);
+  }
+  async function reconcileCardsFromCloud() {
+    const remote = await loadCardsFromFirestore();
+    if (!remote || !remote.length) return 0;
+    const map = {};
+    remote.forEach(c => { if (c && c.id) map[c.id] = c; });
+    // Карточки, которые сейчас в очереди, не трогаем — чтобы не менять
+    // состояние под рукой во время ответа.
+    const busy = new Set();
+    queue.forEach(c => { if (c && c.id) busy.add(c.id); });
+    let changed = 0;
+    cards.forEach(c => {
+      if (busy.has(c.id)) return;
+      const r = map[c.id];
+      if (r && isCardNewer(r, c)) { Object.assign(c, r); changed++; }
+    });
+    if (changed) {
+      saveCardsLocal(cards);
+      window.__cards = cards;
+      if (deckSelectionVisible) renderDeckSelection();
+    }
+    return changed;
   }
 
   // ===== Синхронизация счётчиков дня (users/{uid}/sr_cards/day) =====
@@ -1500,21 +1568,50 @@
     return Math.abs(h) % CARD_CHUNKS;
   }
 
-  // Запись чанка со СЛИЯНИЕМ с последним известным облачным состоянием.
-  // Раньше чанк перезаписывался целиком версией одного устройства — и второе устройство
-  // стирало карточки первого. Теперь побеждает более свежая версия каждой карточки.
+  // Запись чанка со СЛИЯНИЕМ с ТЕКУЩИМ облачным состоянием (в транзакции).
+  // Раньше базой служил локальный кэш remoteChunkCards. Если второе устройство
+  // успевало обновить карточку, запись из устаревшей базы возвращала старое
+  // значение — ответ терялся, и счётчики «повторяемых» расходились навсегда.
+  // Теперь документ читается внутри транзакции, а записи в один чанк идут
+  // строго по очереди, чтобы не перетирать друг друга.
+  const chunkWriteChain = [];
+  function queueChunkWrite(coll, ci, cardsInChunk) {
+    const prev = chunkWriteChain[ci] || Promise.resolve();
+    const next = prev.catch(() => {}).then(() => writeCardsChunk(coll, ci, cardsInChunk));
+    chunkWriteChain[ci] = next.catch(() => {});
+    return next;
+  }
   async function writeCardsChunk(coll, ci, myCardsInChunk) {
-    const base = remoteChunkCards[ci] || [];
+    const ref = coll.doc('all_' + ci);
     const mine = new Map();
-    myCardsInChunk.forEach(c => mine.set(c.id, c));
-    const out = [];
-    base.forEach(rc => { if (rc && rc.id && !mine.has(rc.id)) out.push(rc); });
-    mine.forEach(c => {
-      const rc = (base.find(x => x && x.id === c.id)) || null;
-      out.push((rc && isCardNewer(rc, c)) ? rc : c);
-    });
+    (myCardsInChunk || []).forEach(c => { if (c && c.id) mine.set(c.id, c); });
+    let out = [];
+    try {
+      await window.firestore.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        const data = snap.exists ? snap.data() : null;
+        const base = data && Array.isArray(data.cards) ? data.cards : [];
+        // Базу НЕ фильтруем по words.txt: карточка, которой нет в списке слов на
+        // этом устройстве, должна остаться в облаке — иначе теряется история
+        // ответов, как только список слов разойдётся между устройствами.
+        const byId = new Map();
+        base.forEach(rc => { if (rc && rc.id) byId.set(rc.id, rc); });
+        mine.forEach((c, id) => {
+          const rc = byId.get(id);
+          byId.set(id, (rc && isCardNewer(rc, c)) ? rc : c);
+        });
+        out = Array.from(byId.values());
+        // Если содержимое не изменилось — НЕ пишем. Иначе updatedAt меняется,
+        // срабатывает onSnapshot и получается цикл записи-чтения.
+        const before = JSON.stringify(base.map(cardFingerprint));
+        const after = JSON.stringify(out.map(cardFingerprint));
+        if (before === after) return;
+        tx.set(ref, { cards: out, updatedAt: new Date().toISOString() }, { merge: true });
+      });
+    } catch(e) {
+      console.warn('SR: не удалось записать чанк ' + ci + ':', e);
+    }
     remoteChunkCards[ci] = out;
-    await coll.doc('all_' + ci).set({ cards: out, updatedAt: new Date().toISOString() }, { merge: true });
     return out;
   }
 
@@ -1531,7 +1628,7 @@
       if (onlyCardId) chunkSet.add(cardChunkIndex(onlyCardId));
       else for (let i = 0; i < CARD_CHUNKS; i++) chunkSet.add(i);
       for (const ci of chunkSet) {
-        await writeCardsChunk(coll, ci, chunks[ci]);
+        await queueChunkWrite(coll, ci, chunks[ci]);
       }
     } catch(e) {
       console.warn('Firestore save error:', e);
@@ -1752,6 +1849,48 @@
     get count() { return logs.length; },
     get badge() { return !!document.getElementById('srSyncBadge'); },
     pull: () => pullLogsFromFirestore(),
+    // Сравнение локальных карточек с облаком: показывает, где именно расхождение
+    diff: async () => {
+      const out = { local: cards.length, cloud: 0, onlyLocal: [], onlyCloud: [],
+                    different: [], phantomsCloud: [], dueLocal: 0, dueCloud: 0 };
+      if (!srFirebaseReady()) { out.error = 'Firebase не готов'; return out; }
+      const coll = window.firestore.collection('users').doc(window.authUser.uid).collection('sr_cards');
+      const cloud = [];
+      for (let i = 0; i < CARD_CHUNKS; i++) {
+        const snap = await coll.doc('all_' + i).get();
+        if (snap.exists && Array.isArray(snap.data().cards)) cloud.push(...snap.data().cards);
+      }
+      const now = Date.now();
+      const cloudMap = {};
+      cloud.forEach(c => { if (c && c.id) cloudMap[c.id] = c; });
+      const localIds = new Set();
+      cards.forEach(c => {
+        localIds.add(c.id);
+        const r = cloudMap[c.id];
+        if (!r) { out.onlyLocal.push(c.id); return; }
+        if (cardFingerprint(r) !== cardFingerprint(c)) {
+          out.different.push({ id: c.id, local: cardFingerprint(c), cloud: cardFingerprint(r),
+                               localTs: cardVersion(c), cloudTs: cardVersion(r) });
+        }
+      });
+      cloud.forEach(c => {
+        if (!c || !c.id || localIds.has(c.id)) return;
+        if (isKnownCardId(c.id)) out.onlyCloud.push(c.id); else out.phantomsCloud.push(c.id);
+      });
+      out.cloud = cloud.length;
+      out.dueLocal = cards.filter(c => c.state === window.FSRS_STATE.REVIEW && isDueByDay(c.due, now)).length;
+      out.dueCloud = cloud.filter(c => c && c.state === window.FSRS_STATE.REVIEW && isDueByDay(c.due, now)).length;
+      console.table({ local: out.local, cloud: out.cloud, onlyLocal: out.onlyLocal.length,
+        onlyCloud: out.onlyCloud.length, different: out.different.length,
+        phantomsCloud: out.phantomsCloud.length, dueLocal: out.dueLocal, dueCloud: out.dueCloud });
+      return out;
+    },
+    // Забрать карточки из облака и применить к локальным (лечение расхождения)
+    resync: async () => {
+      if (!srFirebaseReady()) return 'Firebase не готов';
+      const n = await reconcileCardsFromCloud();
+      return 'применено с облака: ' + n;
+    },
     diag: async () => {
       const out = { ready: srFirebaseReady(), badge: !!document.getElementById('srSyncBadge'),
                     status: syncStatus, logs: logs.length };
@@ -1841,9 +1980,11 @@
     await loadNotes();
 
     let storedCards = loadCardsLocal();
+    let remoteHasHistory = false;
     if (window.auth && window.authUser) {
       const remote = await loadCardsFromFirestore();
       if (remote && remote.length > 0) {
+        remoteHasHistory = remote.some(c => c && c.state !== window.FSRS_STATE.NEW && (c.reps || 0) > 0);
         if (storedCards.length === 0) {
           storedCards = remote;
         } else {
@@ -1880,12 +2021,21 @@
     storedCards.forEach(c => { cardMap[c.id] = c; });
 
     cards = [];
+    // Один id — одна карточка. В words.txt есть строки, дающие одинаковый id
+    // («Присутствие - …» и «присутствие - …», дважды «оскорблять», дважды
+    // «освобождать»). Раньше такая карточка попадала в массив ДВАЖДЫ:
+    // cards.findIndex всегда находил первую копию, вторая навсегда оставалась
+    // «просроченной» — вечно висела в счётчике «повторяемых», и ответить на неё
+    // было невозможно. Плюс локально карточек было больше, чем в облаке.
+    const seenCardIds = new Set();
     allWords.forEach(line => {
       const card = initCard(line, cardMap);
-      if (card) cards.push(card);
+      if (!card || seenCardIds.has(card.id)) return;
+      seenCardIds.add(card.id);
+      cards.push(card);
     });
 
-    migrateToFSRSv2();
+    migrateToFSRSv2(remoteHasHistory);
 
     saveCardsLocal(cards);
     if (window.auth && window.authUser) saveCardsToFirestore(cards);
@@ -1996,8 +2146,16 @@
 
   // Одноразовая миграция на настоящий FSRS-5:
   // пересчитываем stability/difficulty карт, прогоняя историю ответов через правильные формулы
-  function migrateToFSRSv2() {
+  function migrateToFSRSv2(cloudHasHistory) {
     if (localStorage.getItem('sr_fsrs_v2') === '1') return;
+    // В аккаунте уже есть пересчитанный прогресс (карточки не NEW и есть повторы) —
+    // значит миграция давно прошла на другом устройстве. Повторный прогон на этом
+    // устройстве выставил бы всем карточкам свежий modTs и затёр расписание с ПК.
+    // Такое случалось после очистки данных сайта на телефоне.
+    if (cloudHasHistory) {
+      localStorage.setItem('sr_fsrs_v2', '1');
+      return;
+    }
 
     const byCard = buildLogIndex();
     const model = makeTempModel(fsrs.w);
@@ -2549,16 +2707,20 @@
 
   async function resetProgress() {
     const defaultCard = window.FSRS_defaultCard();
+    // modTs обязателен: без него версия карточки = 0, и слияние в облаке считало
+    // облачную (старую) версию новее — сброс не доезжал до других устройств.
+    const resetTs = Date.now();
     cards.forEach(c => {
       Object.assign(c, defaultCard);
-      c.id = c.id;
-      c.ru = c.ru;
-      c.ar = c.ar;
-      c.line = c.line;
+      c.modTs = resetTs;
     });
     saveCardsLocal(cards);
     logs = [];
-    saveLogs();
+    logDirtyDays.clear();
+    undoneLogs = new Set();
+    saveUndoneLogs();
+    if (logsPushTimer) { clearTimeout(logsPushTimer); logsPushTimer = null; }
+    saveLogs(false);
     todayCount = 0;
     saveTodayCount();
     newTodayCount = 0;
@@ -2571,18 +2733,18 @@
     try {
       if (window.auth && window.authUser) {
         await saveCardsToFirestore(cards);
+        // Удаляем ВСЮ историю ответов: и дневные документы log_<день>, и старые
+        // logs_N. Раньше дневные не удалялись — после сброса они приезжали обратно
+        // при следующей синхронизации.
         try {
-          const uid = window.authUser.uid;
-          if (typeof window.firestore.collection === 'function') {
-            let chunkIdx = 0;
-            while (true) {
-              const ref = window.firestore.collection('users').doc(uid).collection('sr_cards').doc('logs_' + chunkIdx);
-              const snap = await ref.get();
-              if (!snap.exists) break;
-              await ref.delete();
-              chunkIdx++;
+          const coll = window.firestore.collection('users').doc(window.authUser.uid).collection('sr_cards');
+          const snapAll = await coll.get();
+          for (const d of snapAll.docs) {
+            if (isDayLogDoc(d.id) || isLegacyLogDoc(d.id)) {
+              try { await d.ref.delete(); } catch(e) { console.warn('SR: не удалён ' + d.id, e); }
             }
           }
+          remoteLogDays = {};
         } catch(e) { console.warn('Firestore logs reset error:', e); }
       }
     } catch(e) { console.warn('Firestore cards reset error:', e); }
@@ -3269,8 +3431,8 @@
         cards.forEach((c, i) => {
           if (remoteMap[c.id]) {
             const r = remoteMap[c.id];
-            if ((r.lastReview || 0) > (c.lastReview || 0)) {
-              cards[i] = r;
+            if (isCardNewer(r, c)) {
+              Object.assign(cards[i], r);
               changed = true;
             }
           }
@@ -3286,6 +3448,7 @@
       stopCardsSyncListener();
       stopSettingsSyncListener();
       stopDaySyncListener();
+      if (cardsReconcileTimer) { clearInterval(cardsReconcileTimer); cardsReconcileTimer = null; }
       srListenersStarted = false;
       lastPushedSettingsJSON = null;
       lastPushedDayJSON = null;
