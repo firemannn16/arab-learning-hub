@@ -3247,6 +3247,35 @@
       }
     }
 
+    // Скопировать все слова, которые сейчас есть в тренажёре заучивания,
+    // независимо от пройденного прогресса. Формат тот же, что и при вставке:
+    // «перевод — арабский», по строке на слово.
+    async function copyLearnWords(btn) {
+      if (!learnWords || learnWords.length === 0) {
+        showToast('В тренажёре нет слов');
+        return;
+      }
+
+      const total = learnWords.length;
+      const text = learnWords
+        .map(w => `${w.translation} — ${w.arabic}`)
+        .join('\n');
+
+      await copyText(text);
+
+      // Подтверждение прямо в кнопке: окно настроек перекрывает обычный тост
+      if (btn) {
+        if (!btn.dataset.originalLabel) {
+          btn.dataset.originalLabel = btn.textContent;
+        }
+        if (btn._copyTimer) clearTimeout(btn._copyTimer);
+        btn.textContent = `✓ Скопировано: ${total}`;
+        btn._copyTimer = setTimeout(() => {
+          btn.textContent = btn.dataset.originalLabel;
+        }, 1500);
+      }
+    }
+
     // Закрыть окно и вернуть таймер в то состояние, в котором он был.
     // startTimer() здесь не вызываем намеренно — он сбросил бы отсчёт заново,
     // а на паузе timeLeft сохраняется и должен продолжиться с того же места.
@@ -3643,6 +3672,9 @@
             </div>
           </div>
           <div class="modal-buttons">
+            <button class="modal-btn modal-btn-secondary" id="copyLearnWordsBtn" onclick="copyLearnWords(this)">
+              📋 Копировать все слова (${learnWords.length})
+            </button>
             <button class="modal-btn modal-btn-primary" id="timersOk">✅ Сохранить</button>
             <button class="modal-btn modal-btn-danger" id="timersCancel">Отмена</button>
           </div>
