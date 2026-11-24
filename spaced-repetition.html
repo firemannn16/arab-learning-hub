@@ -3514,9 +3514,6 @@
   let activeListTab = 'errors';
 
   function listByTab(tab) { return tab === 'learn' ? learnList : errorList; }
-  function listTitle(tab) {
-    return tab === 'learn' ? 'Нужно заучить' : 'Список ошибок';
-  }
   function updateListsBadge() {
     const s = document.getElementById('errorListBtn');
     if (!s) return;
@@ -3545,8 +3542,7 @@
           ${e.comment ? `<div class="sr-err-item-comment">комментарий: <span style="color:#6b7280">${escapeHtml(e.comment)}</span></div>` : ''}
         </div>
       `).join('');
-    document.getElementById('errorListCount').textContent =
-      listTitle(activeListTab) + ' (' + items.length + ')';
+    document.getElementById('errorListCount').textContent = 'Список';
     document.querySelectorAll('#errorListTabs .sr-list-tab').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tab === activeListTab);
     });
