@@ -857,6 +857,10 @@ const GH_PATH = 'words.txt';
 const NOTES_PATH = 'notes.json';
 let pendingEdits = {};
 let notesMap = {};
+// Если загрузка notes.json не удалась, notesMap пуст. Раньше в этом случае
+// сохранение одной заметки перезаписывало файл целиком и убивало все остальные.
+// Пока notes.json не прочитан успешно, сохранение запрещено.
+let notesLoadError = true;
 const STORAGE_EDITS_KEY = 'dict_edits';
 
 function getGitHubToken() {
@@ -1050,26 +1054,34 @@ async function loadNotesFromGitHub() {
       headers: token ? { 'Authorization': `token ${token}` } : {},
       cache: 'no-cache'
     });
-    if (res.status === 404) return {};
+    if (res.status === 404) { notesLoadError = false; return {}; }
     if (!res.ok) throw new Error(`GET notes ${res.status}`);
     const data = await res.json();
-    return JSON.parse(base64Decode(data.content));
+    const parsed = JSON.parse(base64Decode(data.content));
+    notesLoadError = false;
+    return parsed && typeof parsed === 'object' ? parsed : {};
   } catch(e) {
     console.warn('Failed to load notes:', e);
+    notesLoadError = true;
     return {};
   }
 }
 
-async function saveNotesToGitHub(notesToSave) {
+async function saveNotesToGitHub(notesToSave, ops) {
   const token = getGitHubToken();
   if (!token) {
     lastPushError = 'Не задан GitHub токен, примечание не отправлено.';
     return false;
   }
-
-  const content = base64Encode(JSON.stringify(notesToSave, null, 2));
+  // Защита от потери всех шархов: если notes.json не загрузился (сеть,
+  // лимит GitHub, старый кэш), локальная карта пуста — писать её нельзя.
+  if (notesLoadError) {
+    lastPushError = 'Не удалось прочитать notes.json с GitHub. Запись отменена, чтобы не потерять остальные примечания. Обновите страницу и попробуйте снова.';
+    return false;
+  }
   try {
     let sha = null;
+    let remoteNotes = {};
     const getUrl = `https://api.github.com/repos/${GH_REPO}/contents/${NOTES_PATH}?ref=${GH_BRANCH}`;
     const getRes = await fetch(getUrl, {
       headers: { 'Authorization': `token ${token}` },
@@ -1078,10 +1090,22 @@ async function saveNotesToGitHub(notesToSave) {
     if (getRes.ok) {
       const data = await getRes.json();
       sha = data.sha;
+      try {
+        const parsed = JSON.parse(base64Decode(data.content));
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) remoteNotes = parsed;
+      } catch(e) { console.warn('Не удалось разобрать notes.json с GitHub:', e); }
     } else if (getRes.status !== 404) {
       lastPushError = await describeGitHubError(getRes, 'Чтение notes.json');
       return false;
     }
+
+    // Всегда объединяем с тем, что реально лежит на GitHub: даже если локальная
+    // копия устарела, чужие шархи останутся на месте. Явные операции
+    // (поставить/удалить конкретный шарх) применяются последними.
+    const merged = { ...remoteNotes, ...(notesToSave || {}) };
+    if (ops && Array.isArray(ops.del)) ops.del.forEach(k => { delete merged[k]; });
+    if (ops && ops.set) Object.assign(merged, ops.set);
+    const content = base64Encode(JSON.stringify(merged, null, 2));
 
     const putUrl = `https://api.github.com/repos/${GH_REPO}/contents/${NOTES_PATH}`;
     const body = {
@@ -1154,7 +1178,7 @@ async function deleteWord(item) {
     let notesOk = true;
     if (arKey && notesMap[arKey]) {
       delete notesMap[arKey];
-      notesOk = await saveNotesToGitHub(notesMap);
+      notesOk = await saveNotesToGitHub(notesMap, { del: [arKey] });
     }
 
     // Clean up pendingEdits
@@ -1258,9 +1282,10 @@ function enableEditMode(item) {
       const oldNote = notesMap[arKey] || '';
       let notesOk = true;
       if (newNote !== oldNote) {
+        const ops = newNote ? { set: { [arKey]: newNote } } : { del: [arKey] };
         if (newNote) notesMap[arKey] = newNote;
         else delete notesMap[arKey];
-        notesOk = await saveNotesToGitHub(notesMap);
+        notesOk = await saveNotesToGitHub(notesMap, ops);
       }
       if (notesOk) {
         showTemporaryNotify('Сохранено в GitHub');

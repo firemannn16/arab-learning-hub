@@ -165,6 +165,16 @@
     transition: transform 0.15s;
   }
   .flashcard .sr-error-btn:hover { transform: scale(1.12); }
+  .flashcard .sr-learn-cross {
+    position: absolute; right: 14px; bottom: 12px;
+    width: 30px; height: 30px; border: none; border-radius: 50%;
+    background: #ef4444; color: #fff;
+    font-size: 1.05rem; font-weight: 700; line-height: 1;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(239,68,68,0.45);
+    transition: transform 0.15s;
+  }
+  .flashcard .sr-learn-cross:hover { transform: scale(1.12); }
 
   /* Rating buttons */
   .ratings {
@@ -472,6 +482,27 @@
   .sr-err-item-main { font-size: 0.95rem; font-weight: 600; word-break: break-word; }
   .sr-err-item-comment { font-size: 0.8rem; color: #94a3b8; margin-top: 3px; word-break: break-word; }
   .dark-theme .sr-err-item-comment { color: #64748b; }
+  .sr-err-item-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .sr-err-del-btn {
+    flex: none; margin-left: 6px; padding: 1px 7px;
+    border: none; border-radius: 6px; background: transparent;
+    color: #94a3b8; font-size: 0.9rem; cursor: pointer;
+  }
+  .sr-err-del-btn:hover { background: #fee2e2; color: #dc2626; }
+  .dark-theme .sr-err-del-btn:hover { background: #451a1a; color: #fca5a5; }
+  .sr-list-tabs {
+    display: flex; gap: 4px; margin-bottom: 10px;
+    border-bottom: 1px solid #e2e8f0; flex-shrink: 0;
+  }
+  .dark-theme .sr-list-tabs { border-bottom-color: #334155; }
+  .sr-list-tab {
+    flex: 1; padding: 8px 6px; border: none; background: transparent;
+    color: #64748b; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .sr-list-tab.active { color: #4f46e5; border-bottom-color: #4f46e5; }
+  .dark-theme .sr-list-tab { color: #94a3b8; }
+  .dark-theme .sr-list-tab.active { color: #a5b4fc; border-bottom-color: #a5b4fc; }
 
   .done-home-btn {
     display: inline-block; margin-top: 24px; padding: 12px 28px;
@@ -670,6 +701,10 @@
       <button class="sr-err-copy-btn" id="errorListCopyBtn">Копировать</button>
       <button class="sr-err-clear-btn" id="errorListClearBtn">Очистить</button>
     </div>
+    <div class="sr-list-tabs" id="errorListTabs">
+      <button type="button" class="sr-list-tab active" data-tab="errors">Список ошибок</button>
+      <button type="button" class="sr-list-tab" data-tab="learn">Список, который нужно заучить</button>
+    </div>
     <div id="errorListBody" class="sr-err-list-body"></div>
   </div>
 </div>
@@ -772,6 +807,8 @@
   const BOOST_NEW_KEY = 'arabSrBoostNew';
   const BOOST_REVIEW_KEY = 'arabSrBoostReview';
   const ERROR_LIST_KEY = 'arabSrDevErrors';
+  const LEARN_LIST_KEY = 'arabSrLearnList';
+  const LISTS_DOC = 'lists';               // users/<uid>/sr_cards/lists
   const SESSION_KEY = 'arabSrSession';
   const LOGS_LOCAL_CAP = 25000;         // локальное окно логов (в облаке хранится всё)
 
@@ -803,7 +840,13 @@
   let phantomWarned = [];            // предупреждали ли уже про карточки вне words.txt
   let lastRescheduleAt = 0;
   let undoStack = [];
+  // Массивы содержат и «живые» записи, и удалённые (deleted:true) — томбы нужны,
+  // чтобы удаление доезжало до другого устройства. Для показа берём активные.
   let errorList = [];
+  let learnList = [];
+  let listsSyncListener = null;
+  let listsPushChain = Promise.resolve();
+  let lastPushedListsJSON = null;
   // Множество id карточек, которые есть в текущем words.txt (для отсева «призраков»)
   let validCardIds = new Set();
   function isKnownCardId(id) {
@@ -1033,14 +1076,122 @@
 
   
 
-  function loadErrorList() {
-    try {
-      const d = JSON.parse(localStorage.getItem(ERROR_LIST_KEY));
-      if (Array.isArray(d)) errorList = d;
-    } catch(e) { errorList = []; }
+  // ===== Два списка: ошибки и «нужно заучить» =====
+  function cmpStr(a, b) {
+    a = String(a == null ? '' : a); b = String(b == null ? '' : b);
+    return a < b ? -1 : (a > b ? 1 : 0);
   }
-  function saveErrorList() {
-    try { localStorage.setItem(ERROR_LIST_KEY, JSON.stringify(errorList)); } catch(e) {}
+  function listEntryKey(e) {
+    if (!e || typeof e !== 'object') return '';
+    if (e.key) return String(e.key);
+    const line = String(e.line || '').trim();
+    const ru = String(e.translation || e.ru || '').trim();
+    const ar = String(e.word || e.ar || '').trim();
+    return line ? 'l:' + line : 'w:' + ru + '|' + ar;
+  }
+  function normalizeListEntry(raw, fallbackTs) {
+    const o = (raw && typeof raw === 'object') ? raw : {};
+    const translation = String(o.translation !== undefined ? o.translation : (o.ru || '')).trim();
+    const word = String(o.word !== undefined ? o.word : (o.ar || '')).trim();
+    const line = String(o.line || '').trim();
+    const ts = Number(o.ts !== undefined ? o.ts : (o.timestamp !== undefined ? o.timestamp : fallbackTs)) || 0;
+    return {
+      key: String(o.key || '').trim() || listEntryKey(o),
+      word: word,
+      translation: translation,
+      line: line,
+      comment: String(o.comment || ''),
+      ts: ts,
+      deleted: !!o.deleted
+    };
+  }
+  function activeListEntries(arr) {
+    return (arr || []).filter(e => e && !e.deleted);
+  }
+  function listEntryVersion(e) { return Number(e && (e.ts || e.timestamp)) || 0; }
+  function listEntryFingerprint(e) {
+    if (!e) return '';
+    return [e.key, e.word, e.translation, e.comment, !!e.deleted, listEntryVersion(e)].join('|');
+  }
+  function isListEntryNewer(a, b) {
+    const va = listEntryVersion(a), vb = listEntryVersion(b);
+    if (va !== vb) return va > vb;
+    return cmpStr(listEntryFingerprint(a), listEntryFingerprint(b)) > 0;
+  }
+  function serializeList(arr) {
+    return (arr || []).slice().sort((a, b) => cmpStr(a && a.key, b && b.key))
+      .map(e => [e.key, e.word, e.translation, e.comment, !!e.deleted, e.ts].join('~')).join('||');
+  }
+  function serializeLists(errors, learn) {
+    return serializeList(errors) + '\u0001' + serializeList(learn);
+  }
+  // Слияние по ключу с детерминированным выбором победителя: оба устройства
+  // приходят к одному и тому же результату даже при одновременной записи.
+  function mergeListArray(target, incoming, fallbackTs) {
+    if (!Array.isArray(incoming)) return false;
+    const map = new Map();
+    (target || []).forEach(e => { if (e && e.key) map.set(e.key, e); });
+    let changed = false;
+    incoming.forEach(raw => {
+      const e = normalizeListEntry(raw, fallbackTs);
+      if (!e.key) return;
+      const cur = map.get(e.key);
+      if (!cur) { map.set(e.key, e); changed = true; }
+      else if (isListEntryNewer(e, cur)) { map.set(e.key, e); changed = true; }
+    });
+    const merged = Array.from(map.values());
+    if (merged.length !== target.length || serializeList(merged) !== serializeList(target)) changed = true;
+    if (changed) { target.length = 0; merged.forEach(e => target.push(e)); }
+    return changed;
+  }
+  function replaceListState(target, incoming) {
+    const next = (incoming || []).map(e => normalizeListEntry(e, 0));
+    if (serializeList(next) === serializeList(target)) return false;
+    target.length = 0; next.forEach(e => target.push(e));
+    return true;
+  }
+  function loadStoredList(key, target) {
+    target.length = 0;
+    try {
+      const d = JSON.parse(localStorage.getItem(key));
+      if (Array.isArray(d)) d.forEach(raw => target.push(normalizeListEntry(raw, 0)));
+    } catch(e) {}
+  }
+  function saveStoredList(key, arr) {
+    try { localStorage.setItem(key, JSON.stringify(arr)); } catch(e) {}
+  }
+  function loadErrorList() { loadStoredList(ERROR_LIST_KEY, errorList); }
+  function saveErrorList() { saveStoredList(ERROR_LIST_KEY, errorList); }
+  function loadLearnList() { loadStoredList(LEARN_LIST_KEY, learnList); }
+  function saveLearnList() { saveStoredList(LEARN_LIST_KEY, learnList); }
+  // Повторное нажатие «✕» на той же карточке ничего не меняет.
+  function upsertListEntry(list, raw) {
+    const norm = normalizeListEntry(raw, Date.now());
+    if (!norm.line && !norm.word && !norm.translation) return false;
+    const i = list.findIndex(e => e && e.key === norm.key);
+    if (i >= 0) {
+      if (!list[i].deleted) return false;
+      list[i] = norm;
+    } else {
+      list.push(norm);
+    }
+    return true;
+  }
+  function tombstoneListKey(list, key) {
+    const i = list.findIndex(e => e && e.key === key);
+    const ts = Date.now();
+    if (i >= 0) {
+      if (list[i].deleted) return false;
+      list[i] = Object.assign({}, list[i], { deleted: true, ts: ts });
+    } else {
+      list.push({ key: key, word: '', translation: '', line: '', comment: '', ts: ts, deleted: true });
+    }
+    return true;
+  }
+  function clearList(list) {
+    let changed = false;
+    activeListEntries(list).slice().forEach(e => { if (tombstoneListKey(list, e.key)) changed = true; });
+    return changed;
   }
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
@@ -1223,6 +1374,121 @@
     }
   }
 
+  // ===== Синхронизация двух списков (ошибки + «нужно заучить») =====
+  function listsFirestoreDoc() {
+    if (!srFirebaseReady()) return null;
+    try {
+      return window.firestore.collection('users').doc(window.authUser.uid)
+        .collection('sr_cards').doc(LISTS_DOC);
+    } catch(e) { return null; }
+  }
+  async function loadListsFromFirestore() {
+    const ref = listsFirestoreDoc();
+    if (!ref) return null;
+    try {
+      const snap = await ref.get();
+      return (snap.exists && snap.data && snap.data()) ? snap.data() : null;
+    } catch(e) {
+      console.warn('SR: не удалось загрузить списки из Firestore:', e);
+      return null;
+    }
+  }
+  function applyListsPayload(p) {
+    if (!p || typeof p !== 'object') return false;
+    const fallbackTs = Number(p.updatedTs || 0) || 0;
+    let changed = false;
+    if (Array.isArray(p.errors) && mergeListArray(errorList, p.errors, fallbackTs)) changed = true;
+    if (Array.isArray(p.learn) && mergeListArray(learnList, p.learn, fallbackTs)) changed = true;
+    if (changed) {
+      saveErrorList();
+      saveLearnList();
+      updateListsBadge();
+      refreshOpenListsModal();
+    }
+    return changed;
+  }
+  async function reconcileListsFromCloud() {
+    const remote = await loadListsFromFirestore();
+    if (remote) applyListsPayload(remote);
+    await pushListsToFirestore();
+  }
+  // Запись всегда идёт транзакцией: читаем актуальное облако и сливаем с ним.
+  // Поэтому добавление на телефоне не затрёт добавление на ПК, а удаление
+  // (томб deleted:true) корректно доедет до второй стороны.
+  function pushListsToFirestore(force) {
+    const ref = listsFirestoreDoc();
+    if (!ref) return Promise.resolve(false);
+    const next = listsPushChain.catch(() => {}).then(async () => {
+      const localJSON = serializeLists(errorList, learnList);
+      if (!force && localJSON === lastPushedListsJSON) return false;
+      const localErrors = errorList.map(e => Object.assign({}, e));
+      const localLearn = learnList.map(e => Object.assign({}, e));
+      let mergedErrors = localErrors, mergedLearn = localLearn, outJSON = '';
+      let wrote = false;
+      try {
+        await window.firestore.runTransaction(async tx => {
+          const snap = await tx.get(ref);
+          const remote = (snap.exists && snap.data && snap.data()) ? snap.data() : {};
+          mergedErrors = localErrors.slice();
+          mergedLearn = localLearn.slice();
+          const remoteTs = Number(remote.updatedTs || 0) || 0;
+          mergeListArray(mergedErrors, remote.errors, remoteTs);
+          mergeListArray(mergedLearn, remote.learn, remoteTs);
+          const outErrors = mergedErrors.filter(e => e && e.key);
+          const outLearn = mergedLearn.filter(e => e && e.key);
+          outJSON = serializeLists(outErrors, outLearn);
+          const remoteJSON = serializeLists(remote.errors || [], remote.learn || []);
+          if (outJSON !== remoteJSON) {
+            const now = Date.now();
+            tx.set(ref, {
+              errors: outErrors,
+              learn: outLearn,
+              updatedAt: new Date().toISOString(),
+              updatedTs: now
+            }, { merge: true });
+            wrote = true;
+          }
+          mergedErrors = outErrors;
+          mergedLearn = outLearn;
+        });
+      } catch(e) {
+        console.warn('SR: транзакция записи списков не удалась:', e);
+        return false;
+      }
+      lastPushedListsJSON = outJSON;
+      let changed = false;
+      if (replaceListState(errorList, mergedErrors)) { saveErrorList(); changed = true; }
+      if (replaceListState(learnList, mergedLearn)) { saveLearnList(); changed = true; }
+      if (changed) { updateListsBadge(); refreshOpenListsModal(); }
+      return wrote || changed;
+    });
+    listsPushChain = next.catch(e => { console.warn('SR: lists push error:', e); return false; });
+    return next;
+  }
+  function startListsSyncListener() {
+    stopListsSyncListener();
+    const ref = listsFirestoreDoc();
+    if (!ref) return;
+    try {
+      listsSyncListener = ref.onSnapshot((snap) => {
+        if (!snap.exists || !snap.data) return;
+        applyListsPayload(snap.data());
+        pushListsToFirestore();
+      }, (err) => {
+        console.warn('SR: lists listener error:', err);
+        setTimeout(startListsSyncListener, 5000);
+      });
+    } catch(e) {
+      console.warn('SR: не удалось запустить lists listener:', e);
+    }
+  }
+  function stopListsSyncListener() {
+    if (listsSyncListener) {
+      try { listsSyncListener(); } catch(e) {}
+      listsSyncListener = null;
+    }
+  }
+
   // Версия карточки: чем свежее, тем главнее. modTs меняется при ЛЮБОМ изменении
   // (ответ, отмена, пересчёт), поэтому пересчёт корректно расходится между устройствами.
   function cardVersion(c) { return (c && (c.modTs || c.lastReview)) || 0; }
@@ -1355,12 +1621,14 @@
         if (dayChanged && deckSelectionVisible) renderDeckSelection();
         lastPushedDayJSON = JSON.stringify(srDayPayload());
       }
+      await reconcileListsFromCloud();
     } catch(e) {
       console.warn('SR: ошибка первичной синхронизации настроек:', e);
     }
     startSettingsSyncListener();
     startCardsSyncListener();
     startDaySyncListener();
+    startListsSyncListener();
     startCardsReconcileLoop();
     // Мобильный браузер замораживает таймеры в фоне: пока телефон в кармане,
     // ни сверка карточек, ни подтягивание логов не идут. Как только вкладка
@@ -1372,6 +1640,7 @@
         if (!srFirebaseReady()) return;
         reconcileCardsFromCloud();
         pullLogsFromFirestore();
+        reconcileListsFromCloud();
       });
     }
   }
@@ -1387,6 +1656,7 @@
       if (document.visibilityState !== 'visible') return;
       if (!srFirebaseReady()) return;
       reconcileCardsFromCloud();
+      reconcileListsFromCloud();
     }, 60000);
   }
   async function reconcileCardsFromCloud() {
@@ -1997,6 +2267,7 @@
     loadLogs();
     loadUndoneLogs();
     loadErrorList();
+    loadLearnList();
     // Миграция на настоящий FSRS-5: старые веса обучены на кривой модели — сбрасываем
     const fsrsV2Done = localStorage.getItem('sr_fsrs_v2') === '1';
     if (typeof window.FSRS !== 'function') {
@@ -2497,7 +2768,7 @@
       <div class="study-top-row">
         <div class="study-top-left">
           <button class="study-back-btn" id="studyBackBtn" title="Назад">←</button>
-          <button class="sr-err-list-btn" id="errorListBtn" title="Список ошибок">📋${errorList.length > 0 ? ' ' + errorList.length : ''}</button>
+          <button class="sr-err-list-btn" id="errorListBtn" title="Списки слов"></button>
         </div>
         <button class="undo-btn ${undoStack.length === 0 ? 'undo-disabled' : ''}" id="undoBtn" title="Отменить последний ответ">↶</button>
       </div>
@@ -2506,6 +2777,7 @@
         <div class="flashcard" id="flashcard">
           <button class="fav-star ${window.isFavorite ? (window.isFavorite(card.line) ? 'active' : '') : ''}" id="favStar">${window.isFavorite && window.isFavorite(card.line) ? '⭐' : '☆'}</button>
           <button class="sr-error-btn" id="errorBtn" title="Добавить в список ошибок">!</button>
+          <button class="sr-learn-cross" id="learnCrossBtn" title="Добавить в список «Нужно заучить»">✕</button>
           <div class="word-index">${done + 1}/${total}</div>
           <div class="front-text arabic" id="frontText">${front}</div>
           <div class="tap-hint" id="tapHint">👆 нажмите, чтобы увидеть перевод</div>
@@ -2521,8 +2793,10 @@
       <div class="queue-info">Вероятность вспомнить: ${r !== null ? Math.round(r * 100) + '%' : 'Новая карта'}</div>
     `;
 
+    updateListsBadge();
+
     document.getElementById('flashcard').addEventListener('click', (e) => {
-      if (e.target.closest('.fav-star') || e.target.closest('.sr-error-btn')) return;
+      if (e.target.closest('.fav-star') || e.target.closest('.sr-error-btn') || e.target.closest('.sr-learn-cross')) return;
       flipCard(card);
     });
 
@@ -2539,6 +2813,10 @@
     const errorBtn = document.getElementById('errorBtn');
     if (errorBtn) {
       errorBtn.addEventListener('click', () => openErrorReport(card));
+    }
+    const learnCrossBtn = document.getElementById('learnCrossBtn');
+    if (learnCrossBtn) {
+      learnCrossBtn.addEventListener('click', () => addCardToLearnList(card));
     }
     const errorListBtn = document.getElementById('errorListBtn');
     if (errorListBtn) {
@@ -3233,18 +3511,68 @@
     ta.focus();
   }
 
-  function openErrorListModal() {
+  let activeListTab = 'errors';
+
+  function listByTab(tab) { return tab === 'learn' ? learnList : errorList; }
+  function listTitle(tab) {
+    return tab === 'learn' ? 'Нужно заучить' : 'Список ошибок';
+  }
+  function updateListsBadge() {
+    const s = document.getElementById('errorListBtn');
+    if (!s) return;
+    const errors = activeListEntries(errorList).length;
+    const learn = activeListEntries(learnList).length;
+    const total = errors + learn;
+    s.textContent = '📋' + (total > 0 ? ' ' + total : '');
+    s.title = 'Ошибки: ' + errors + ' · Нужно заучить: ' + learn;
+  }
+  function refreshOpenListsModal() {
+    const m = document.getElementById('errorListModal');
+    if (m && m.style.display === 'flex') renderListTab();
+  }
+  function renderListTab() {
     const body = document.getElementById('errorListBody');
-    body.innerHTML = errorList.length === 0
+    if (!body) return;
+    const items = activeListEntries(listByTab(activeListTab));
+    body.innerHTML = items.length === 0
       ? '<div style="color:#94a3b8;text-align:center;padding:20px">Список пуст</div>'
-      : errorList.map(e => `
+      : items.map(e => `
         <div class="sr-err-item">
-          <div class="sr-err-item-main">${escapeHtml(e.translation)} - ${escapeHtml(e.word)}</div>
+          <div class="sr-err-item-row">
+            <div class="sr-err-item-main">${escapeHtml(e.translation)} - ${escapeHtml(e.word)}</div>
+            <button class="sr-err-del-btn" data-key="${escapeHtml(e.key)}" title="Убрать из списка">✕</button>
+          </div>
           ${e.comment ? `<div class="sr-err-item-comment">комментарий: <span style="color:#6b7280">${escapeHtml(e.comment)}</span></div>` : ''}
         </div>
       `).join('');
-    document.getElementById('errorListCount').textContent = 'Список ошибок (' + errorList.length + ')';
+    document.getElementById('errorListCount').textContent =
+      listTitle(activeListTab) + ' (' + items.length + ')';
+    document.querySelectorAll('#errorListTabs .sr-list-tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === activeListTab);
+    });
+    const copyBtn = document.getElementById('errorListCopyBtn');
+    const clearBtn = document.getElementById('errorListClearBtn');
+    if (copyBtn) copyBtn.style.display = items.length ? '' : 'none';
+    if (clearBtn) clearBtn.style.display = items.length ? '' : 'none';
+  }
+  function openErrorListModal(tab) {
+    activeListTab = (tab === 'learn') ? 'learn' : 'errors';
+    renderListTab();
     document.getElementById('errorListModal').style.display = 'flex';
+  }
+  function addCardToLearnList(card) {
+    if (!card) return;
+    const entry = { line: card.line, word: card.ar, translation: card.ru };
+    const key = listEntryKey(entry);
+    if (learnList.some(e => e && e.key === key && !e.deleted)) {
+      showToast('Уже в списке «Нужно заучить»');
+      return;
+    }
+    if (!upsertListEntry(learnList, entry)) return;
+    saveLearnList();
+    updateListsBadge();
+    pushListsToFirestore();
+    showToast('Добавлено в «Нужно заучить»');
   }
 
   document.getElementById('errorReportSaveBtn').addEventListener('click', () => {
@@ -3258,17 +3586,17 @@
       showToast('Добавьте комментарий, чтобы сохранить');
       return;
     }
-    errorList.push({
+    errorList.push(normalizeListEntry({
       word: cardData.ar,
       translation: cardData.ru,
       line: cardData.line,
       comment: comment,
-      timestamp: Date.now()
-    });
+      ts: Date.now()
+    }, Date.now()));
     saveErrorList();
     document.getElementById('errorReportModal').style.display = 'none';
-    const s = document.getElementById('errorListBtn');
-    if (s) s.textContent = '📋' + (errorList.length > 0 ? ' ' + errorList.length : '');
+    updateListsBadge();
+    pushListsToFirestore();
     showToast('Добавлено в список ошибок');
   });
   document.getElementById('errorReportComment').addEventListener('input', function() {
@@ -3286,8 +3614,27 @@
   document.getElementById('errorListModal').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) e.target.style.display = 'none';
   });
+  document.getElementById('errorListTabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.sr-list-tab');
+    if (!btn) return;
+    activeListTab = btn.dataset.tab === 'learn' ? 'learn' : 'errors';
+    renderListTab();
+  });
+  document.getElementById('errorListBody').addEventListener('click', (e) => {
+    const btn = e.target.closest('.sr-err-del-btn');
+    if (!btn) return;
+    const list = listByTab(activeListTab);
+    if (!tombstoneListKey(list, btn.dataset.key)) return;
+    saveErrorList();
+    saveLearnList();
+    pushListsToFirestore();
+    updateListsBadge();
+    renderListTab();
+    showToast('Удалено из списка');
+  });
   document.getElementById('errorListCopyBtn').addEventListener('click', () => {
-    const text = errorList.map(e => {
+    const items = activeListEntries(listByTab(activeListTab));
+    const text = items.map(e => {
       let s = e.translation + ' - ' + e.word;
       if (e.comment) s += '\nкомментарий: ' + e.comment;
       return s;
@@ -3299,19 +3646,23 @@
     setTimeout(() => { btn.textContent = orig; }, 1500);
   });
   document.getElementById('errorListClearBtn').addEventListener('click', () => {
+    const list = listByTab(activeListTab);
+    const count = activeListEntries(list).length;
     showConfirm(
-      'Очистить список ошибок?',
-      'Все записи (' + errorList.length + ') будут удалены. Отменить это действие невозможно.',
+      'Очистить список?',
+      'Все записи (' + count + ') будут удалены. Отменить это действие невозможно.',
       'Отмена',
       'Очистить',
       () => {},
       () => {
-        errorList = [];
-        saveErrorList();
-        const s = document.getElementById('errorListBtn');
-        if (s) s.textContent = '📋';
-        openErrorListModal();
-        showToast('Список ошибок очищен');
+        if (clearList(list)) {
+          saveErrorList();
+          saveLearnList();
+          pushListsToFirestore();
+        }
+        updateListsBadge();
+        renderListTab();
+        showToast('Список очищен');
       }
     );
   });
@@ -3498,14 +3849,17 @@
       // Двусторонняя сверка: забрать свежее из облака И отправить то, что
       // успело накопиться локально (ответы, не доехавшие из-за обрыва связи).
       reconcileCardsFromCloud();
+      reconcileListsFromCloud();
     } else {
       stopCardsSyncListener();
       stopSettingsSyncListener();
       stopDaySyncListener();
+      stopListsSyncListener();
       if (cardsReconcileTimer) { clearInterval(cardsReconcileTimer); cardsReconcileTimer = null; }
       srListenersStarted = false;
       lastPushedSettingsJSON = null;
       lastPushedDayJSON = null;
+      lastPushedListsJSON = null;
       if (cards.length === 0) init();
     }
   });
